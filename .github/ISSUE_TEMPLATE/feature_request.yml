@@ -1,0 +1,52 @@
+name: Feature request
+description: Suggest a focused improvement for Sideby.
+title: "Feature: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem would this solve?
+      placeholder: "When I use two external monitors, I need..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest useful version of the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include workflows or existing macOS behavior you tried.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Menu bar settings
+        - Main settings
+        - Onboarding
+        - Input gestures
+        - Keyboard shortcuts
+        - Display Spaces
+        - Screen Switching
+        - Diagnostics
+        - Packaging
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Note any permission, privacy, public API, or release strategy concerns.
+      placeholder: "This should not require Screen Recording."
+    validations:
+      required: false

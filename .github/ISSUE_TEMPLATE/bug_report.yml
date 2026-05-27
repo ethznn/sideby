@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a reproducible problem in Sideby.
+title: "Bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. For security vulnerabilities, do not use this form; follow SECURITY.md instead.
+  - type: input
+    id: version
+    attributes:
+      label: Sideby version or commit
+      description: Use a tag, commit hash, or "main" with the date you pulled.
+      placeholder: "main at 2026-05-27"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "macOS 15.5"
+    validations:
+      required: true
+  - type: textarea
+    id: display_setup
+    attributes:
+      label: Display setup
+      description: Include display count, built-in/external displays, and whether displays have separate Spaces enabled.
+      placeholder: "MacBook display + one external monitor; displays have separate Spaces enabled."
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Permissions
+      description: List Accessibility, Screen Switching, Post Events, and System Events Automation status.
+      placeholder: "Accessibility granted; Screen Switching granted; Automation prompt denied."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Sideby.
+        2. Turn Sideby on.
+        3. Press Previous.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Attach only information you are comfortable sharing publicly.
+    validations:
+      required: false

@@ -1,0 +1,23 @@
+# macOS / Xcode / SwiftPM
+.DS_Store
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.moved-aside
+*.xcscmblueprint
+.build/
+.swiftpm/
+dist/
+*.xcresult
+*.dSYM/
+
+# Local secrets / signing material
+.env
+.env.*
+!.env.example
+*.p12
+*.mobileprovision
+*.provisionprofile
+
+# Logs
+*.log
