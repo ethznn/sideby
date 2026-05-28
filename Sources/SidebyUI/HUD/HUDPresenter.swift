@@ -24,4 +24,10 @@ public struct HUDPresenter: Sendable {
     public func state(for diagnostic: DiagnosticState, compact: Bool = false) -> HUDPresentationState {
         HUDPresentationState(text: diagnostic.title, isCompact: compact)
     }
+
+    public func stateForContextNeedsSync(
+        strings: SBSStrings = SBSStrings(language: .english)
+    ) -> HUDPresentationState {
+        HUDPresentationState(text: strings.contextNeedsSync, isCompact: true)
+    }
 }

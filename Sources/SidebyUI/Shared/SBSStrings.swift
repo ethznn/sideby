@@ -91,7 +91,7 @@ public struct SBSStrings: Sendable {
     public var addContext: String { text("Add Context", "컨텍스트 추가") }
     public var setCurrent: String { text("Set Current", "현재 위치로 맞춤") }
     public var deleteContext: String { text("Delete", "삭제") }
-    public var contextLabelPlaceholder: String { text("Label", "라벨") }
+    public var contextLabelPlaceholder: String { text("Context name", "컨텍스트 이름") }
     public var scanCurrentDisplays: String { text("Scan Current Displays", "현재 디스플레이 스캔") }
     public var scanCurrentSpace: String { text("Scan Current Space", "현재 화면 스캔") }
     public var captureContexts: String { text("Capture Contexts", "컨텍스트 캡처") }
@@ -101,10 +101,18 @@ public struct SBSStrings: Sendable {
     public var useApp: String { text("Use App", "앱 사용") }
     public var useTitle: String { text("Use Title", "제목 사용") }
     public var noCurrentContext: String { text("No current Context", "현재 컨텍스트 없음") }
+    public var contextNeedsSync: String { text("Context needs sync", "컨텍스트 동기화 필요") }
     public var contextPlannerHelp: String {
         text(
-            "Labels are written by you. Sideby moves only Previous or Next and updates the current Context after a successful switch.",
-            "라벨은 사용자가 직접 입력합니다. Sideby는 이전/다음으로만 이동하고 전환 성공 후 현재 컨텍스트를 갱신합니다."
+            "Each Context is the shared Space position across selected displays. Sideby stores one name per Context.",
+            "각 컨텍스트는 선택한 디스플레이들이 함께 있는 같은 순번의 Space입니다. Sideby는 컨텍스트마다 이름 하나만 저장합니다."
+        )
+    }
+    public var aligningToFirstSpace: String { text("Aligning to first Space", "첫 번째 Space로 맞추는 중") }
+    public var contextCaptureStopped: String {
+        text(
+            "Capture stopped. Existing Contexts were kept.",
+            "캡처가 중지되었습니다. 기존 컨텍스트는 유지되었습니다."
         )
     }
     public var displaySpacesHelp: String {
@@ -112,6 +120,13 @@ public struct SBSStrings: Sendable {
             "Each connected display is a Context. Add labels for the Spaces you move through on that display.",
             "연결된 디스플레이 하나가 컨텍스트입니다. 각 디스플레이에서 이동할 화면별 라벨을 입력합니다."
         )
+    }
+
+    public func contextsToCapture(_ count: Int) -> String {
+        if count == 1 {
+            return text("Capture up to 1 Context", "최대 1개 컨텍스트 캡처")
+        }
+        return text("Capture up to \(count) Contexts", "최대 \(count)개 컨텍스트 캡처")
     }
 
     public func spacesToCapture(_ count: Int) -> String {
@@ -133,6 +148,24 @@ public struct SBSStrings: Sendable {
 
     public func capturingContext(current: Int, total: Int, name: String) -> String {
         text("Capturing Context \(current) of \(total): \(name)", "컨텍스트 \(current)/\(total) 캡처 중: \(name)")
+    }
+
+    public func capturingContextUpTo(current: Int, limit: Int) -> String {
+        text("Capturing Context \(current) of up to \(limit)", "최대 \(limit)개 중 컨텍스트 \(current) 캡처 중")
+    }
+
+    public func capturedContexts(count: Int) -> String {
+        if count == 1 {
+            return text("Captured 1 Context · Now at Context 1", "컨텍스트 1개 캡처됨 · 현재 컨텍스트 1")
+        }
+        return text(
+            "Captured \(count) Contexts · Now at Context \(count)",
+            "컨텍스트 \(count)개 캡처됨 · 현재 컨텍스트 \(count)"
+        )
+    }
+
+    public func contextCaptureFailed(_ reason: String) -> String {
+        text("Capture failed: \(reason)", "캡처 실패: \(reason)")
     }
 
     public func capturingSpace(current: Int, total: Int) -> String {
@@ -390,6 +423,8 @@ public struct SBSStrings: Sendable {
             text("No previous Context", "이전 컨텍스트 없음")
         case "No next Context":
             text("No next Context", "다음 컨텍스트 없음")
+        case "Context needs sync":
+            contextNeedsSync
         default:
             title
         }
