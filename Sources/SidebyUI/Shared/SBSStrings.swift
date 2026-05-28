@@ -93,9 +93,7 @@ public struct SBSStrings: Sendable {
     public var deleteContext: String { text("Delete", "삭제") }
     public var contextLabelPlaceholder: String { text("Context name", "컨텍스트 이름") }
     public var scanCurrentDisplays: String { text("Scan Current Displays", "현재 디스플레이 스캔") }
-    public var scanCurrentSpace: String { text("Scan Current Space", "현재 화면 스캔") }
     public var captureContexts: String { text("Capture Contexts", "컨텍스트 캡처") }
-    public var displaySpaces: String { text("Display Spaces", "디스플레이별 화면") }
     public var stopCapture: String { text("Stop", "중지") }
     public var useApp: String { text("Use App", "앱 사용") }
     public var useTitle: String { text("Use Title", "제목 사용") }
@@ -122,25 +120,8 @@ public struct SBSStrings: Sendable {
         return text("Capture up to \(count) Contexts", "최대 \(count)개 컨텍스트 캡처")
     }
 
-    public func spacesToCapture(_ count: Int) -> String {
-        if count == 1 {
-            return text("Capture 1 Space", "1개 화면 캡처")
-        }
-        return text("Capture \(count) Spaces", "\(count)개 화면 캡처")
-    }
-
-    public func spaceName(_ order: Int) -> String {
-        text("Space \(order)", "화면 \(order)")
-    }
-
-    public var spaceLabelPlaceholder: String { text("App or title", "앱 또는 제목") }
-
     public func detectedApp(_ label: String) -> String {
         text("Detected: \(label)", "감지됨: \(label)")
-    }
-
-    public func capturingContext(current: Int, total: Int, name: String) -> String {
-        text("Capturing Context \(current) of \(total): \(name)", "컨텍스트 \(current)/\(total) 캡처 중: \(name)")
     }
 
     public func capturingContextUpTo(current: Int, limit: Int) -> String {
@@ -159,10 +140,6 @@ public struct SBSStrings: Sendable {
 
     public func contextCaptureFailed(_ reason: String) -> String {
         text("Capture failed: \(reason)", "캡처 실패: \(reason)")
-    }
-
-    public func capturingSpace(current: Int, total: Int) -> String {
-        text("Capturing Space \(current) of \(total)", "화면 \(current)/\(total) 캡처 중")
     }
 
     public func selectedDisplaySummary(selected: Int, total: Int) -> String {

@@ -74,18 +74,6 @@ final class AppShellTests: XCTestCase {
         )
     }
 
-    func testContextCaptureStatusDisplayShowsProgress() {
-        XCTAssertEqual(
-            ContextCaptureStatusDisplay.statusText(
-                contextName: "Context 2",
-                currentStep: 2,
-                totalSteps: 3,
-                strings: SBSStrings(language: .english)
-            ),
-            "Capturing Context 2 of 3: Context 2"
-        )
-    }
-
     func testContextListRowsExposeCurrentAndNeedsSyncState() {
         var plan = ContextPlan.default
         plan.renameContext(id: "context-2", name: "Research")
