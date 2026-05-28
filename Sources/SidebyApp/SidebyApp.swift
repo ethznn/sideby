@@ -503,6 +503,17 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var lastScrollStatusUpdate = 0.0
     private var isOnboardingGestureTestActive = false
     private var settingsObserver: NSObjectProtocol?
+    private var externalSpaceObserver: NSObjectProtocol?
+    private var ignoresExternalSpaceChangesUntil: Date?
+
+    isolated deinit {
+        if let settingsObserver {
+            DistributedNotificationCenter.default().removeObserver(settingsObserver)
+        }
+        if let externalSpaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(externalSpaceObserver)
+        }
+    }
 
     init() {
         var loadedSettings = settingsStore.load()
@@ -516,6 +527,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         self.lastInputEvent = Self.inputHint(for: loadedSettings, strings: strings)
         self.loginItemStatus = strings.startAtLoginStatus(isEnabled: loginItemService.isEnabled)
         startSettingsChangeObserver()
+        startExternalSpaceChangeObserver()
         refresh()
         if isEnabled {
             DispatchQueue.main.async { [weak self] in
@@ -591,13 +603,24 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         postEventAccessGranted = CGPreflightPostEventAccess()
         automationAccessGranted = automationPermissionProbe.checkAccessWithoutPrompt().isGranted
         loginItemStatus = strings.startAtLoginStatus(isEnabled: loginItemService.isEnabled)
-        diagnostics = DiagnosticRule.evaluate(
+        diagnostics = currentDiagnostics()
+    }
+
+    private func currentDiagnostics() -> [DiagnosticState] {
+        var values = DiagnosticRule.evaluate(
             decision: ModePolicy().decision(
                 for: settings.mode,
                 inputMethod: .shortcut,
                 runtimeState: runtimeState
             )
         )
+
+        if settings.contextPlan.syncState == .needsSync,
+           let diagnostic = settings.contextPlan.navigation(for: .next).diagnostic {
+            values.append(diagnostic)
+        }
+
+        return values
     }
 
     func requestPermissions() {
@@ -1007,6 +1030,41 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
+    private func startExternalSpaceChangeObserver() {
+        externalSpaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handleExternalSpaceChange()
+            }
+        }
+    }
+
+    private func handleExternalSpaceChange() {
+        if isSwitching || contextCaptureSession != nil {
+            ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
+            return
+        }
+
+        if let ignoreUntil = ignoresExternalSpaceChangesUntil,
+           Date() < ignoreUntil {
+            return
+        }
+
+        guard settings.contextPlan.syncState == .synchronized else {
+            return
+        }
+
+        updateContextPlan { plan in
+            plan.markNeedsSync()
+        }
+
+        diagnostics = currentDiagnostics()
+        lastSwitchResult = strings.contextNeedsSync
+    }
+
     private func reloadSettingsFromStoreIfChanged() {
         var loadedSettings = settingsStore.load()
         loadedSettings.mode = .shortcut
@@ -1298,6 +1356,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
+        ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(1.5)
         isSwitching = true
         switchSessionID += 1
         let sessionID = switchSessionID
@@ -1320,6 +1379,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     return
                 }
                 self.isSwitching = false
+                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
                 self.lastSwitchResult = result.didPost
                     ? self.strings.postedSwitch(label: label, command: command)
                     : self.strings.blockedSwitch(
@@ -1375,6 +1435,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
+        ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(1.5)
         isSwitching = true
         switchSessionID += 1
         let sessionID = switchSessionID
@@ -1407,6 +1468,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     targetContext: targetContext
                 )
                 self.isSwitching = false
+                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
                 if let shouldResumeInput {
                     self.finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
                 }
@@ -1756,6 +1818,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         settings.contextPlan = plan
         contextsToCapture = plan.captureLimit
         settingsStore.save(settings)
+        diagnostics = currentDiagnostics()
         refreshLocalizedStatus()
     }
 
