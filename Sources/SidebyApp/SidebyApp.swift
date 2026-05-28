@@ -477,15 +477,14 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var loginItemStatus = "Start at login off"
     @Published var onboardingDetectedGestureCount = 0
     @Published var didFinishMiniOnboarding = false
-    @Published var visibleSpaceSuggestionsByDisplayID: [String: [Int: VisibleAppSuggestion]] = [:]
-    @Published var spaceCaptureSession: SpaceCaptureSession?
-    @Published var spaceCaptureStatus: String?
-    @Published var spacesToCapture = DisplaySpacePlan.default.defaultCaptureCount
+    @Published var visibleContextSuggestionsByOrder: [Int: [VisibleAppSuggestion]] = [:]
+    @Published var contextCaptureSession: ContextCaptureSession?
+    @Published var contextCaptureStatus: String?
+    @Published var contextsToCapture = ContextPlan.default.captureLimit
 
     private let settingsStore = UserDefaultsSettingsStore()
     private let permissionService = AccessibilityPermissionService()
     private let displayObserver = MacDisplayObserver()
-    private let visibleAppSuggestionProvider = MacVisibleAppSuggestionProvider()
     private let loginItemService = MacLoginItemService()
     private let automationPermissionProbe = SystemEventsAutomationPermissionProbe()
     private let systemEventsAutomationProbe = SystemEventsAutomationProbe<NSAppleScriptRunner>()
@@ -507,7 +506,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         var loadedSettings = settingsStore.load()
         loadedSettings.mode = .shortcut
         self.settings = loadedSettings
-        self.spacesToCapture = loadedSettings.displaySpacePlan.defaultCaptureCount
+        self.contextsToCapture = loadedSettings.contextPlan.captureLimit
         self.isEnabled = UserDefaults.standard.bool(forKey: Self.enabledDefaultsKey)
         let strings = SBSStrings(language: loadedSettings.language)
         self.lastSwitchResult = strings.noSwitchAttempted
@@ -585,7 +584,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     func refresh() {
         displayLayout = displayObserver.currentLayout()
         syncSelectedDisplays(with: displayLayout)
-        syncDisplaySpacePlan(with: displayLayout)
+        syncContextPlan()
         permissionState = permissionService.currentState
         postEventAccessGranted = CGPreflightPostEventAccess()
         automationAccessGranted = automationPermissionProbe.checkAccessWithoutPrompt().isGranted
@@ -694,144 +693,39 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         selectedDisplayIDs = Set(displayLayout.displays.map(\.id))
     }
 
-    func setSpacesToCapture(_ count: Int) {
+    func setContextsToCapture(_ count: Int) {
         let normalizedCount = min(max(count, 1), 12)
-        spacesToCapture = normalizedCount
-        updateDisplaySpacePlan { plan in
-            plan.defaultCaptureCount = normalizedCount
-            for display in displayLayout.displays {
-                plan.ensureSpaces(displayID: display.id, upTo: normalizedCount)
-            }
+        contextsToCapture = normalizedCount
+        updateContextPlan { plan in
+            plan.setCaptureLimit(normalizedCount)
         }
     }
 
-    func displaySpaceLabel(displayID: String, spaceOrder: Int) -> String {
-        settings.displaySpacePlan.label(displayID: displayID, spaceOrder: spaceOrder) ?? ""
-    }
-
-    func setDisplaySpaceLabel(displayID: String, spaceOrder: Int, label: String) {
-        updateDisplaySpacePlan { plan in
-            plan.updateLabel(displayID: displayID, spaceOrder: spaceOrder, label: label)
+    func setContextName(contextID: String, name: String) {
+        updateContextPlan { plan in
+            plan.renameContext(id: contextID, name: name)
         }
     }
 
-    func visibleSpaceSuggestion(displayID: String, spaceOrder: Int) -> VisibleAppSuggestion? {
-        visibleSpaceSuggestionsByDisplayID[displayID]?[spaceOrder]
-    }
-
-    func visibleSpaceCount(displayID: String) -> Int {
-        let suggestionOrders = visibleSpaceSuggestionsByDisplayID[displayID]
-            .map { Set($0.keys) } ?? []
-        return settings.displaySpacePlan.visibleSpaceCount(
-            displayID: displayID,
-            captureCount: spacesToCapture,
-            suggestionOrders: suggestionOrders
-        )
-    }
-
-    func scanVisibleAppsForCurrentSpace() {
-        scanVisibleApps(spaceOrder: 1)
-    }
-
-    private func scanVisibleApps(spaceOrder: Int) {
-        refresh()
-        let normalizedOrder = max(spaceOrder, 1)
-        updateDisplaySpacePlan { plan in
-            for display in displayLayout.displays {
-                plan.ensureSpaces(displayID: display.id, upTo: max(normalizedOrder, spacesToCapture))
-            }
+    func setCurrentContext(contextID: String) {
+        updateContextPlan { plan in
+            _ = plan.setCurrentContext(id: contextID)
         }
-
-        var suggestionsByDisplayID = visibleSpaceSuggestionsByDisplayID
-        for suggestion in visibleAppSuggestionProvider.suggestions(for: displayLayout) {
-            suggestionsByDisplayID[suggestion.displayID, default: [:]][normalizedOrder] = suggestion
-        }
-        visibleSpaceSuggestionsByDisplayID = suggestionsByDisplayID
     }
 
-    func useVisibleSpaceSuggestionAppName(displayID: String, spaceOrder: Int) {
-        guard let suggestion = visibleSpaceSuggestion(displayID: displayID, spaceOrder: spaceOrder) else {
+    func startContextCapture() {
+        guard contextCaptureSession == nil else {
             return
         }
 
-        setDisplaySpaceLabel(displayID: displayID, spaceOrder: spaceOrder, label: suggestion.appLabel)
+        contextCaptureSession = ContextCaptureSession(captureLimit: contextsToCapture)
+        contextCaptureStatus = strings.aligningToFirstSpace
     }
 
-    func useVisibleSpaceSuggestionWindowTitle(displayID: String, spaceOrder: Int) {
-        guard let suggestion = visibleSpaceSuggestion(displayID: displayID, spaceOrder: spaceOrder),
-              let titleLabel = suggestion.titleLabel
-        else {
-            return
-        }
-
-        setDisplaySpaceLabel(displayID: displayID, spaceOrder: spaceOrder, label: titleLabel)
-    }
-
-    func startSpaceCapture() {
-        refresh()
-        guard isEnabled else {
-            blockSwitchBecauseSidebyIsOff(command: .next, label: "space-capture")
-            return
-        }
-        guard hasSelectedMoveTargets(command: .next, label: "space-capture") else {
-            return
-        }
-        guard !isSwitching,
-              spaceCaptureSession == nil
-        else {
-            return
-        }
-
-        spaceCaptureSession = SpaceCaptureSession(spaceCount: spacesToCapture)
-        continueSpaceCapture()
-    }
-
-    func stopSpaceCapture() {
-        var session = spaceCaptureSession
-        session?.stop()
-        spaceCaptureSession = nil
-        spaceCaptureStatus = nil
-    }
-
-    private func continueSpaceCapture() {
-        guard let session = spaceCaptureSession else {
-            spaceCaptureStatus = nil
-            return
-        }
-
-        scanVisibleApps(spaceOrder: session.currentSpaceOrder)
-        updateSpaceCaptureStatus(session: session)
-
-        guard let command = session.nextCommand() else {
-            spaceCaptureSession = nil
-            spaceCaptureStatus = nil
-            return
-        }
-
-        performSwitch(command, label: "space-capture", completion: { [weak self] didExecute in
-            guard let self else {
-                return
-            }
-            guard didExecute, var activeSession = self.spaceCaptureSession else {
-                self.spaceCaptureSession = nil
-                self.spaceCaptureStatus = nil
-                return
-            }
-
-            activeSession.advanceAfterSuccessfulSwitch()
-            self.spaceCaptureSession = activeSession
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-                self?.continueSpaceCapture()
-            }
-        })
-    }
-
-    private func updateSpaceCaptureStatus(session: SpaceCaptureSession) {
-        spaceCaptureStatus = SpaceCaptureStatusDisplay.statusText(
-            currentSpace: session.currentStep,
-            totalSpaces: session.totalSteps,
-            strings: strings
-        )
+    func stopContextCapture() {
+        contextCaptureSession?.stop()
+        contextCaptureSession = nil
+        contextCaptureStatus = nil
     }
 
     private func applyOnboardingCompletionDefaults() {
@@ -914,6 +808,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         settings = loadedSettings
+        contextsToCapture = loadedSettings.contextPlan.captureLimit
         swipePipeline = SwipeInputPipeline(settings: currentGestureSettings)
         refreshLocalizedStatus()
         lastInputEvent = strings.inputSettingsUpdated(gesture: gestureInputSummary, keyboard: keyboardCommandSummary)
@@ -1547,31 +1442,21 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
-    private func syncDisplaySpacePlan(with layout: DisplayLayout) {
-        var plan = settings.displaySpacePlan
-        plan.reconcile(with: layout)
-        guard plan != settings.displaySpacePlan else {
-            spacesToCapture = plan.defaultCaptureCount
-            return
-        }
-
-        settings.displaySpacePlan = plan
-        spacesToCapture = plan.defaultCaptureCount
-        settingsStore.save(settings)
+    private func syncContextPlan() {
+        contextsToCapture = settings.contextPlan.captureLimit
     }
 
-    private func updateDisplaySpacePlan(_ mutate: (inout DisplaySpacePlan) -> Void) {
-        var plan = settings.displaySpacePlan
+    private func updateContextPlan(_ mutate: (inout ContextPlan) -> Void) {
+        var plan = settings.contextPlan
         mutate(&plan)
-        plan.reconcile(with: displayLayout)
 
-        guard plan != settings.displaySpacePlan else {
-            spacesToCapture = plan.defaultCaptureCount
+        guard plan != settings.contextPlan else {
+            contextsToCapture = plan.captureLimit
             return
         }
 
-        settings.displaySpacePlan = plan
-        spacesToCapture = plan.defaultCaptureCount
+        settings.contextPlan = plan
+        contextsToCapture = plan.captureLimit
         settingsStore.save(settings)
         refreshLocalizedStatus()
     }
@@ -1786,7 +1671,7 @@ private struct V1SettingsView: View {
         case .displays:
             VStack(alignment: .leading, spacing: 12) {
                 MoveTargetsView(model: model)
-                DisplaySpacesView(model: model)
+                ContextsView(model: model)
             }
         case .input:
             ShortcutSettingsView(
@@ -2680,15 +2565,15 @@ private struct ProductHeaderView: View {
     }
 }
 
-private struct DisplaySpacesView: View {
+private struct ContextsView: View {
     @ObservedObject var model: SidebyAppModel
 
     var body: some View {
         let strings = model.strings
 
-        GroupBox(strings.displaySpaces) {
+        GroupBox(strings.contextPlanner) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(strings.displaySpacesHelp)
+                Text(strings.contextPlannerHelp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -2696,185 +2581,80 @@ private struct DisplaySpacesView: View {
                 HStack(alignment: .center, spacing: 8) {
                     Stepper(
                         value: Binding(
-                            get: { model.spacesToCapture },
-                            set: { model.setSpacesToCapture($0) }
+                            get: { model.contextsToCapture },
+                            set: { model.setContextsToCapture($0) }
                         ),
                         in: 1...12
                     ) {
-                        Text(strings.spacesToCapture(model.spacesToCapture))
+                        Text(strings.contextsToCapture(model.contextsToCapture))
                     }
 
                     Spacer(minLength: 8)
 
-                    Button {
-                        model.scanVisibleAppsForCurrentSpace()
-                    } label: {
-                        Label(strings.scanCurrentSpace, systemImage: "magnifyingglass")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(model.displayLayout.displays.isEmpty || model.spaceCaptureSession != nil)
-
-                    if model.spaceCaptureSession == nil {
+                    if model.contextCaptureSession == nil {
                         Button {
-                            model.startSpaceCapture()
+                            model.startContextCapture()
                         } label: {
-                            Label(strings.captureSpaces, systemImage: "rectangle.stack")
+                            Label(strings.captureContexts, systemImage: "rectangle.stack")
                         }
                         .buttonStyle(.bordered)
                         .disabled(model.displayLayout.displays.isEmpty || model.isSwitching || !model.isEnabled)
                     } else {
                         Button(strings.stopCapture) {
-                            model.stopSpaceCapture()
+                            model.stopContextCapture()
                         }
                         .buttonStyle(.bordered)
                     }
                 }
 
-                if let spaceCaptureStatus = model.spaceCaptureStatus {
-                    Text(spaceCaptureStatus)
+                if let contextCaptureStatus = model.contextCaptureStatus {
+                    Text(contextCaptureStatus)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                if model.displayLayout.displays.isEmpty {
-                    Text(strings.selectedDisplaySummary(selected: 0, total: 0))
-                        .foregroundStyle(.secondary)
-                } else {
-                    ScrollView(.horizontal) {
-                        displaySpaceGrid(strings: strings)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(ContextListModel.rows(plan: model.settings.contextPlan)) { row in
+                        HStack(spacing: 8) {
+                            Text("Context \(row.order)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 76, alignment: .leading)
+
+                            TextField(
+                                strings.contextLabelPlaceholder,
+                                text: Binding(
+                                    get: {
+                                        model.settings.contextPlan.contexts
+                                            .first { $0.id == row.id }?
+                                            .name ?? row.name
+                                    },
+                                    set: { model.setContextName(contextID: row.id, name: $0) }
+                                )
+                            )
+                            .textFieldStyle(.roundedBorder)
+
+                            if row.state == .current {
+                                Text(strings.currentContext)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else if row.state == .needsSync {
+                                Text(strings.contextNeedsSync)
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+
+                            Button(strings.setCurrent) {
+                                model.setCurrentContext(contextID: row.id)
+                            }
+                            .font(.caption)
+                            .buttonStyle(.borderless)
+                        }
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .onAppear {
-            model.scanVisibleAppsForCurrentSpace()
-        }
-    }
-
-    private var gridRows: [DisplaySpaceGridRow] {
-        DisplaySpaceGridModel.rows(
-            displays: model.displayLayout.displays,
-            plan: model.settings.displaySpacePlan,
-            captureCount: model.spacesToCapture,
-            suggestionsByDisplayID: model.visibleSpaceSuggestionsByDisplayID
-        )
-    }
-
-    private func displaySpaceGrid(strings: SBSStrings) -> some View {
-        let rows = gridRows
-        let spaceOrders = rows.first?.cells.map(\.spaceOrder) ?? []
-
-        return Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 12) {
-            GridRow {
-                Text(strings.displays)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 168, alignment: .leading)
-
-                ForEach(spaceOrders, id: \.self) { spaceOrder in
-                    Text(strings.spaceName(spaceOrder))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 240, alignment: .leading)
-                }
-            }
-
-            ForEach(rows) { row in
-                GridRow {
-                    displayTitle(row, strings: strings)
-                    ForEach(row.cells) { cell in
-                        displaySpaceCell(
-                            cell,
-                            strings: strings
-                        )
-                    }
-                }
-            }
-        }
-        .padding(.top, 4)
-    }
-
-    private func displayTitle(
-        _ row: DisplaySpaceGridRow,
-        strings: SBSStrings
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(row.displayName)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 6) {
-                if row.isPrimary {
-                    Text(strings.primaryDisplayTag)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                if row.isBuiltin {
-                    Text(strings.builtInDisplayTag)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .frame(width: 168, alignment: .leading)
-    }
-
-    private func displaySpaceCell(
-        _ cell: DisplaySpaceGridCell,
-        strings: SBSStrings
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            TextField(
-                strings.spaceLabelPlaceholder,
-                text: Binding(
-                    get: {
-                        model.displaySpaceLabel(
-                            displayID: cell.displayID,
-                            spaceOrder: cell.spaceOrder
-                        )
-                    },
-                    set: { label in
-                        model.setDisplaySpaceLabel(
-                            displayID: cell.displayID,
-                            spaceOrder: cell.spaceOrder,
-                            label: label
-                        )
-                    }
-                )
-            )
-            .textFieldStyle(.roundedBorder)
-
-            if let suggestion = cell.suggestion {
-                Text(VisibleAppSuggestionDisplay.detectedText(for: suggestion, strings: strings))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 4) {
-                    Button(strings.useApp) {
-                        model.useVisibleSpaceSuggestionAppName(
-                            displayID: cell.displayID,
-                            spaceOrder: cell.spaceOrder
-                        )
-                    }
-
-                    if suggestion.titleLabel != nil {
-                        Button(strings.useTitle) {
-                            model.useVisibleSpaceSuggestionWindowTitle(
-                                displayID: cell.displayID,
-                                spaceOrder: cell.spaceOrder
-                            )
-                        }
-                    }
-                }
-                .font(.caption2)
-                .buttonStyle(.borderless)
-            }
-        }
-        .frame(width: 240, alignment: .leading)
     }
 }
 

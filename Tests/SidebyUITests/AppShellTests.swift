@@ -98,6 +98,15 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(rows[1].state, .normal)
     }
 
+    func testContextRowsReflectRenamedCurrentContext() {
+        var settings = AppSettings.default
+        settings.contextPlan.renameContext(id: "context-1", name: "Work")
+        let rows = ContextListModel.rows(plan: settings.contextPlan)
+
+        XCTAssertEqual(rows.first?.name, "Work")
+        XCTAssertEqual(rows.first?.state, .current)
+    }
+
     func testContextCaptureStatusDisplayShowsAligningCapturingAndCompleted() {
         let strings = SBSStrings(language: .english)
 
