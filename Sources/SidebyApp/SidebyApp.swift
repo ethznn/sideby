@@ -1060,6 +1060,14 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         guard hasSelectedMoveTargets(command: command, label: "button") else {
             return false
         }
+        let navigation = settings.contextPlan.navigation(for: command)
+        guard navigation.isAllowed else {
+            if let diagnostic = navigation.diagnostic {
+                diagnostics = [diagnostic]
+                lastSwitchResult = diagnostic.title
+            }
+            return false
+        }
 
         lastSwitchResult = strings.queuedSwitch(command: command, summary: selectedDisplaySummary)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
@@ -1339,6 +1347,18 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             completion?(false)
             return
         }
+        let navigation = settings.contextPlan.navigation(for: command)
+        guard navigation.isAllowed, let targetContext = navigation.targetContext else {
+            if let diagnostic = navigation.diagnostic {
+                diagnostics = [diagnostic]
+                lastSwitchResult = diagnostic.title
+            }
+            if let shouldResumeInput {
+                finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
+            }
+            completion?(false)
+            return
+        }
         guard hasPostEventAccess(command: command, label: label) else {
             if let shouldResumeInput {
                 finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
@@ -1383,7 +1403,8 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 self.applySwitchResult(
                     result,
                     command: command,
-                    label: label
+                    label: label,
+                    targetContext: targetContext
                 )
                 self.isSwitching = false
                 if let shouldResumeInput {
@@ -1397,12 +1418,19 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private func applySwitchResult(
         _ result: ContextSwitchResult,
         command: SwitchCommand,
-        label: String
+        label: String,
+        targetContext: ContextDefinition
     ) {
         diagnostics = result.diagnostics
         if result.didExecute {
+            updateContextPlan { plan in
+                _ = plan.setCurrentContext(id: targetContext.id)
+            }
             lastSwitchResult = strings.postedSwitch(label: label, command: command)
         } else {
+            updateContextPlan { plan in
+                plan.applyFailedNavigation(command)
+            }
             diagnostics = result.diagnostics + [
                 DiagnosticState(
                     severity: .warning,
