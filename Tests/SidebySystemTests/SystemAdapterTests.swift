@@ -337,6 +337,48 @@ final class SystemAdapterTests: XCTestCase {
         XCTAssertEqual(result.windowDiff.appearedOwners, ["Xcode"])
     }
 
+    func testAcknowledgedSpaceSwitcherReportsFullTargetMovement() {
+        let executor = RecordingSpaceCommandExecutor()
+        let switcher = AcknowledgedSpaceSwitcher(
+            executor: executor,
+            targetProvider: StaticDisplaySwitchTargetProvider(points: [
+                CGPoint(x: 10, y: 10),
+                CGPoint(x: 20, y: 20)
+            ]),
+            activeSpaceObserver: StaticActiveSpaceChangeObserver(afterChangeCount: 2),
+            observerWait: 0
+        )
+
+        let result = switcher.execute(.next)
+
+        XCTAssertEqual(executor.commands, [.next])
+        XCTAssertTrue(result.didPost)
+        XCTAssertEqual(result.expectedChangeCount, 2)
+        XCTAssertEqual(result.observedChangeCount, 2)
+        XCTAssertTrue(result.didMoveAllTargets)
+    }
+
+    func testAcknowledgedSpaceSwitcherReportsPartialMovement() {
+        let executor = RecordingSpaceCommandExecutor()
+        let switcher = AcknowledgedSpaceSwitcher(
+            executor: executor,
+            targetProvider: StaticDisplaySwitchTargetProvider(points: [
+                CGPoint(x: 10, y: 10),
+                CGPoint(x: 20, y: 20)
+            ]),
+            activeSpaceObserver: StaticActiveSpaceChangeObserver(afterChangeCount: 1),
+            observerWait: 0
+        )
+
+        let result = switcher.execute(.next)
+
+        XCTAssertEqual(executor.commands, [.next])
+        XCTAssertTrue(result.didPost)
+        XCTAssertEqual(result.expectedChangeCount, 2)
+        XCTAssertEqual(result.observedChangeCount, 1)
+        XCTAssertFalse(result.didMoveAllTargets)
+    }
+
     func testVisibleAppSuggestionResolverPrefersAccessibilityCandidate() {
         let display = DisplayInfo(
             id: "external-lg",
