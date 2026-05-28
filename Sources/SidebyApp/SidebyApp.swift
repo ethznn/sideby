@@ -489,6 +489,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private let automationPermissionProbe = SystemEventsAutomationPermissionProbe()
     private let systemEventsAutomationProbe = SystemEventsAutomationProbe<NSAppleScriptRunner>()
     private let setupFlow = V1SetupFlow()
+    private let visibleAppSuggestionProvider = MacVisibleAppSuggestionProvider()
     private static let enabledDefaultsKey = "sideby.enabled"
     private var didInitializeSelectedDisplays = false
     private var swipeInputSource: GlobalEventTapInputSource?
@@ -497,6 +498,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var inputLatch = InputCommandLatch()
     private var inputSessionID = 0
     private var switchSessionID = 0
+    private var contextCaptureSessionID = 0
     private var permissionPollingID = 0
     private var lastScrollStatusUpdate = 0.0
     private var isOnboardingGestureTestActive = false
@@ -694,6 +696,10 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     func setContextsToCapture(_ count: Int) {
+        guard contextCaptureSession == nil else {
+            return
+        }
+
         let normalizedCount = min(max(count, 1), 12)
         contextsToCapture = normalizedCount
         updateContextPlan { plan in
@@ -714,18 +720,219 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     func startContextCapture() {
-        guard contextCaptureSession == nil else {
+        refresh()
+        guard isEnabled else {
+            blockSwitchBecauseSidebyIsOff(command: .next, label: "context-capture")
+            return
+        }
+        guard hasSelectedMoveTargets(command: .next, label: "context-capture") else {
+            return
+        }
+        guard !isSwitching, contextCaptureSession == nil else {
             return
         }
 
+        contextCaptureSessionID += 1
+        let sessionID = contextCaptureSessionID
         contextCaptureSession = ContextCaptureSession(captureLimit: contextsToCapture)
-        contextCaptureStatus = strings.aligningToFirstSpace
+        updateContextCaptureStatus()
+        continueContextCaptureAlignment(sessionID: sessionID)
     }
 
     func stopContextCapture() {
-        contextCaptureSession?.stop()
+        var session = contextCaptureSession
+        session?.stop()
+        contextCaptureSessionID += 1
         contextCaptureSession = nil
-        contextCaptureStatus = nil
+        contextCaptureStatus = session.map {
+            ContextCaptureStatusDisplay.statusText(session: $0, strings: strings)
+        } ?? strings.contextCaptureStopped
+    }
+
+    private func suggestedContextName(order: Int) -> String {
+        let suggestions = visibleAppSuggestionProvider.suggestions(for: displayLayout)
+        visibleContextSuggestionsByOrder[order] = suggestions
+
+        var seen = Set<String>()
+        let labels = suggestions.compactMap { suggestion -> String? in
+            let rawLabel = suggestion.titleLabel ?? suggestion.appLabel
+            let label = rawLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !label.isEmpty, !seen.contains(label) else {
+                return nil
+            }
+            seen.insert(label)
+            return label
+        }
+
+        return labels.isEmpty ? "Context \(order)" : labels.joined(separator: " / ")
+    }
+
+    private func commitContextCapture(_ session: ContextCaptureSession) {
+        guard let contexts = session.completedContextDefinitions,
+              case .completed(let currentContextID) = session.phase
+        else {
+            return
+        }
+
+        updateContextPlan { plan in
+            plan.replaceContexts(
+                contexts,
+                currentContextID: currentContextID,
+                captureLimit: session.captureLimit
+            )
+        }
+    }
+
+    private func continueContextCaptureAlignment(sessionID: Int) {
+        guard contextCaptureSessionID == sessionID else {
+            return
+        }
+        guard let session = contextCaptureSession else {
+            return
+        }
+        guard case .aligning = session.phase else {
+            continueContextCaptureForward(sessionID: sessionID)
+            return
+        }
+
+        updateContextCaptureStatus()
+        performAcknowledgedSwitch(.previous, label: "context-capture-align") { [weak self] result in
+            guard let self,
+                  self.contextCaptureSessionID == sessionID,
+                  var activeSession = self.contextCaptureSession
+            else {
+                return
+            }
+
+            guard result.didPost else {
+                activeSession.fail(reason: self.strings.systemEventsFailedReason)
+                self.contextCaptureSession = activeSession
+                self.updateContextCaptureStatus()
+                self.contextCaptureSession = nil
+                return
+            }
+
+            activeSession.recordAlignment(previousDidChange: result.didObserveAnyChange)
+            self.contextCaptureSession = activeSession
+            self.updateContextCaptureStatus()
+
+            guard !self.clearTerminalContextCaptureIfNeeded(activeSession) else {
+                return
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                guard let self,
+                      self.contextCaptureSessionID == sessionID,
+                      self.contextCaptureSession != nil
+                else {
+                    return
+                }
+                self.continueContextCaptureAlignment(sessionID: sessionID)
+            }
+        }
+    }
+
+    private func continueContextCaptureForward(sessionID: Int) {
+        guard contextCaptureSessionID == sessionID else {
+            return
+        }
+        guard var session = contextCaptureSession else {
+            return
+        }
+        guard let order = session.currentCaptureOrder else {
+            if clearTerminalContextCaptureIfNeeded(session) {
+                return
+            }
+            finishContextCaptureIfNeeded(session)
+            return
+        }
+
+        let name = suggestedContextName(order: order)
+        session.recordCurrentSpace(name: name)
+        contextCaptureSession = session
+        updateContextCaptureStatus()
+
+        guard order < session.captureLimit else {
+            session.recordForwardSwitch(didMoveAllTargets: false)
+            contextCaptureSession = session
+            finishContextCaptureIfNeeded(session)
+            return
+        }
+
+        performAcknowledgedSwitch(.next, label: "context-capture") { [weak self] result in
+            guard let self,
+                  self.contextCaptureSessionID == sessionID,
+                  var activeSession = self.contextCaptureSession
+            else {
+                return
+            }
+
+            guard result.didPost else {
+                activeSession.fail(reason: self.strings.systemEventsFailedReason)
+                self.contextCaptureSession = activeSession
+                self.updateContextCaptureStatus()
+                self.contextCaptureSession = nil
+                return
+            }
+
+            activeSession.recordForwardSwitch(didMoveAllTargets: result.didMoveAllTargets)
+            self.contextCaptureSession = activeSession
+            self.updateContextCaptureStatus()
+
+            guard !self.clearTerminalContextCaptureIfNeeded(activeSession) else {
+                return
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                guard let self,
+                      self.contextCaptureSessionID == sessionID,
+                      self.contextCaptureSession != nil
+                else {
+                    return
+                }
+                self.continueContextCaptureForward(sessionID: sessionID)
+            }
+        }
+    }
+
+    private func finishContextCaptureIfNeeded(_ session: ContextCaptureSession) {
+        guard session.shouldCommitDrafts else {
+            return
+        }
+        commitContextCapture(session)
+        contextCaptureSession = nil
+        contextCaptureStatus = ContextCaptureStatusDisplay.statusText(
+            session: session,
+            strings: strings
+        )
+    }
+
+    private func clearTerminalContextCaptureIfNeeded(_ session: ContextCaptureSession) -> Bool {
+        switch session.phase {
+        case .failed, .stopped:
+            contextCaptureSession = nil
+            contextCaptureStatus = ContextCaptureStatusDisplay.statusText(
+                session: session,
+                strings: strings
+            )
+            return true
+        case .completed:
+            finishContextCaptureIfNeeded(session)
+            return true
+        case .aligning, .capturing:
+            return false
+        }
+    }
+
+    private func updateContextCaptureStatus() {
+        guard let session = contextCaptureSession else {
+            contextCaptureStatus = nil
+            return
+        }
+        contextCaptureStatus = ContextCaptureStatusDisplay.statusText(
+            session: session,
+            strings: strings
+        )
     }
 
     private func applyOnboardingCompletionDefaults() {
@@ -838,6 +1045,10 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @discardableResult
     func switchContext(_ command: SwitchCommand) -> Bool {
         refresh()
+        guard contextCaptureSession == nil else {
+            lastSwitchResult = "Ignored button \(command): context capture active"
+            return false
+        }
         guard !isSwitching else {
             lastSwitchResult = strings.ignoredSwitchAlreadyRunning(command: command)
             return false
@@ -1062,6 +1273,57 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         settings.shortcutPrevious.modifiers.union(settings.shortcutNext.modifiers)
     }
 
+    private func performAcknowledgedSwitch(
+        _ command: SwitchCommand,
+        label: String,
+        completion: @escaping @MainActor @Sendable (AcknowledgedSpaceSwitchResult) -> Void
+    ) {
+        guard !isSwitching else {
+            completion(
+                AcknowledgedSpaceSwitchResult(
+                    command: command,
+                    didPost: false,
+                    expectedChangeCount: 1,
+                    observedChangeCount: 0
+                )
+            )
+            return
+        }
+
+        isSwitching = true
+        switchSessionID += 1
+        let sessionID = switchSessionID
+        let targetDisplayIDs = selectedDisplayIDs
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let targetProvider = CGDisplaySwitchTargetProvider(includedStableIDs: targetDisplayIDs)
+            let executor = HiddenCursorDisplaySpaceCommandExecutor(
+                baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                targetProvider: targetProvider
+            )
+            let switcher = AcknowledgedSpaceSwitcher(
+                executor: executor,
+                targetProvider: targetProvider
+            )
+            let result = switcher.execute(command)
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.switchSessionID == sessionID else {
+                    return
+                }
+                self.isSwitching = false
+                self.lastSwitchResult = result.didPost
+                    ? self.strings.postedSwitch(label: label, command: command)
+                    : self.strings.blockedSwitch(
+                        label: label,
+                        command: command,
+                        reason: self.strings.systemEventsFailedReason
+                    )
+                completion(result)
+            }
+        }
+    }
+
     private func performSwitch(
         _ command: SwitchCommand,
         label: String,
@@ -1069,6 +1331,14 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         resumeInputAfterCompletion shouldResumeInput: Bool? = nil,
         completion: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
+        guard contextCaptureSession == nil else {
+            lastSwitchResult = "Ignored \(label) \(command): context capture active"
+            if let shouldResumeInput {
+                finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
+            }
+            completion?(false)
+            return
+        }
         guard hasPostEventAccess(command: command, label: label) else {
             if let shouldResumeInput {
                 finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
@@ -2588,6 +2858,7 @@ private struct ContextsView: View {
                     ) {
                         Text(strings.contextsToCapture(model.contextsToCapture))
                     }
+                    .disabled(model.contextCaptureSession != nil)
 
                     Spacer(minLength: 8)
 
@@ -3000,14 +3271,14 @@ private struct ScreenSwitchingControls: View {
                         onSwitchQueued(.previous)
                     }
                 }
-                .disabled(!model.isEnabled || model.isSwitching)
+                .disabled(!model.isEnabled || model.isSwitching || model.contextCaptureSession != nil)
 
                 Button("\(strings.next) ->") {
                     if model.switchContext(.next) {
                         onSwitchQueued(.next)
                     }
                 }
-                .disabled(!model.isEnabled || model.isSwitching)
+                .disabled(!model.isEnabled || model.isSwitching || model.contextCaptureSession != nil)
             }
 
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
