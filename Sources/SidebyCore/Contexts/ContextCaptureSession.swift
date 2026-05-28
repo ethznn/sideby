@@ -9,7 +9,8 @@ public struct ContextCaptureSession: Equatable, Sendable {
             return nil
         }
 
-        self.contextIDs = sortedContexts[startIndex...].map(\.id)
+        let captureLimit = min(max(plan.captureLimit, 1), 12)
+        self.contextIDs = Array(sortedContexts[startIndex...].map(\.id).prefix(captureLimit))
         self.currentIndex = 0
         self.isStopped = false
     }

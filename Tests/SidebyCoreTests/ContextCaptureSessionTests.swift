@@ -15,6 +15,16 @@ final class ContextCaptureSessionTests: XCTestCase {
         XCTAssertEqual(session.nextCommand(), .next)
     }
 
+    func testSessionHonorsPlanCaptureLimit() {
+        var plan = ContextPlan.default
+        plan.setCaptureLimit(2)
+
+        let session = ContextCaptureSession(plan: plan)!
+
+        XCTAssertEqual(session.contextIDs, ["context-1", "context-2"])
+        XCTAssertEqual(session.totalSteps, 2)
+    }
+
     func testSessionAdvanceAndStopControlNextCommand() {
         let session = ContextCaptureSession(plan: .default)!
         var advanced = session

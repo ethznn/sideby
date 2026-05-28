@@ -33,11 +33,8 @@ final class AppShellTests: XCTestCase {
         XCTAssertTrue(hud.isCompact)
     }
 
-    func testContextSummaryUsesLabelsForConnectedDisplays() {
-        var plan = ContextPlan.default
-        plan.reconcile(with: RuntimeState.dualDisplay.displayLayout)
-        plan.updateLabel(contextID: "context-1", displayID: "built-in", label: "Code")
-        plan.updateLabel(contextID: "context-1", displayID: "external-lg", label: "Preview")
+    func testContextSummaryUsesContextNameOnly() {
+        let plan = ContextPlan.default
 
         let summary = ContextPlanSummary.summary(
             for: plan.currentContext!,
@@ -45,12 +42,11 @@ final class AppShellTests: XCTestCase {
             strings: SBSStrings(language: .english)
         )
 
-        XCTAssertEqual(summary, "Context 1 · Code / Preview")
+        XCTAssertEqual(summary, "Context 1")
     }
 
-    func testContextSummaryFallsBackToDisplayCountWhenLabelsAreEmpty() {
-        var plan = ContextPlan.default
-        plan.reconcile(with: RuntimeState.dualDisplay.displayLayout)
+    func testContextSummaryIgnoresDisplayCount() {
+        let plan = ContextPlan.default
 
         let summary = ContextPlanSummary.summary(
             for: plan.currentContext!,
@@ -58,7 +54,7 @@ final class AppShellTests: XCTestCase {
             strings: SBSStrings(language: .english)
         )
 
-        XCTAssertEqual(summary, "Context 1 · 2 displays")
+        XCTAssertEqual(summary, "Context 1")
     }
 
     func testVisibleAppSuggestionDisplayShowsDetectedCombinedLabel() {
