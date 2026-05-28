@@ -207,42 +207,6 @@ final class AppShellTests: XCTestCase {
         )
     }
 
-    func testSpaceCaptureStatusDisplayShowsProgress() {
-        XCTAssertEqual(
-            SpaceCaptureStatusDisplay.statusText(
-                currentSpace: 2,
-                totalSpaces: 4,
-                strings: SBSStrings(language: .english)
-            ),
-            "Capturing Space 2 of 4"
-        )
-    }
-
-    func testDisplaySpaceGridUsesDisplayRowsAndMaxSpaceColumns() {
-        var plan = DisplaySpacePlan.default
-        plan.reconcile(with: RuntimeState.dualDisplay.displayLayout)
-        plan.updateLabel(displayID: "built-in", spaceOrder: 3, label: "Code")
-
-        let suggestion = VisibleAppSuggestion(
-            displayID: "external-lg",
-            appName: "Arc",
-            windowTitle: nil,
-            source: .accessibility
-        )
-        let rows = DisplaySpaceGridModel.rows(
-            displays: RuntimeState.dualDisplay.displayLayout.displays,
-            plan: plan,
-            captureCount: 2,
-            suggestionsByDisplayID: ["external-lg": [5: suggestion]]
-        )
-
-        XCTAssertEqual(rows.map(\.displayID), ["built-in", "external-lg"])
-        XCTAssertEqual(rows[0].cells.map(\.spaceOrder), [1, 2, 3, 4, 5])
-        XCTAssertEqual(rows[1].cells.map(\.spaceOrder), [1, 2, 3, 4, 5])
-        XCTAssertEqual(rows[0].cells[2].label, "Code")
-        XCTAssertEqual(rows[1].cells[4].suggestion, suggestion)
-    }
-
     func testOnboardingStateMachineProgressesThroughTryFlow() {
         let machine = OnboardingStateMachine()
         var state = OnboardingState(step: .displayCheck)

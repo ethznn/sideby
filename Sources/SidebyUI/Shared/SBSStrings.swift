@@ -96,7 +96,6 @@ public struct SBSStrings: Sendable {
     public var scanCurrentSpace: String { text("Scan Current Space", "현재 화면 스캔") }
     public var captureContexts: String { text("Capture Contexts", "컨텍스트 캡처") }
     public var displaySpaces: String { text("Display Spaces", "디스플레이별 화면") }
-    public var captureSpaces: String { text("Capture Spaces", "화면 캡처") }
     public var stopCapture: String { text("Stop", "중지") }
     public var useApp: String { text("Use App", "앱 사용") }
     public var useTitle: String { text("Use Title", "제목 사용") }
@@ -113,12 +112,6 @@ public struct SBSStrings: Sendable {
         text(
             "Capture stopped. Existing Contexts were kept.",
             "캡처가 중지되었습니다. 기존 컨텍스트는 유지되었습니다."
-        )
-    }
-    public var displaySpacesHelp: String {
-        text(
-            "Each connected display is a Context. Add labels for the Spaces you move through on that display.",
-            "연결된 디스플레이 하나가 컨텍스트입니다. 각 디스플레이에서 이동할 화면별 라벨을 입력합니다."
         )
     }
 
