@@ -23,7 +23,7 @@ public enum AppLanguage: String, CaseIterable, Codable, Identifiable, Sendable {
 }
 
 public struct AppSettings: Equatable, Codable, Sendable {
-    public static let currentVersion = 12
+    public static let currentVersion = 13
     public static let defaultGestureModifiers: ModifierFlags = [.option, .shift]
     public static let defaultShortcutModifiers: ModifierFlags = [.option, .shift]
 
