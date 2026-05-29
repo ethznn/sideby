@@ -1026,11 +1026,9 @@ public struct HiddenCursorDisplaySpaceCommandExecutor: SpaceCommandExecuting {
 
         let orderedPoints = targetPointsForCurrentCursorFirst(points, originalLocation: originalLocation)
         var didExecuteAll = true
-        for (index, point) in orderedPoints.enumerated() {
-            if index > 0 || originalLocation == nil {
-                moveCursorWhileHidden(to: point, hideCursor: hideCursor)
-                Thread.sleep(forTimeInterval: focusDelay)
-            }
+        for point in orderedPoints {
+            moveCursorWhileHidden(to: point, hideCursor: hideCursor)
+            Thread.sleep(forTimeInterval: focusDelay)
             hideCursor()
             didExecuteAll = baseExecutor.execute(command) && didExecuteAll
             hideCursor()

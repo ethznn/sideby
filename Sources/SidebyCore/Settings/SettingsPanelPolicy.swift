@@ -5,7 +5,6 @@ public enum SettingsPanelVariant: Equatable, Sendable {
 
 public enum SettingsPanelSection: String, CaseIterable, Identifiable, Equatable, Sendable {
     case overview
-    case displays
     case input
     case permissions
     case general
@@ -18,9 +17,9 @@ public enum SettingsPanelPolicy: Sendable {
     public static func sections(for variant: SettingsPanelVariant) -> [SettingsPanelSection] {
         switch variant {
         case .product:
-            return [.overview, .displays, .input, .permissions, .general]
+            return [.overview, .input, .permissions, .general]
         case .dev:
-            return SettingsPanelSection.allCases
+            return [.overview, .input, .permissions, .general, .advanced]
         }
     }
 

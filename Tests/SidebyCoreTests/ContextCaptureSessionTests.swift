@@ -26,23 +26,24 @@ final class ContextCaptureSessionTests: XCTestCase {
         XCTAssertEqual(session.phase, .capturing(order: 1))
     }
 
-    func testCaptureStoresDraftNamesAndAdvancesOnObservedMovement() {
+    func testCaptureStoresDraftDisplayMembershipAndAdvances() {
         var session = ContextCaptureSession(captureLimit: 3)
         session.recordAlignment(previousDidChange: false)
 
-        session.recordCurrentSpace(name: "Code")
-        session.recordForwardSwitch(didObserveMovement: true)
+        session.recordCurrentSpace(name: "Code", displayIDs: ["external-lg", "built-in"])
+        session.recordForwardSwitch(movedDisplayIDs: ["built-in"])
 
         XCTAssertEqual(session.draftContexts.map(\.name), ["Code"])
+        XCTAssertEqual(session.draftContexts.map(\.displayIDs), [["built-in", "external-lg"]])
         XCTAssertEqual(session.phase, .capturing(order: 2))
     }
 
-    func testCaptureCompletesWhenNextDoesNotMove() {
+    func testCaptureCompletesWhenNoDisplaysMoveBeforeLimit() {
         var session = ContextCaptureSession(captureLimit: 3)
         session.recordAlignment(previousDidChange: false)
 
-        session.recordCurrentSpace(name: "Code")
-        session.recordForwardSwitch(didObserveMovement: false)
+        session.recordCurrentSpace(name: "Code", displayIDs: ["built-in"])
+        session.recordForwardSwitch(movedDisplayIDs: [])
 
         XCTAssertEqual(session.phase, .completed(currentContextID: "context-1"))
         XCTAssertEqual(session.draftContexts.map(\.name), ["Code"])
@@ -83,7 +84,7 @@ final class ContextCaptureSessionTests: XCTestCase {
         var session = ContextCaptureSession(captureLimit: 3)
         session.recordAlignment(previousDidChange: false)
 
-        session.recordForwardSwitch(didObserveMovement: true)
+        session.recordForwardSwitch(movedDisplayIDs: ["built-in"])
 
         XCTAssertEqual(session.phase, .failed(reason: "Missing captured Context"))
         XCTAssertFalse(session.shouldCommitDrafts)
@@ -93,7 +94,7 @@ final class ContextCaptureSessionTests: XCTestCase {
         var session = ContextCaptureSession(captureLimit: 3)
         session.recordAlignment(previousDidChange: false)
 
-        session.recordForwardSwitch(didObserveMovement: false)
+        session.recordForwardSwitch(movedDisplayIDs: [])
 
         XCTAssertEqual(session.phase, .failed(reason: "Missing captured Context"))
         XCTAssertFalse(session.shouldCommitDrafts)
@@ -103,17 +104,18 @@ final class ContextCaptureSessionTests: XCTestCase {
         var session = ContextCaptureSession(captureLimit: 3)
         session.recordAlignment(previousDidChange: false)
 
-        session.recordCurrentSpace(name: "Old")
-        session.recordCurrentSpace(name: "New")
+        session.recordCurrentSpace(name: "Old", displayIDs: ["built-in"])
+        session.recordCurrentSpace(name: "New", displayIDs: ["external-lg"])
 
         XCTAssertEqual(session.draftContexts.map(\.name), ["New"])
+        XCTAssertEqual(session.draftContexts.map(\.displayIDs), [["external-lg"]])
     }
 
     func testCompletedSessionCannotBeStopped() {
         var session = ContextCaptureSession(captureLimit: 1)
         session.recordAlignment(previousDidChange: false)
-        session.recordCurrentSpace(name: "Code")
-        session.recordForwardSwitch(didObserveMovement: true)
+        session.recordCurrentSpace(name: "Code", displayIDs: ["built-in"])
+        session.recordForwardSwitch(movedDisplayIDs: ["built-in"])
 
         session.stop()
 
@@ -134,16 +136,16 @@ final class ContextCaptureSessionTests: XCTestCase {
     func testCompletedContextDefinitionsReturnSortedDraftPayload() {
         var session = ContextCaptureSession(captureLimit: 2)
         session.recordAlignment(previousDidChange: false)
-        session.recordCurrentSpace(name: "Code")
-        session.recordForwardSwitch(didObserveMovement: true)
-        session.recordCurrentSpace(name: "Review")
-        session.recordForwardSwitch(didObserveMovement: true)
+        session.recordCurrentSpace(name: "Code", displayIDs: ["built-in", "external-lg"])
+        session.recordForwardSwitch(movedDisplayIDs: ["built-in"])
+        session.recordCurrentSpace(name: "Review", displayIDs: ["built-in"])
+        session.recordForwardSwitch(movedDisplayIDs: [])
 
         XCTAssertEqual(
             session.completedContextDefinitions,
             [
-                ContextDefinition(id: "context-1", order: 1, name: "Code"),
-                ContextDefinition(id: "context-2", order: 2, name: "Review")
+                ContextDefinition(id: "context-1", order: 1, name: "Code", displayIDs: ["built-in", "external-lg"]),
+                ContextDefinition(id: "context-2", order: 2, name: "Review", displayIDs: ["built-in"])
             ]
         )
     }

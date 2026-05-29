@@ -10,6 +10,7 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(plan.currentContext?.name, "Context 1")
         XCTAssertEqual(plan.captureLimit, 3)
         XCTAssertEqual(plan.syncState, .synchronized)
+        XCTAssertTrue(plan.isPinned)
     }
 
     func testRenamesContextWithoutDisplayLabels() {
@@ -20,10 +21,40 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(plan.contexts[1].name, "Research")
     }
 
+    func testRenamingContextPreservesDisplayMembership() {
+        var plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "Code",
+                    displayIDs: ["external-lg", "built-in"]
+                )
+            ],
+            currentContextID: "context-1"
+        )
+
+        plan.renameContext(id: "context-1", name: "Focus")
+
+        XCTAssertEqual(plan.contexts[0].name, "Focus")
+        XCTAssertEqual(plan.contexts[0].displayIDs, ["built-in", "external-lg"])
+    }
+
     func testContextDefinitionStoresTrimmedName() {
         let context = ContextDefinition(id: "context-1", order: 1, name: "  Research \n")
 
         XCTAssertEqual(context.name, "Research")
+    }
+
+    func testContextDefinitionStoresSortedUniqueDisplayIDs() {
+        let context = ContextDefinition(
+            id: "context-1",
+            order: 1,
+            name: "Research",
+            displayIDs: ["external-lg", "built-in", "built-in"]
+        )
+
+        XCTAssertEqual(context.displayIDs, ["built-in", "external-lg"])
     }
 
     func testContextDefinitionDecodeUsesModelNormalization() throws {
@@ -42,6 +73,7 @@ final class ContextPlanTests: XCTestCase {
 
         XCTAssertEqual(context.order, 1)
         XCTAssertEqual(context.name, "Research")
+        XCTAssertEqual(context.displayIDs, [])
     }
 
     func testReplaceContextsKeepsValidCurrentPointerAndCaptureLimit() {
@@ -57,6 +89,29 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(plan.currentContext?.name, "Review")
         XCTAssertEqual(plan.captureLimit, 5)
         XCTAssertEqual(plan.syncState, .synchronized)
+    }
+
+    func testReplaceContextsPreservesDisplayMembership() {
+        var plan = ContextPlan.default
+        let contexts = [
+            ContextDefinition(
+                id: "context-1",
+                order: 1,
+                name: "Code",
+                displayIDs: ["built-in", "external-lg"]
+            ),
+            ContextDefinition(
+                id: "context-2",
+                order: 2,
+                name: "Review",
+                displayIDs: ["built-in"]
+            )
+        ]
+
+        plan.replaceContexts(contexts, currentContextID: "context-2", captureLimit: 2)
+
+        XCTAssertEqual(plan.contexts[0].displayIDs, ["built-in", "external-lg"])
+        XCTAssertEqual(plan.contexts[1].displayIDs, ["built-in"])
     }
 
     func testDuplicateContextIDsNormalizeToUniqueIDs() {
@@ -227,11 +282,23 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(plan.syncState, .synchronized)
     }
 
-    func testEncodedDefaultPlanDoesNotPersistDisplaySlots() throws {
-        let data = try JSONEncoder().encode(ContextPlan.default)
+    func testEncodedPlanPersistsDisplayMembershipButNotLegacyDisplaySlots() throws {
+        let plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "Code",
+                    displayIDs: ["built-in", "external-lg"]
+                )
+            ],
+            currentContextID: "context-1"
+        )
+        let data = try JSONEncoder().encode(plan)
         let json = String(decoding: data, as: UTF8.self)
 
         XCTAssertFalse(json.contains("displaySlots"))
+        XCTAssertTrue(json.contains("displayIDs"))
     }
 
     func testMarkNeedsSyncBlocksNavigation() {
@@ -252,6 +319,151 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertTrue(plan.setCurrentContext(id: "context-3"))
 
         XCTAssertEqual(plan.currentContext?.name, "Context 3")
+        XCTAssertEqual(plan.syncState, .synchronized)
+    }
+
+    func testDecodedLegacyPlanDefaultsToPinned() throws {
+        let data = Data("""
+        {
+            "contexts": [
+                { "id": "context-1", "order": 1, "name": "Code" }
+            ],
+            "currentContextID": "context-1",
+            "syncState": "synchronized",
+            "captureLimit": 1
+        }
+        """.utf8)
+
+        let plan = try JSONDecoder().decode(ContextPlan.self, from: data)
+
+        XCTAssertTrue(plan.isPinned)
+    }
+
+    func testContextPinningPersistsThroughCoding() throws {
+        var plan = ContextPlan.default
+
+        plan.setPinned(false)
+        let decoded = try JSONDecoder().decode(ContextPlan.self, from: JSONEncoder().encode(plan))
+
+        XCTAssertFalse(decoded.isPinned)
+    }
+
+    func testContextDisplayMembershipPersistsThroughCoding() throws {
+        let plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "Code",
+                    displayIDs: ["built-in", "external-lg"]
+                ),
+                ContextDefinition(
+                    id: "context-2",
+                    order: 2,
+                    name: "Review",
+                    displayIDs: ["built-in"]
+                )
+            ],
+            currentContextID: "context-1"
+        )
+        let decoded = try JSONDecoder().decode(ContextPlan.self, from: JSONEncoder().encode(plan))
+
+        XCTAssertEqual(decoded.contexts.map(\.displayIDs), [["built-in", "external-lg"], ["built-in"]])
+    }
+
+    func testPinnedSwitchIntentBlocksAtContextEdges() {
+        var plan = ContextPlan.default
+
+        XCTAssertTrue(plan.setCurrentContext(id: "context-3"))
+        let intent = plan.switchIntent(for: .next)
+
+        XCTAssertFalse(intent.shouldExecute)
+        XCTAssertNil(intent.targetContext)
+        XCTAssertEqual(intent.targetDisplayIDs, [])
+        XCTAssertEqual(intent.diagnostic?.title, "No next Context")
+    }
+
+    func testUnpinnedSwitchIntentAllowsMovementWithoutTargetContext() {
+        var plan = ContextPlan.default
+
+        XCTAssertTrue(plan.setCurrentContext(id: "context-3"))
+        plan.setPinned(false)
+        let intent = plan.switchIntent(for: .next)
+
+        XCTAssertTrue(intent.shouldExecute)
+        XCTAssertNil(intent.targetContext)
+        XCTAssertEqual(intent.targetDisplayIDs, [])
+        XCTAssertNil(intent.diagnostic)
+    }
+
+    func testPinnedNextSwitchIntentUsesCurrentContextDisplayMembership() {
+        let plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "Code",
+                    displayIDs: ["built-in", "external-lg"]
+                ),
+                ContextDefinition(
+                    id: "context-2",
+                    order: 2,
+                    name: "Review",
+                    displayIDs: ["built-in"]
+                )
+            ],
+            currentContextID: "context-1"
+        )
+
+        let intent = plan.switchIntent(for: .next)
+
+        XCTAssertTrue(intent.shouldExecute)
+        XCTAssertEqual(intent.targetContext?.id, "context-2")
+        XCTAssertEqual(intent.targetDisplayIDs, ["built-in", "external-lg"])
+    }
+
+    func testPinnedPreviousSwitchIntentUsesCurrentContextDisplayMembership() {
+        let plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "Code",
+                    displayIDs: ["built-in", "external-lg"]
+                ),
+                ContextDefinition(
+                    id: "context-2",
+                    order: 2,
+                    name: "Review",
+                    displayIDs: ["built-in"]
+                )
+            ],
+            currentContextID: "context-2"
+        )
+
+        let intent = plan.switchIntent(for: .previous)
+
+        XCTAssertTrue(intent.shouldExecute)
+        XCTAssertEqual(intent.targetContext?.id, "context-1")
+        XCTAssertEqual(intent.targetDisplayIDs, ["built-in"])
+    }
+
+    func testSuccessfulUnpinnedSwitchMarksNeedsSyncWithoutChangingCurrentContext() {
+        var plan = ContextPlan.default
+
+        plan.setPinned(false)
+        plan.applySuccessfulSwitch(.next)
+
+        XCTAssertEqual(plan.currentContext?.id, "context-1")
+        XCTAssertEqual(plan.syncState, .needsSync)
+    }
+
+    func testSuccessfulPinnedSwitchTracksTargetContext() {
+        var plan = ContextPlan.default
+
+        plan.applySuccessfulSwitch(.next)
+
+        XCTAssertEqual(plan.currentContext?.id, "context-2")
         XCTAssertEqual(plan.syncState, .synchronized)
     }
 

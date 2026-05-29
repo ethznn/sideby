@@ -10,16 +10,36 @@ public struct ContextCaptureDraft: Equatable, Sendable {
     public let id: String
     public let order: Int
     public let name: String
+    public let displayIDs: [String]
 
-    public init(order: Int, name: String) {
+    public init(
+        order: Int,
+        name: String,
+        displayIDs: [String] = []
+    ) {
         self.id = "context-\(max(order, 1))"
         self.order = max(order, 1)
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         self.name = trimmed.isEmpty ? "Context \(max(order, 1))" : trimmed
+        self.displayIDs = Self.normalizedDisplayIDs(displayIDs)
     }
 
     public var contextDefinition: ContextDefinition {
-        ContextDefinition(id: id, order: order, name: name)
+        ContextDefinition(
+            id: id,
+            order: order,
+            name: name,
+            displayIDs: displayIDs
+        )
+    }
+
+    private static func normalizedDisplayIDs(_ displayIDs: [String]) -> [String] {
+        var seen = Set<String>()
+        return displayIDs
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted()
+            .filter { seen.insert($0).inserted }
     }
 }
 
@@ -128,12 +148,19 @@ public struct ContextCaptureSession: Equatable, Sendable {
         }
     }
 
-    public mutating func recordCurrentSpace(name: String) {
+    public mutating func recordCurrentSpace(
+        name: String,
+        displayIDs: [String] = []
+    ) {
         guard case .capturing(let order) = phase else {
             return
         }
 
-        let draft = ContextCaptureDraft(order: order, name: name)
+        let draft = ContextCaptureDraft(
+            order: order,
+            name: name,
+            displayIDs: displayIDs
+        )
         if let index = draftContexts.firstIndex(where: { $0.order == order }) {
             draftContexts[index] = draft
         } else {
@@ -142,7 +169,7 @@ public struct ContextCaptureSession: Equatable, Sendable {
         draftContexts.sort { $0.order < $1.order }
     }
 
-    public mutating func recordForwardSwitch(didObserveMovement: Bool) {
+    public mutating func recordForwardSwitch(movedDisplayIDs: Set<String>) {
         guard case .capturing(let order) = phase else {
             return
         }
@@ -152,7 +179,7 @@ public struct ContextCaptureSession: Equatable, Sendable {
             return
         }
 
-        if order >= captureLimit || !didObserveMovement {
+        if movedDisplayIDs.isEmpty || order >= captureLimit {
             phase = .completed(currentContextID: "context-\(order)")
         } else {
             phase = .capturing(order: order + 1)

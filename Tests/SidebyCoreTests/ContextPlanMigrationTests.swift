@@ -22,6 +22,10 @@ final class ContextPlanMigrationTests: XCTestCase {
         XCTAssertEqual(plan.contexts.map(\.name), ["Mail / Calendar", "Code / Preview"])
         XCTAssertEqual(plan.contexts.map(\.id), ["context-1", "context-2"])
         XCTAssertEqual(plan.contexts.map(\.order), [1, 2])
+        XCTAssertEqual(plan.contexts.map(\.displayIDs), [
+            ["built-in", "external-lg"],
+            ["built-in", "external-lg"]
+        ])
         XCTAssertEqual(plan.currentContextID, "context-1")
         XCTAssertEqual(plan.captureLimit, 4)
         XCTAssertEqual(plan.syncState, .synchronized)
@@ -45,6 +49,7 @@ final class ContextPlanMigrationTests: XCTestCase {
         XCTAssertEqual(plan.contexts.map(\.name), ["Mail / Preview"])
         XCTAssertEqual(plan.contexts.map(\.id), ["context-1"])
         XCTAssertEqual(plan.contexts.map(\.order), [1])
+        XCTAssertEqual(plan.contexts.map(\.displayIDs), [["a-display", "z-display"]])
     }
 
     func testMigrationDeduplicatesAndFallsBackToDefaultNames() {
@@ -67,6 +72,7 @@ final class ContextPlanMigrationTests: XCTestCase {
         XCTAssertEqual(plan.contexts.map(\.name), ["Code", "Context 2", "Docs"])
         XCTAssertEqual(plan.contexts.map(\.id), ["context-1", "context-2", "context-3"])
         XCTAssertEqual(plan.contexts.map(\.order), [1, 2, 3])
+        XCTAssertEqual(plan.contexts.map(\.displayIDs), [["a", "b"], ["a"], ["b"]])
     }
 
     func testMigrationDeduplicatesWhitespaceTrimmedLabels() {
@@ -110,6 +116,7 @@ final class ContextPlanMigrationTests: XCTestCase {
         XCTAssertEqual(plan.contexts.map(\.name), ["Context 1"])
         XCTAssertEqual(plan.contexts.map(\.id), ["context-1"])
         XCTAssertEqual(plan.contexts.map(\.order), [1])
+        XCTAssertEqual(plan.contexts.map(\.displayIDs), [[]])
         XCTAssertEqual(plan.captureLimit, 4)
     }
 

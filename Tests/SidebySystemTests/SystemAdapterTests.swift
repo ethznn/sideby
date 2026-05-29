@@ -459,6 +459,34 @@ final class SystemAdapterTests: XCTestCase {
         )
     }
 
+    func testMacVisibleAppSuggestionProviderDoesNotReprobeFirstAccessibilityHit() {
+        let display = DisplayInfo(
+            id: "built-in",
+            name: "Built-in",
+            isPrimary: true,
+            isBuiltin: true,
+            frame: DisplayFrame(x: 0, y: 0, width: 1200, height: 800)
+        )
+        let suggestion = VisibleAppSuggestion(
+            displayID: display.id,
+            appName: "Xcode",
+            windowTitle: "SidebyApp.swift",
+            source: .accessibility
+        )
+        let probe = RecordingVisibleAppSuggestionProbe(suggestion: suggestion)
+        let provider = MacVisibleAppSuggestionProvider(
+            accessibilityProbe: probe,
+            windowProvider: StaticVisibleWindowProvider(windows: [])
+        )
+
+        XCTAssertEqual(
+            provider.suggestions(for: DisplayLayout(displays: [display])),
+            [suggestion]
+        )
+        XCTAssertEqual(probe.requests.map(\.displayID), [display.id])
+        XCTAssertEqual(probe.requests.map(\.point), [CGPoint(x: 600, y: 400)])
+    }
+
     func testDisplaySwitchTargetOrderingCanFilterSelectedDisplays() {
         let candidates = [
             DisplaySwitchTargetCandidate(
@@ -559,35 +587,14 @@ final class SystemAdapterTests: XCTestCase {
         XCTAssertTrue(executor.execute(.next))
         XCTAssertEqual(baseExecutor.commands, [.next, .next])
         XCTAssertEqual(cursor.movedPoints, [
+            CGPoint(x: 100, y: 100),
             CGPoint(x: 900, y: 100),
             CGPoint(x: 12, y: 34)
         ])
-        XCTAssertEqual(visibility.actions, [
-            "hide",
-            "hide",
-            "hide",
-            "hide",
-            "hide",
-            "hide",
-            "hide",
-            "hide",
-            "hide",
-            "hide",
-            "hide",
-            "hide",
-            "show",
-            "show",
-            "show",
-            "show",
-            "show",
-            "show",
-            "show",
-            "show",
-            "show",
-            "show",
-            "show",
-            "show"
-        ])
+        XCTAssertEqual(
+            visibility.actions,
+            Array(repeating: "hide", count: 14) + Array(repeating: "show", count: 14)
+        )
         XCTAssertEqual(association.actions, [
             "disconnect",
             "connect"
@@ -595,6 +602,35 @@ final class SystemAdapterTests: XCTestCase {
         XCTAssertEqual(cursorShield.actions, [
             "begin",
             "end"
+        ])
+    }
+
+    func testHiddenCursorExecutorMovesToSingleTargetBeforeSwitching() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let targetProvider = StaticDisplaySwitchTargetProvider(points: [
+            CGPoint(x: 900, y: 100)
+        ])
+        let cursor = RecordingCursorPositioner(originalLocation: CGPoint(x: 12, y: 34))
+        let executor = HiddenCursorDisplaySpaceCommandExecutor(
+            baseExecutor: baseExecutor,
+            targetProvider: targetProvider,
+            cursor: cursor,
+            visibilityController: RecordingCursorVisibilityController(),
+            cursorShield: RecordingCursorShield(),
+            cursorAssociationController: RecordingMouseCursorAssociationController(),
+            postEventAccessChecker: AllowingPostEventAccessChecker(),
+            hideSettleDelay: 0,
+            focusDelay: 0,
+            switchDelay: 0,
+            transitionSettleDelay: 0,
+            restoreDelay: 0
+        )
+
+        XCTAssertTrue(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [.next])
+        XCTAssertEqual(cursor.movedPoints, [
+            CGPoint(x: 900, y: 100),
+            CGPoint(x: 12, y: 34)
         ])
     }
 
@@ -623,6 +659,7 @@ final class SystemAdapterTests: XCTestCase {
         XCTAssertTrue(executor.execute(.next))
         XCTAssertEqual(baseExecutor.commands, [.next, .next])
         XCTAssertEqual(cursor.movedPoints, [
+            CGPoint(x: 900, y: 100),
             CGPoint(x: 100, y: 100),
             CGPoint(x: 920, y: 110)
         ])
@@ -664,6 +701,9 @@ final class SystemAdapterTests: XCTestCase {
             "disconnect",
             "hide",
             "hide",
+            "move 100,100",
+            "hide",
+            "hide",
             "execute next",
             "hide",
             "hide",
@@ -679,6 +719,8 @@ final class SystemAdapterTests: XCTestCase {
             "connect",
             "hide",
             "shield end",
+            "show",
+            "show",
             "show",
             "show",
             "show",
@@ -1254,6 +1296,33 @@ private final class RecordingAXFocusAnchorProbe: AXFocusAnchorProbing, @unchecke
             role: "AXWindow",
             title: "Test"
         )
+    }
+}
+
+private final class RecordingVisibleAppSuggestionProbe: AccessibilityVisibleAppProbing, @unchecked Sendable {
+    struct Request: Equatable {
+        let point: CGPoint
+        let displayID: String
+    }
+
+    private let suggestion: VisibleAppSuggestion?
+    private(set) var requests: [Request] = []
+
+    init(suggestion: VisibleAppSuggestion?) {
+        self.suggestion = suggestion
+    }
+
+    func suggestion(at point: CGPoint, displayID: String) -> VisibleAppSuggestion? {
+        requests.append(Request(point: point, displayID: displayID))
+        return suggestion
+    }
+}
+
+private struct StaticVisibleWindowProvider: VisibleWindowProviding {
+    let windows: [VisibleWindowCandidate]
+
+    func visibleWindows() -> [VisibleWindowCandidate] {
+        windows
     }
 }
 

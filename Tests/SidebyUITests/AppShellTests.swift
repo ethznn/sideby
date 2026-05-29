@@ -95,6 +95,58 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(rows.first?.state, .current)
     }
 
+    func testContextRowsExposeCapturedDisplayMembership() {
+        let plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "Focus",
+                    displayIDs: ["built-in", "external-lg"]
+                ),
+                ContextDefinition(
+                    id: "context-2",
+                    order: 2,
+                    name: "Solo",
+                    displayIDs: ["built-in"]
+                )
+            ],
+            currentContextID: "context-1"
+        )
+
+        let rows = ContextListModel.rows(plan: plan)
+
+        XCTAssertEqual(rows.map(\.displayIDs), [["built-in", "external-lg"], ["built-in"]])
+    }
+
+    func testContextMatrixUsesDisplaysAsRowsAndContextsAsColumns() {
+        let displays = RuntimeState.dualDisplay.displayLayout.displays
+        let plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "Shared",
+                    displayIDs: ["built-in", "external-lg"]
+                ),
+                ContextDefinition(
+                    id: "context-2",
+                    order: 2,
+                    name: "Built-in only",
+                    displayIDs: ["built-in"]
+                )
+            ],
+            currentContextID: "context-1"
+        )
+
+        let matrix = ContextMatrixModel.matrix(plan: plan, displays: displays)
+
+        XCTAssertEqual(matrix.columns.map(\.name), ["Shared", "Built-in only"])
+        XCTAssertEqual(matrix.rows.map(\.displayID), ["built-in", "external-lg"])
+        XCTAssertEqual(matrix.rows[0].cells.map(\.isIncluded), [true, true])
+        XCTAssertEqual(matrix.rows[1].cells.map(\.isIncluded), [true, false])
+    }
+
     func testContextCaptureStatusDisplayShowsAligningCapturingAndCompleted() {
         let strings = SBSStrings(language: .english)
 
@@ -151,10 +203,10 @@ final class AppShellTests: XCTestCase {
     }
 
     func testContextCaptureStatusDisplayUsesSessionCompletedCount() {
-        var session = ContextCaptureSession(captureLimit: 5)
+        var session = ContextCaptureSession(captureLimit: 1)
         session.recordAlignment(previousDidChange: false)
-        session.recordCurrentSpace(name: "Context 1")
-        session.recordForwardSwitch(didObserveMovement: false)
+        session.recordCurrentSpace(name: "Context 1", displayIDs: ["built-in"])
+        session.recordForwardSwitch(movedDisplayIDs: [])
 
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(session: session, strings: SBSStrings(language: .english)),

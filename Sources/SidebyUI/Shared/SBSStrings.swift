@@ -95,6 +95,10 @@ public struct SBSStrings: Sendable {
     public var scanCurrentDisplays: String { text("Scan Current Displays", "현재 디스플레이 스캔") }
     public var captureContexts: String { text("Capture Contexts", "컨텍스트 캡처") }
     public var stopCapture: String { text("Stop", "중지") }
+    public var pinContexts: String { text("Move by Contexts", "컨텍스트대로 움직이기") }
+    public var contextRequiresDisplay: String {
+        text("Capture needs at least one Context.", "캡처에는 컨텍스트가 하나 이상 필요합니다.")
+    }
     public var useApp: String { text("Use App", "앱 사용") }
     public var useTitle: String { text("Use Title", "제목 사용") }
     public var noCurrentContext: String { text("No current Context", "현재 컨텍스트 없음") }
@@ -112,7 +116,6 @@ public struct SBSStrings: Sendable {
             "캡처가 중지되었습니다. 기존 컨텍스트는 유지되었습니다."
         )
     }
-
     public func contextsToCapture(_ count: Int) -> String {
         if count == 1 {
             return text("Capture up to 1 Context", "최대 1개 컨텍스트 캡처")
@@ -136,6 +139,10 @@ public struct SBSStrings: Sendable {
             "Captured \(count) Contexts · Now at Context \(count)",
             "컨텍스트 \(count)개 캡처됨 · 현재 컨텍스트 \(count)"
         )
+    }
+
+    public func contextOrder(_ order: Int) -> String {
+        text("Context \(order)", "컨텍스트 \(order)")
     }
 
     public func contextCaptureFailed(_ reason: String) -> String {
@@ -287,6 +294,13 @@ public struct SBSStrings: Sendable {
             return text("Ignored \(label) \(commandName(command)): switch already running", "\(label) \(commandName(command)) 무시됨: 이미 전환 중")
         }
         return text("Ignored \(commandName(command)): switch already running", "\(commandName(command)) 무시됨: 이미 전환 중")
+    }
+
+    public func ignoredSwitchContextCaptureActive(label: String, command: SwitchCommand) -> String {
+        text(
+            "Ignored \(label) \(commandName(command)): context capture active",
+            "\(label) \(commandName(command)) 무시됨: 컨텍스트 캡처 중"
+        )
     }
 
     public func acceptedCommand(command: SwitchCommand, modifiers: String) -> String {

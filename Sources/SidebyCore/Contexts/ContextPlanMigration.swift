@@ -11,7 +11,8 @@ public enum ContextPlanMigration {
             ContextDefinition(
                 id: "context-\(order)",
                 order: order,
-                name: migratedName(order: order, displaySets: displaySets)
+                name: migratedName(order: order, displaySets: displaySets),
+                displayIDs: migratedDisplayIDs(order: order, displaySets: displaySets)
             )
         }
 
@@ -40,5 +41,11 @@ public enum ContextPlanMigration {
         }
 
         return labels.isEmpty ? "Context \(order)" : labels.joined(separator: " / ")
+    }
+
+    private static func migratedDisplayIDs(order: Int, displaySets: [DisplaySpaceSet]) -> [String] {
+        displaySets.compactMap { displaySet in
+            displaySet.spaces.contains(where: { $0.order == order }) ? displaySet.displayID : nil
+        }
     }
 }

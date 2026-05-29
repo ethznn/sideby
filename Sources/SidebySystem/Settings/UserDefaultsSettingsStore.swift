@@ -74,72 +74,72 @@ public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendab
     }
 
     private func migrate(_ settings: AppSettings) -> AppSettings {
-        guard settings.version < AppSettings.currentVersion else {
-            return settings
+        var migratedSettings = settings
+
+        if settings.version < AppSettings.currentVersion {
+            if settings.requiredModifiers == [.option] {
+                migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
+            }
+            if settings.version < 6,
+               settings.requiredModifiers == [.shift, .option] {
+                migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
+            }
+            if settings.version < 6,
+               settings.shortcutPrevious == KeyboardShortcut(keyCode: 123, modifiers: [.option, .command]),
+               settings.shortcutNext == KeyboardShortcut(keyCode: 124, modifiers: [.option, .command]) {
+                migratedSettings.shortcutPrevious = AppSettings.default.shortcutPrevious
+                migratedSettings.shortcutNext = AppSettings.default.shortcutNext
+            }
+            if settings.version < 7,
+               settings.requiredModifiers == [.shift, .command] {
+                migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
+            }
+            if settings.version < 7,
+               settings.shortcutPrevious == KeyboardShortcut(keyCode: 123, modifiers: [.shift, .command]),
+               settings.shortcutNext == KeyboardShortcut(keyCode: 124, modifiers: [.shift, .command]) {
+                migratedSettings.shortcutPrevious = AppSettings.default.shortcutPrevious
+                migratedSettings.shortcutNext = AppSettings.default.shortcutNext
+            }
+            if settings.version < 8,
+               settings.requiredModifiers == [.option, .command] {
+                migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
+            }
+            if settings.version < 8,
+               settings.shortcutPrevious == KeyboardShortcut(keyCode: 123, modifiers: [.option, .command]),
+               settings.shortcutNext == KeyboardShortcut(keyCode: 124, modifiers: [.option, .command]) {
+                migratedSettings.shortcutPrevious = AppSettings.default.shortcutPrevious
+                migratedSettings.shortcutNext = AppSettings.default.shortcutNext
+            }
+            if settings.version < 9,
+               settings.requiredModifiers == [.control, .option] {
+                migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
+            }
+            if settings.version < 9,
+               settings.shortcutPrevious == KeyboardShortcut(keyCode: 123, modifiers: [.control, .option]),
+               settings.shortcutNext == KeyboardShortcut(keyCode: 124, modifiers: [.control, .option]) {
+                migratedSettings.shortcutPrevious = AppSettings.default.shortcutPrevious
+                migratedSettings.shortcutNext = AppSettings.default.shortcutNext
+            }
+            if settings.version < 10,
+               settings.requiredModifiers == [.control, .option, .shift] {
+                migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
+            }
+            if settings.version < 10,
+               settings.shortcutPrevious == KeyboardShortcut(keyCode: 123, modifiers: [.control, .option, .shift]),
+               settings.shortcutNext == KeyboardShortcut(keyCode: 124, modifiers: [.control, .option, .shift]) {
+                migratedSettings.shortcutPrevious = AppSettings.default.shortcutPrevious
+                migratedSettings.shortcutNext = AppSettings.default.shortcutNext
+            }
+            if settings.version < 10 {
+                migratedSettings.keyboardShortcutsEnabled = false
+            }
+            if settings.version < 13 {
+                migratedSettings.contextPlan = ContextPlanMigration.migrate(from: settings.displaySpacePlan)
+            }
+            migratedSettings.version = AppSettings.currentVersion
         }
 
-        var migratedSettings = settings
-        if settings.requiredModifiers == [.option] {
-            migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
-        }
-        if settings.version < 6,
-           settings.requiredModifiers == [.shift, .option] {
-            migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
-        }
-        if settings.version < 6,
-           settings.shortcutPrevious == KeyboardShortcut(keyCode: 123, modifiers: [.option, .command]),
-           settings.shortcutNext == KeyboardShortcut(keyCode: 124, modifiers: [.option, .command]) {
-            migratedSettings.shortcutPrevious = AppSettings.default.shortcutPrevious
-            migratedSettings.shortcutNext = AppSettings.default.shortcutNext
-        }
-        if settings.version < 7,
-           settings.requiredModifiers == [.shift, .command] {
-            migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
-        }
-        if settings.version < 7,
-           settings.shortcutPrevious == KeyboardShortcut(keyCode: 123, modifiers: [.shift, .command]),
-           settings.shortcutNext == KeyboardShortcut(keyCode: 124, modifiers: [.shift, .command]) {
-            migratedSettings.shortcutPrevious = AppSettings.default.shortcutPrevious
-            migratedSettings.shortcutNext = AppSettings.default.shortcutNext
-        }
-        if settings.version < 8,
-           settings.requiredModifiers == [.option, .command] {
-            migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
-        }
-        if settings.version < 8,
-           settings.shortcutPrevious == KeyboardShortcut(keyCode: 123, modifiers: [.option, .command]),
-           settings.shortcutNext == KeyboardShortcut(keyCode: 124, modifiers: [.option, .command]) {
-            migratedSettings.shortcutPrevious = AppSettings.default.shortcutPrevious
-            migratedSettings.shortcutNext = AppSettings.default.shortcutNext
-        }
-        if settings.version < 9,
-           settings.requiredModifiers == [.control, .option] {
-            migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
-        }
-        if settings.version < 9,
-           settings.shortcutPrevious == KeyboardShortcut(keyCode: 123, modifiers: [.control, .option]),
-           settings.shortcutNext == KeyboardShortcut(keyCode: 124, modifiers: [.control, .option]) {
-            migratedSettings.shortcutPrevious = AppSettings.default.shortcutPrevious
-            migratedSettings.shortcutNext = AppSettings.default.shortcutNext
-        }
-        if settings.version < 10,
-           settings.requiredModifiers == [.control, .option, .shift] {
-            migratedSettings.requiredModifiers = AppSettings.defaultGestureModifiers
-        }
-        if settings.version < 10,
-           settings.shortcutPrevious == KeyboardShortcut(keyCode: 123, modifiers: [.control, .option, .shift]),
-           settings.shortcutNext == KeyboardShortcut(keyCode: 124, modifiers: [.control, .option, .shift]) {
-            migratedSettings.shortcutPrevious = AppSettings.default.shortcutPrevious
-            migratedSettings.shortcutNext = AppSettings.default.shortcutNext
-        }
-        if settings.version < 10 {
-            migratedSettings.keyboardShortcutsEnabled = false
-        }
-        if settings.version < 13 {
-            migratedSettings.contextPlan = ContextPlanMigration.migrate(from: settings.displaySpacePlan)
-            migratedSettings.displaySpacePlan = .default
-        }
-        migratedSettings.version = AppSettings.currentVersion
+        migratedSettings.displaySpacePlan = .default
         return migratedSettings
     }
 }
