@@ -1,34 +1,50 @@
-public struct ContextDisplaySlot: Equatable, Codable, Sendable {
-    public let displayID: String
-    public var label: String
+import Foundation
 
-    public init(displayID: String, label: String = "") {
-        self.displayID = displayID
-        self.label = label
+public enum ContextSyncState: String, Codable, Equatable, Sendable {
+    case synchronized
+    case needsSync
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = ContextSyncState(rawValue: rawValue) ?? .synchronized
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 
 public struct ContextDefinition: Equatable, Codable, Identifiable, Sendable {
     public let id: String
-    public var order: Int
-    public var name: String
-    public var displaySlots: [ContextDisplaySlot]
+    public private(set) var order: Int
+    public private(set) var name: String
 
-    public init(
-        id: String,
-        order: Int,
-        name: String,
-        displaySlots: [ContextDisplaySlot] = []
-    ) {
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case order
+        case name
+    }
+
+    public init(id: String, order: Int, name: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         self.id = id
-        self.order = order
-        self.name = name
-        self.displaySlots = displaySlots
+        self.order = max(order, 1)
+        self.name = trimmedName.isEmpty
+            ? "Context \(max(order, 1))"
+            : trimmedName
     }
 
-    public func label(for displayID: String) -> String? {
-        displaySlots.first { $0.displayID == displayID }?.label
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(String.self, forKey: .id),
+            order: try container.decodeIfPresent(Int.self, forKey: .order) ?? 1,
+            name: try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        )
     }
+
 }
 
 public struct ContextPlanNavigation: Equatable, Sendable {
@@ -40,11 +56,7 @@ public struct ContextPlanNavigation: Equatable, Sendable {
         targetContext != nil
     }
 
-    public init(
-        command: SwitchCommand,
-        targetContext: ContextDefinition?,
-        diagnostic: DiagnosticState?
-    ) {
+    public init(command: SwitchCommand, targetContext: ContextDefinition?, diagnostic: DiagnosticState?) {
         self.command = command
         self.targetContext = targetContext
         self.diagnostic = diagnostic
@@ -52,100 +64,83 @@ public struct ContextPlanNavigation: Equatable, Sendable {
 }
 
 public struct ContextPlan: Equatable, Codable, Sendable {
-    public var contexts: [ContextDefinition]
-    public var currentContextID: String
+    public private(set) var contexts: [ContextDefinition]
+    public private(set) var currentContextID: String
+    public private(set) var syncState: ContextSyncState
+    public private(set) var captureLimit: Int
 
-    public init(contexts: [ContextDefinition], currentContextID: String) {
-        self.contexts = contexts.sorted { $0.order < $1.order }
+    private enum CodingKeys: String, CodingKey {
+        case contexts
+        case currentContextID
+        case syncState
+        case captureLimit
+    }
+
+    public init(
+        contexts: [ContextDefinition],
+        currentContextID: String,
+        syncState: ContextSyncState = .synchronized,
+        captureLimit: Int? = nil
+    ) {
+        self.contexts = Self.normalizedContexts(contexts)
         self.currentContextID = currentContextID
+        self.syncState = syncState
+        self.captureLimit = max(captureLimit ?? self.contexts.count, 1)
         ensureValidCurrentContext()
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let contexts = try container.decodeIfPresent([ContextDefinition].self, forKey: .contexts) ?? []
+        let currentContextID = try container.decodeIfPresent(String.self, forKey: .currentContextID)
+            ?? contexts.first?.id
+            ?? Self.default.currentContextID
+        let syncState = try container.decodeIfPresent(ContextSyncState.self, forKey: .syncState) ?? .synchronized
+        let captureLimit = try container.decodeIfPresent(Int.self, forKey: .captureLimit)
+
+        self.init(
+            contexts: contexts,
+            currentContextID: currentContextID,
+            syncState: syncState,
+            captureLimit: captureLimit
+        )
     }
 
     public static let `default` = ContextPlan(
         contexts: (1...3).map { index in
-            ContextDefinition(
-                id: "context-\(index)",
-                order: index,
-                name: "Context \(index)"
-            )
+            ContextDefinition(id: "context-\(index)", order: index, name: "Context \(index)")
         },
-        currentContextID: "context-1"
+        currentContextID: "context-1",
+        syncState: .synchronized,
+        captureLimit: 3
     )
 
     public var currentContext: ContextDefinition? {
         contexts.first { $0.id == currentContextID }
     }
 
-    public mutating func reconcile(with displayLayout: DisplayLayout) {
-        ensureNonEmptyContexts()
-        contexts.sort { $0.order < $1.order }
-
-        let connectedDisplayIDs = displayLayout.displays.map(\.id)
-        for contextIndex in contexts.indices {
-            for displayID in connectedDisplayIDs where contexts[contextIndex].label(for: displayID) == nil {
-                contexts[contextIndex].displaySlots.append(ContextDisplaySlot(displayID: displayID))
-            }
-        }
-
-        ensureValidCurrentContext()
-    }
-
-    public func label(contextID: String, displayID: String) -> String? {
-        contexts
-            .first { $0.id == contextID }?
-            .label(for: displayID)
-    }
-
-    public mutating func updateLabel(contextID: String, displayID: String, label: String) {
-        guard let contextIndex = contexts.firstIndex(where: { $0.id == contextID }) else {
+    public mutating func renameContext(id: String, name: String) {
+        guard let index = contexts.firstIndex(where: { $0.id == id }) else {
             return
         }
-
-        if let slotIndex = contexts[contextIndex].displaySlots.firstIndex(where: { $0.displayID == displayID }) {
-            contexts[contextIndex].displaySlots[slotIndex].label = label
-        } else {
-            contexts[contextIndex].displaySlots.append(
-                ContextDisplaySlot(displayID: displayID, label: label)
-            )
-        }
+        let context = contexts[index]
+        contexts[index] = ContextDefinition(id: context.id, order: context.order, name: name)
     }
 
-    @discardableResult
-    public mutating func addContext(displayLayout: DisplayLayout) -> ContextDefinition {
-        let nextNumber = nextAvailableContextNumber()
-        let context = ContextDefinition(
-            id: "context-\(nextNumber)",
-            order: nextOrder(),
-            name: "Context \(nextNumber)",
-            displaySlots: displayLayout.displays.map { display in
-                ContextDisplaySlot(displayID: display.id)
-            }
-        )
-        contexts.append(context)
-        contexts.sort { $0.order < $1.order }
+    public mutating func replaceContexts(
+        _ newContexts: [ContextDefinition],
+        currentContextID: String,
+        captureLimit: Int
+    ) {
+        contexts = Self.normalizedContexts(newContexts)
+        self.currentContextID = currentContextID
+        self.captureLimit = max(captureLimit, 1)
+        syncState = .synchronized
         ensureValidCurrentContext()
-        return context
     }
 
-    @discardableResult
-    public mutating func deleteContext(id: String) -> Bool {
-        guard contexts.count > 1,
-              let removedIndex = contexts.firstIndex(where: { $0.id == id })
-        else {
-            return false
-        }
-
-        let removedContextWasCurrent = currentContextID == id
-        contexts.remove(at: removedIndex)
-        contexts.sort { $0.order < $1.order }
-
-        if removedContextWasCurrent {
-            let fallbackIndex = max(min(removedIndex - 1, contexts.count - 1), 0)
-            currentContextID = contexts[fallbackIndex].id
-        }
-
-        ensureValidCurrentContext()
-        return true
+    public mutating func setCaptureLimit(_ limit: Int) {
+        captureLimit = min(max(limit, 1), 12)
     }
 
     @discardableResult
@@ -153,19 +148,32 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         guard contexts.contains(where: { $0.id == id }) else {
             return false
         }
-
         currentContextID = id
+        syncState = .synchronized
         return true
     }
 
+    public mutating func markNeedsSync() {
+        syncState = .needsSync
+    }
+
     public func navigation(for command: SwitchCommand) -> ContextPlanNavigation {
-        let sortedContexts = contexts.sorted { $0.order < $1.order }
-        guard let currentIndex = sortedContexts.firstIndex(where: { $0.id == currentContextID }) else {
+        guard syncState == .synchronized else {
             return ContextPlanNavigation(
                 command: command,
-                targetContext: sortedContexts.first,
-                diagnostic: nil
+                targetContext: nil,
+                diagnostic: DiagnosticState(
+                    severity: .warning,
+                    title: "Context needs sync",
+                    message: "Set the current Context or capture Contexts before switching.",
+                    actionLabel: nil
+                )
             )
+        }
+
+        let sortedContexts = contexts.sorted { $0.order < $1.order }
+        guard let currentIndex = sortedContexts.firstIndex(where: { $0.id == currentContextID }) else {
+            return ContextPlanNavigation(command: command, targetContext: sortedContexts.first, diagnostic: nil)
         }
 
         switch command {
@@ -173,29 +181,22 @@ public struct ContextPlan: Equatable, Codable, Sendable {
             guard currentIndex > 0 else {
                 return blockedNavigation(command: command)
             }
-            return ContextPlanNavigation(
-                command: command,
-                targetContext: sortedContexts[currentIndex - 1],
-                diagnostic: nil
-            )
+            return ContextPlanNavigation(command: command, targetContext: sortedContexts[currentIndex - 1], diagnostic: nil)
         case .next:
             guard currentIndex < sortedContexts.index(before: sortedContexts.endIndex) else {
                 return blockedNavigation(command: command)
             }
-            return ContextPlanNavigation(
-                command: command,
-                targetContext: sortedContexts[currentIndex + 1],
-                diagnostic: nil
-            )
+            return ContextPlanNavigation(command: command, targetContext: sortedContexts[currentIndex + 1], diagnostic: nil)
         }
     }
 
     public mutating func applySuccessfulNavigation(_ command: SwitchCommand) {
         guard let targetContext = navigation(for: command).targetContext else {
+            syncState = .needsSync
             return
         }
-
         currentContextID = targetContext.id
+        syncState = .synchronized
     }
 
     public mutating func applyFailedNavigation(_ command: SwitchCommand) {
@@ -217,40 +218,57 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         return ContextPlanNavigation(
             command: command,
             targetContext: nil,
-            diagnostic: DiagnosticState(
-                severity: .info,
-                title: title,
-                message: message,
-                actionLabel: nil
-            )
+            diagnostic: DiagnosticState(severity: .info, title: title, message: message, actionLabel: nil)
         )
     }
 
-    private func nextOrder() -> Int {
-        (contexts.map(\.order).max() ?? 0) + 1
-    }
-
-    private func nextAvailableContextNumber() -> Int {
-        let existingIDs = Set(contexts.map(\.id))
-        var number = (contexts.map(\.order).max() ?? 0) + 1
-        while existingIDs.contains("context-\(number)") {
-            number += 1
+    private static func normalizedContexts(_ contexts: [ContextDefinition]) -> [ContextDefinition] {
+        let sorted = contexts.sorted { $0.order < $1.order }
+        guard !sorted.isEmpty else {
+            return Self.default.contexts
         }
-        return number
-    }
 
-    private mutating func ensureNonEmptyContexts() {
-        if contexts.isEmpty {
-            contexts = Self.default.contexts
-            currentContextID = Self.default.currentContextID
+        let reservedIDs = Set(sorted.map(\.id).filter { !$0.isEmpty })
+        var usedIDs = Set<String>()
+        var nextContextNumber = 1
+        func nextAvailableID() -> String {
+            var id = "context-\(nextContextNumber)"
+            while reservedIDs.contains(id) || usedIDs.contains(id) {
+                nextContextNumber += 1
+                id = "context-\(nextContextNumber)"
+            }
+            usedIDs.insert(id)
+            nextContextNumber += 1
+            return id
+        }
+
+        return sorted.enumerated().map { offset, context in
+            let id: String
+            if !context.id.isEmpty, !usedIDs.contains(context.id) {
+                id = context.id
+                usedIDs.insert(id)
+            } else {
+                id = nextAvailableID()
+            }
+
+            return ContextDefinition(
+                id: id,
+                order: offset + 1,
+                name: context.name
+            )
         }
     }
 
     private mutating func ensureValidCurrentContext() {
-        ensureNonEmptyContexts()
+        if contexts.isEmpty {
+            contexts = Self.default.contexts
+            currentContextID = Self.default.currentContextID
+        }
+        contexts = Self.normalizedContexts(contexts)
         if !contexts.contains(where: { $0.id == currentContextID }),
-           let firstContext = contexts.sorted(by: { $0.order < $1.order }).first {
+           let firstContext = contexts.first {
             currentContextID = firstContext.id
         }
+        captureLimit = min(max(captureLimit, 1), 12)
     }
 }

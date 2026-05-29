@@ -6,17 +6,28 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    name: Swift tests
+    name: Swift tests and builds
     runs-on: macos-latest
+    timeout-minutes: 15
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Show Swift version
         run: swift --version
 
       - name: Run tests
         run: swift test
+
+      - name: Build Sideby app
+        run: swift build --product SidebyApp
+
+      - name: Build Sideby dev app
+        run: swift build --product SidebyDevApp

@@ -48,13 +48,6 @@ final class ShortcutSettingsViewTests: XCTestCase {
         XCTAssertEqual(korean.selectedDisplaySummary(selected: 1, total: 2), "디스플레이 1/2개 선택됨")
     }
 
-    func testFormatsSpaceCaptureCount() {
-        let english = SBSStrings(language: .english)
-
-        XCTAssertEqual(english.spacesToCapture(1), "Capture 1 Space")
-        XCTAssertEqual(english.spacesToCapture(4), "Capture 4 Spaces")
-    }
-
     func testPostEventPermissionActionUsesSwitchingAccessCopy() {
         XCTAssertEqual(SBSStrings(language: .english).enablePostEvents, "Check Switching Access")
         XCTAssertEqual(SBSStrings(language: .korean).enablePostEvents, "화면 전환 권한 확인")

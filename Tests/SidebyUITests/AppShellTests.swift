@@ -33,11 +33,8 @@ final class AppShellTests: XCTestCase {
         XCTAssertTrue(hud.isCompact)
     }
 
-    func testContextSummaryUsesLabelsForConnectedDisplays() {
-        var plan = ContextPlan.default
-        plan.reconcile(with: RuntimeState.dualDisplay.displayLayout)
-        plan.updateLabel(contextID: "context-1", displayID: "built-in", label: "Code")
-        plan.updateLabel(contextID: "context-1", displayID: "external-lg", label: "Preview")
+    func testContextSummaryUsesContextNameOnly() {
+        let plan = ContextPlan.default
 
         let summary = ContextPlanSummary.summary(
             for: plan.currentContext!,
@@ -45,12 +42,11 @@ final class AppShellTests: XCTestCase {
             strings: SBSStrings(language: .english)
         )
 
-        XCTAssertEqual(summary, "Context 1 · Code / Preview")
+        XCTAssertEqual(summary, "Context 1")
     }
 
-    func testContextSummaryFallsBackToDisplayCountWhenLabelsAreEmpty() {
-        var plan = ContextPlan.default
-        plan.reconcile(with: RuntimeState.dualDisplay.displayLayout)
+    func testContextSummaryIgnoresDisplayCount() {
+        let plan = ContextPlan.default
 
         let summary = ContextPlanSummary.summary(
             for: plan.currentContext!,
@@ -58,7 +54,7 @@ final class AppShellTests: XCTestCase {
             strings: SBSStrings(language: .english)
         )
 
-        XCTAssertEqual(summary, "Context 1 · 2 displays")
+        XCTAssertEqual(summary, "Context 1")
     }
 
     func testVisibleAppSuggestionDisplayShowsDetectedCombinedLabel() {
@@ -78,52 +74,125 @@ final class AppShellTests: XCTestCase {
         )
     }
 
-    func testContextCaptureStatusDisplayShowsProgress() {
+    func testContextListRowsExposeCurrentAndNeedsSyncState() {
+        var plan = ContextPlan.default
+        plan.renameContext(id: "context-2", name: "Research")
+        plan.markNeedsSync()
+
+        let rows = ContextListModel.rows(plan: plan)
+
+        XCTAssertEqual(rows.map(\.name), ["Context 1", "Research", "Context 3"])
+        XCTAssertEqual(rows[0].state, .needsSync)
+        XCTAssertEqual(rows[1].state, .normal)
+    }
+
+    func testContextRowsReflectRenamedCurrentContext() {
+        var settings = AppSettings.default
+        settings.contextPlan.renameContext(id: "context-1", name: "Work")
+        let rows = ContextListModel.rows(plan: settings.contextPlan)
+
+        XCTAssertEqual(rows.first?.name, "Work")
+        XCTAssertEqual(rows.first?.state, .current)
+    }
+
+    func testContextCaptureStatusDisplayShowsAligningCapturingAndCompleted() {
+        let strings = SBSStrings(language: .english)
+
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(
-                contextName: "Context 2",
-                currentStep: 2,
-                totalSteps: 3,
-                strings: SBSStrings(language: .english)
+                phase: .aligning(attempt: 2),
+                captureLimit: 5,
+                completedContextCount: 0,
+                strings: strings
             ),
-            "Capturing Context 2 of 3: Context 2"
+            "Aligning to first Space"
         )
-    }
-
-    func testSpaceCaptureStatusDisplayShowsProgress() {
         XCTAssertEqual(
-            SpaceCaptureStatusDisplay.statusText(
-                currentSpace: 2,
-                totalSpaces: 4,
-                strings: SBSStrings(language: .english)
+            ContextCaptureStatusDisplay.statusText(
+                phase: .capturing(order: 3),
+                captureLimit: 5,
+                completedContextCount: 0,
+                strings: strings
             ),
-            "Capturing Space 2 of 4"
+            "Capturing Context 3 of up to 5"
+        )
+        XCTAssertEqual(
+            ContextCaptureStatusDisplay.statusText(
+                phase: .completed(currentContextID: "captured-final"),
+                captureLimit: 5,
+                completedContextCount: 4,
+                strings: strings
+            ),
+            "Captured 4 Contexts · Now at Context 4"
         )
     }
 
-    func testDisplaySpaceGridUsesDisplayRowsAndMaxSpaceColumns() {
-        var plan = DisplaySpacePlan.default
-        plan.reconcile(with: RuntimeState.dualDisplay.displayLayout)
-        plan.updateLabel(displayID: "built-in", spaceOrder: 3, label: "Code")
+    func testContextCaptureStatusDisplayShowsFailedAndStopped() {
+        let strings = SBSStrings(language: .english)
 
-        let suggestion = VisibleAppSuggestion(
-            displayID: "external-lg",
-            appName: "Arc",
-            windowTitle: nil,
-            source: .accessibility
+        XCTAssertEqual(
+            ContextCaptureStatusDisplay.statusText(
+                phase: .failed(reason: "No Space movement detected"),
+                captureLimit: 5,
+                completedContextCount: 0,
+                strings: strings
+            ),
+            "Capture failed: No Space movement detected"
         )
-        let rows = DisplaySpaceGridModel.rows(
-            displays: RuntimeState.dualDisplay.displayLayout.displays,
-            plan: plan,
-            captureCount: 2,
-            suggestionsByDisplayID: ["external-lg": [5: suggestion]]
+        XCTAssertEqual(
+            ContextCaptureStatusDisplay.statusText(
+                phase: .stopped,
+                captureLimit: 5,
+                completedContextCount: 0,
+                strings: strings
+            ),
+            "Capture stopped. Existing Contexts were kept."
+        )
+    }
+
+    func testContextCaptureStatusDisplayUsesSessionCompletedCount() {
+        var session = ContextCaptureSession(captureLimit: 5)
+        session.recordAlignment(previousDidChange: false)
+        session.recordCurrentSpace(name: "Context 1")
+        session.recordForwardSwitch(didObserveMovement: false)
+
+        XCTAssertEqual(
+            ContextCaptureStatusDisplay.statusText(session: session, strings: SBSStrings(language: .english)),
+            "Captured 1 Context · Now at Context 1"
+        )
+    }
+
+    func testContextCaptureStatusDisplayFailsInvalidCompletedSession() {
+        let session = ContextCaptureSession(
+            captureLimit: 5,
+            phase: .completed(currentContextID: "missing"),
+            draftContexts: []
         )
 
-        XCTAssertEqual(rows.map(\.displayID), ["built-in", "external-lg"])
-        XCTAssertEqual(rows[0].cells.map(\.spaceOrder), [1, 2, 3, 4, 5])
-        XCTAssertEqual(rows[1].cells.map(\.spaceOrder), [1, 2, 3, 4, 5])
-        XCTAssertEqual(rows[0].cells[2].label, "Code")
-        XCTAssertEqual(rows[1].cells[4].suggestion, suggestion)
+        XCTAssertEqual(
+            ContextCaptureStatusDisplay.statusText(session: session, strings: SBSStrings(language: .english)),
+            "Capture failed: Invalid completed Context capture"
+        )
+    }
+
+    func testHUDPresenterShowsContextSyncWarning() {
+        let hud = HUDPresenter().stateForContextNeedsSync()
+
+        XCTAssertEqual(hud.text, "Context needs sync")
+        XCTAssertTrue(hud.isCompact)
+    }
+
+    func testHUDPresenterLocalizesContextSyncWarning() {
+        let strings = SBSStrings(language: .korean)
+
+        let hud = HUDPresenter().stateForContextNeedsSync(strings: strings)
+
+        XCTAssertEqual(hud.text, "컨텍스트 동기화 필요")
+        XCTAssertTrue(hud.isCompact)
+        XCTAssertEqual(
+            strings.localizedDiagnosticTitle("Context needs sync"),
+            "컨텍스트 동기화 필요"
+        )
     }
 
     func testOnboardingStateMachineProgressesThroughTryFlow() {

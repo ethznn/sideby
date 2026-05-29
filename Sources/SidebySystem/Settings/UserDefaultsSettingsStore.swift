@@ -135,6 +135,10 @@ public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendab
         if settings.version < 10 {
             migratedSettings.keyboardShortcutsEnabled = false
         }
+        if settings.version < 13 {
+            migratedSettings.contextPlan = ContextPlanMigration.migrate(from: settings.displaySpacePlan)
+            migratedSettings.displaySpacePlan = .default
+        }
         migratedSettings.version = AppSettings.currentVersion
         return migratedSettings
     }
