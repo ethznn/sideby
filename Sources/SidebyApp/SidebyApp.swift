@@ -1123,12 +1123,8 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return false
         }
         let navigation = settings.contextPlan.navigation(for: command)
-        guard navigation.isAllowed else {
-            if let diagnostic = navigation.diagnostic {
-                diagnostics = [diagnostic]
-                lastSwitchResult = diagnostic.title
-            }
-            return false
+        if !navigation.isAllowed, let diagnostic = navigation.diagnostic {
+            diagnostics = [diagnostic]
         }
 
         lastSwitchResult = strings.queuedSwitch(command: command, summary: selectedDisplaySummary)
@@ -1412,17 +1408,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
         let navigation = settings.contextPlan.navigation(for: command)
-        guard navigation.isAllowed, let targetContext = navigation.targetContext else {
-            if let diagnostic = navigation.diagnostic {
-                diagnostics = [diagnostic]
-                lastSwitchResult = diagnostic.title
-            }
-            if let shouldResumeInput {
-                finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
-            }
-            completion?(false)
-            return
-        }
         guard hasPostEventAccess(command: command, label: label) else {
             if let shouldResumeInput {
                 finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
@@ -1469,7 +1454,8 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     result,
                     command: command,
                     label: label,
-                    targetContext: targetContext
+                    targetContext: navigation.targetContext,
+                    navigationDiagnostic: navigation.diagnostic
                 )
                 self.isSwitching = false
                 self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
@@ -1485,12 +1471,20 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         _ result: ContextSwitchResult,
         command: SwitchCommand,
         label: String,
-        targetContext: ContextDefinition
+        targetContext: ContextDefinition?,
+        navigationDiagnostic: DiagnosticState?
     ) {
         diagnostics = result.diagnostics
         if result.didExecute {
             updateContextPlan { plan in
-                _ = plan.setCurrentContext(id: targetContext.id)
+                if let targetContext {
+                    _ = plan.setCurrentContext(id: targetContext.id)
+                } else {
+                    plan.markNeedsSync()
+                }
+            }
+            if targetContext == nil, let navigationDiagnostic {
+                diagnostics = result.diagnostics + [navigationDiagnostic]
             }
             lastSwitchResult = strings.postedSwitch(label: label, command: command)
         } else {

@@ -280,4 +280,14 @@ final class ContextPlanTests: XCTestCase {
         plan.applySuccessfulNavigation(.next)
         XCTAssertEqual(plan.currentContext?.name, "Context 2")
     }
+
+    func testSuccessfulUnknownNavigationMarksPlanNeedsSync() {
+        var plan = ContextPlan.default
+        plan.setCurrentContext(id: "context-3")
+
+        plan.applySuccessfulNavigation(.next)
+
+        XCTAssertEqual(plan.currentContext?.name, "Context 3")
+        XCTAssertEqual(plan.syncState, .needsSync)
+    }
 }

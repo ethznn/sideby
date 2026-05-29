@@ -192,6 +192,7 @@ public struct ContextPlan: Equatable, Codable, Sendable {
 
     public mutating func applySuccessfulNavigation(_ command: SwitchCommand) {
         guard let targetContext = navigation(for: command).targetContext else {
+            syncState = .needsSync
             return
         }
         currentContextID = targetContext.id
