@@ -142,7 +142,7 @@ public struct ContextCaptureSession: Equatable, Sendable {
         draftContexts.sort { $0.order < $1.order }
     }
 
-    public mutating func recordForwardSwitch(didMoveAllTargets: Bool) {
+    public mutating func recordForwardSwitch(didObserveMovement: Bool) {
         guard case .capturing(let order) = phase else {
             return
         }
@@ -152,7 +152,7 @@ public struct ContextCaptureSession: Equatable, Sendable {
             return
         }
 
-        if order >= captureLimit || !didMoveAllTargets {
+        if order >= captureLimit || !didObserveMovement {
             phase = .completed(currentContextID: "context-\(order)")
         } else {
             phase = .capturing(order: order + 1)

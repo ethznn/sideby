@@ -154,7 +154,7 @@ final class AppShellTests: XCTestCase {
         var session = ContextCaptureSession(captureLimit: 5)
         session.recordAlignment(previousDidChange: false)
         session.recordCurrentSpace(name: "Context 1")
-        session.recordForwardSwitch(didMoveAllTargets: false)
+        session.recordForwardSwitch(didObserveMovement: false)
 
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(session: session, strings: SBSStrings(language: .english)),

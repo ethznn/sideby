@@ -506,6 +506,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private let visibleAppSuggestionProvider = MacVisibleAppSuggestionProvider()
     private let observerTokens = SidebyAppObserverTokens()
     private static let enabledDefaultsKey = "sideby.enabled"
+    fileprivate static let automaticContextCaptureLimit = 12
     private var didInitializeSelectedDisplays = false
     private var swipeInputSource: GlobalEventTapInputSource?
     private var keyboardShortcutInputSource: GlobalShortcutInputSource?
@@ -761,7 +762,8 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
         contextCaptureSessionID += 1
         let sessionID = contextCaptureSessionID
-        contextCaptureSession = ContextCaptureSession(captureLimit: contextsToCapture)
+        contextsToCapture = Self.automaticContextCaptureLimit
+        contextCaptureSession = ContextCaptureSession(captureLimit: Self.automaticContextCaptureLimit)
         updateContextCaptureStatus()
         continueContextCaptureAlignment(sessionID: sessionID)
     }
@@ -880,7 +882,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         updateContextCaptureStatus()
 
         guard order < session.captureLimit else {
-            session.recordForwardSwitch(didMoveAllTargets: false)
+            session.recordForwardSwitch(didObserveMovement: false)
             contextCaptureSession = session
             finishContextCaptureIfNeeded(session)
             return
@@ -902,7 +904,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 return
             }
 
-            activeSession.recordForwardSwitch(didMoveAllTargets: result.didMoveAllTargets)
+            activeSession.recordForwardSwitch(didObserveMovement: result.didObserveAnyChange)
             self.contextCaptureSession = activeSession
             self.updateContextCaptureStatus()
 
@@ -2468,6 +2470,7 @@ private struct ProductMenuContentView: View {
             MenuBarStatusHeader(model: model)
 
             MoveTargetsView(model: model, showsSummary: false)
+            ContextCaptureControlsView(model: model)
             GroupBox(strings.switchSection) {
                 ScreenSwitchingControls(
                     model: model,
@@ -2561,7 +2564,7 @@ private final class ProductFloatingMenuPanelController {
     private weak var pendingModel: SidebyAppModel?
     private var pendingActions: ProductMenuPanelActions?
     private var didObserveSwitching = false
-    private let panelSize = NSSize(width: 360, height: 620)
+    private let panelSize = NSSize(width: 360, height: 700)
 
     private init() {}
 
@@ -2924,33 +2927,15 @@ private struct ProductHeaderView: View {
     }
 }
 
-private struct ContextsView: View {
+private struct ContextCaptureControlsView: View {
     @ObservedObject var model: SidebyAppModel
 
     var body: some View {
         let strings = model.strings
 
         GroupBox(strings.contextPlanner) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(strings.contextPlannerHelp)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 8) {
-                    Stepper(
-                        value: Binding(
-                            get: { model.contextsToCapture },
-                            set: { model.setContextsToCapture($0) }
-                        ),
-                        in: 1...12
-                    ) {
-                        Text(strings.contextsToCapture(model.contextsToCapture))
-                    }
-                    .disabled(model.contextCaptureSession != nil)
-
-                    Spacer(minLength: 8)
-
                     if model.contextCaptureSession == nil {
                         Button {
                             model.startContextCapture()
@@ -2965,13 +2950,38 @@ private struct ContextsView: View {
                         }
                         .buttonStyle(.bordered)
                     }
+
+                    Spacer(minLength: 8)
+
+                    Text(strings.contextsToCapture(SidebyAppModel.automaticContextCaptureLimit))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 if let contextCaptureStatus = model.contextCaptureStatus {
                     Text(contextCaptureStatus)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct ContextsView: View {
+    @ObservedObject var model: SidebyAppModel
+
+    var body: some View {
+        let strings = model.strings
+
+        GroupBox(strings.contextPlanner) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(strings.contextPlannerHelp)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(ContextListModel.rows(plan: model.settings.contextPlan)) { row in

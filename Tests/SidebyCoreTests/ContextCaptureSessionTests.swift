@@ -26,23 +26,23 @@ final class ContextCaptureSessionTests: XCTestCase {
         XCTAssertEqual(session.phase, .capturing(order: 1))
     }
 
-    func testCaptureStoresDraftNamesAndAdvancesOnFullNextAck() {
+    func testCaptureStoresDraftNamesAndAdvancesOnObservedMovement() {
         var session = ContextCaptureSession(captureLimit: 3)
         session.recordAlignment(previousDidChange: false)
 
         session.recordCurrentSpace(name: "Code")
-        session.recordForwardSwitch(didMoveAllTargets: true)
+        session.recordForwardSwitch(didObserveMovement: true)
 
         XCTAssertEqual(session.draftContexts.map(\.name), ["Code"])
         XCTAssertEqual(session.phase, .capturing(order: 2))
     }
 
-    func testCaptureCompletesAtMinimumCommonSpaceWhenNextDoesNotMoveAllTargets() {
+    func testCaptureCompletesWhenNextDoesNotMove() {
         var session = ContextCaptureSession(captureLimit: 3)
         session.recordAlignment(previousDidChange: false)
 
         session.recordCurrentSpace(name: "Code")
-        session.recordForwardSwitch(didMoveAllTargets: false)
+        session.recordForwardSwitch(didObserveMovement: false)
 
         XCTAssertEqual(session.phase, .completed(currentContextID: "context-1"))
         XCTAssertEqual(session.draftContexts.map(\.name), ["Code"])
@@ -79,21 +79,21 @@ final class ContextCaptureSessionTests: XCTestCase {
         XCTAssertEqual(session.phase, .failed(reason: "Could not align to first Space"))
     }
 
-    func testForwardSwitchWithoutCurrentDraftFailsOnFullNextAck() {
+    func testForwardSwitchWithoutCurrentDraftFailsOnObservedMovement() {
         var session = ContextCaptureSession(captureLimit: 3)
         session.recordAlignment(previousDidChange: false)
 
-        session.recordForwardSwitch(didMoveAllTargets: true)
+        session.recordForwardSwitch(didObserveMovement: true)
 
         XCTAssertEqual(session.phase, .failed(reason: "Missing captured Context"))
         XCTAssertFalse(session.shouldCommitDrafts)
     }
 
-    func testForwardSwitchWithoutCurrentDraftFailsOnPartialNextAck() {
+    func testForwardSwitchWithoutCurrentDraftFailsWithoutMovement() {
         var session = ContextCaptureSession(captureLimit: 3)
         session.recordAlignment(previousDidChange: false)
 
-        session.recordForwardSwitch(didMoveAllTargets: false)
+        session.recordForwardSwitch(didObserveMovement: false)
 
         XCTAssertEqual(session.phase, .failed(reason: "Missing captured Context"))
         XCTAssertFalse(session.shouldCommitDrafts)
@@ -113,7 +113,7 @@ final class ContextCaptureSessionTests: XCTestCase {
         var session = ContextCaptureSession(captureLimit: 1)
         session.recordAlignment(previousDidChange: false)
         session.recordCurrentSpace(name: "Code")
-        session.recordForwardSwitch(didMoveAllTargets: true)
+        session.recordForwardSwitch(didObserveMovement: true)
 
         session.stop()
 
@@ -135,9 +135,9 @@ final class ContextCaptureSessionTests: XCTestCase {
         var session = ContextCaptureSession(captureLimit: 2)
         session.recordAlignment(previousDidChange: false)
         session.recordCurrentSpace(name: "Code")
-        session.recordForwardSwitch(didMoveAllTargets: true)
+        session.recordForwardSwitch(didObserveMovement: true)
         session.recordCurrentSpace(name: "Review")
-        session.recordForwardSwitch(didMoveAllTargets: true)
+        session.recordForwardSwitch(didObserveMovement: true)
 
         XCTAssertEqual(
             session.completedContextDefinitions,
