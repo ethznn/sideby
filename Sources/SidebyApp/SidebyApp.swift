@@ -144,6 +144,20 @@ private enum SidebyMenuBarIconImage {
     }()
 }
 
+private final class SidebyAppObserverTokens {
+    var settingsObserver: NSObjectProtocol?
+    var externalSpaceObserver: NSObjectProtocol?
+
+    deinit {
+        if let settingsObserver {
+            DistributedNotificationCenter.default().removeObserver(settingsObserver)
+        }
+        if let externalSpaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(externalSpaceObserver)
+        }
+    }
+}
+
 private enum ProductCommandLineRunner {
     private static let probeLog = Logger(
         subsystem: "dev.sideby.Sideby",
@@ -490,6 +504,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private let systemEventsAutomationProbe = SystemEventsAutomationProbe<NSAppleScriptRunner>()
     private let setupFlow = V1SetupFlow()
     private let visibleAppSuggestionProvider = MacVisibleAppSuggestionProvider()
+    private let observerTokens = SidebyAppObserverTokens()
     private static let enabledDefaultsKey = "sideby.enabled"
     private var didInitializeSelectedDisplays = false
     private var swipeInputSource: GlobalEventTapInputSource?
@@ -502,18 +517,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var permissionPollingID = 0
     private var lastScrollStatusUpdate = 0.0
     private var isOnboardingGestureTestActive = false
-    private var settingsObserver: NSObjectProtocol?
-    private var externalSpaceObserver: NSObjectProtocol?
     private var ignoresExternalSpaceChangesUntil: Date?
-
-    isolated deinit {
-        if let settingsObserver {
-            DistributedNotificationCenter.default().removeObserver(settingsObserver)
-        }
-        if let externalSpaceObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(externalSpaceObserver)
-        }
-    }
 
     init() {
         var loadedSettings = settingsStore.load()
@@ -1019,7 +1023,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func startSettingsChangeObserver() {
-        settingsObserver = DistributedNotificationCenter.default().addObserver(
+        observerTokens.settingsObserver = DistributedNotificationCenter.default().addObserver(
             forName: UserDefaultsSettingsStore.settingsDidChangeNotification,
             object: nil,
             queue: .main
@@ -1031,7 +1035,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func startExternalSpaceChangeObserver() {
-        externalSpaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+        observerTokens.externalSpaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification,
             object: nil,
             queue: .main
