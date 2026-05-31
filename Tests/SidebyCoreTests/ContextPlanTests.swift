@@ -322,6 +322,42 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(plan.syncState, .synchronized)
     }
 
+    func testUnsynchronizedMovementPausesPinnedContextMatchingWithoutChangingCurrentContext() {
+        var plan = ContextPlan.default
+
+        plan.pauseContextMatchingForUnsynchronizedMovement()
+
+        XCTAssertFalse(plan.isPinned)
+        XCTAssertEqual(plan.syncState, .needsSync)
+        XCTAssertEqual(plan.currentContextID, "context-1")
+    }
+
+    func testReenablingPinnedContextMatchingKeepsNeedsSyncUntilCurrentContextIsExplicitlySet() {
+        var plan = ContextPlan.default
+        plan.pauseContextMatchingForUnsynchronizedMovement()
+
+        plan.setPinned(true)
+        let intent = plan.switchIntent(for: .next)
+
+        XCTAssertTrue(plan.isPinned)
+        XCTAssertEqual(plan.syncState, .needsSync)
+        XCTAssertEqual(plan.currentContextID, "context-1")
+        XCTAssertFalse(intent.shouldExecute)
+        XCTAssertEqual(intent.diagnostic?.title, "Context needs sync")
+    }
+
+    func testUnpinnedNeedsSyncSwitchIntentFallsBackToGeneralMovement() {
+        var plan = ContextPlan.default
+        plan.pauseContextMatchingForUnsynchronizedMovement()
+
+        let intent = plan.switchIntent(for: .next)
+
+        XCTAssertTrue(intent.shouldExecute)
+        XCTAssertNil(intent.targetContext)
+        XCTAssertEqual(intent.targetDisplayIDs, [])
+        XCTAssertNil(intent.diagnostic)
+    }
+
     func testDecodedLegacyPlanDefaultsToPinned() throws {
         let data = Data("""
         {
@@ -337,6 +373,40 @@ final class ContextPlanTests: XCTestCase {
         let plan = try JSONDecoder().decode(ContextPlan.self, from: data)
 
         XCTAssertTrue(plan.isPinned)
+    }
+
+    func testExternalSpaceChangePausesOnlyEnabledPinnedSynchronizedContextMatching() {
+        var synchronizedPinned = ContextPlan.default
+        XCTAssertTrue(
+            ExternalSpaceChangeContextPolicy.shouldPauseContextMatching(
+                isSidebyEnabled: true,
+                plan: synchronizedPinned
+            )
+        )
+
+        XCTAssertFalse(
+            ExternalSpaceChangeContextPolicy.shouldPauseContextMatching(
+                isSidebyEnabled: false,
+                plan: synchronizedPinned
+            )
+        )
+
+        synchronizedPinned.setPinned(false)
+        XCTAssertFalse(
+            ExternalSpaceChangeContextPolicy.shouldPauseContextMatching(
+                isSidebyEnabled: true,
+                plan: synchronizedPinned
+            )
+        )
+
+        var needsSync = ContextPlan.default
+        needsSync.markNeedsSync()
+        XCTAssertFalse(
+            ExternalSpaceChangeContextPolicy.shouldPauseContextMatching(
+                isSidebyEnabled: true,
+                plan: needsSync
+            )
+        )
     }
 
     func testContextPinningPersistsThroughCoding() throws {

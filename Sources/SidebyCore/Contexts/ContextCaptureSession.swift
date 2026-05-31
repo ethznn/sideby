@@ -49,7 +49,10 @@ public struct ContextCaptureSession: Equatable, Sendable {
     public private(set) var phase: ContextCapturePhase
     public private(set) var draftContexts: [ContextCaptureDraft]
 
-    public init(captureLimit: Int, maxAlignmentAttempts: Int = 12) {
+    public init(
+        captureLimit: Int,
+        maxAlignmentAttempts: Int = ContextCaptureConfiguration.automatic.maxAlignmentAttempts
+    ) {
         self.init(
             captureLimit: captureLimit,
             maxAlignmentAttempts: maxAlignmentAttempts,

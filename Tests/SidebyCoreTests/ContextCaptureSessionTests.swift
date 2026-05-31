@@ -10,6 +10,15 @@ final class ContextCaptureSessionTests: XCTestCase {
         XCTAssertEqual(session.draftContexts, [])
     }
 
+    func testAutomaticCaptureConfigurationUsesResponsiveTiming() {
+        let configuration = ContextCaptureConfiguration.automatic
+
+        XCTAssertEqual(configuration.maxAlignmentAttempts, 12)
+        XCTAssertEqual(configuration.observerWait, 0.90, accuracy: 0.0001)
+        XCTAssertEqual(configuration.alignmentRetryDelay, 0.12, accuracy: 0.0001)
+        XCTAssertEqual(configuration.forwardRetryDelay, 0.12, accuracy: 0.0001)
+    }
+
     func testAlignmentContinuesWhenPreviousChangedSpace() {
         var session = ContextCaptureSession(captureLimit: 4)
 

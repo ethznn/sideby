@@ -12,11 +12,258 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(menuState.mode, .together)
     }
 
+    func testFloatingMenuLayoutUsesResizableDefaults() {
+        XCTAssertEqual(FloatingMenuPanelLayout.defaultSize.width, 720)
+        XCTAssertEqual(FloatingMenuPanelLayout.defaultSize.height, 640)
+        XCTAssertEqual(FloatingMenuPanelLayout.minimumSize.width, 520)
+        XCTAssertEqual(FloatingMenuPanelLayout.minimumSize.height, 420)
+    }
+
+    func testFloatingMenuLayoutClampsSavedSizeToVisibleFrame() {
+        let size = FloatingMenuPanelLayout.clampedContentSize(
+            NSSize(width: 1600, height: 1200),
+            visibleFrame: NSRect(x: 0, y: 0, width: 900, height: 700)
+        )
+
+        XCTAssertEqual(size.width, 876)
+        XCTAssertEqual(size.height, 676)
+    }
+
+    func testFloatingMenuLayoutKeepsUserResizedPanelSize() {
+        let resized = NSSize(width: 650, height: 500)
+
+        XCTAssertEqual(
+            FloatingMenuPanelLayout.contentSize(
+                currentContentSize: resized,
+                isNewPanel: false,
+                visibleFrame: nil
+            ),
+            resized
+        )
+        XCTAssertEqual(
+            FloatingMenuPanelLayout.contentSize(
+                currentContentSize: nil,
+                isNewPanel: true,
+                visibleFrame: nil
+            ),
+            FloatingMenuPanelLayout.defaultSize
+        )
+    }
+
+    func testFloatingMenuLayoutPreservesExistingPanelSizeWhenRebuildingContent() {
+        let resizedBeforeContentRebuild = NSSize(width: 650, height: 500)
+        let replacementContentDefault = FloatingMenuPanelLayout.defaultSize
+
+        XCTAssertEqual(
+            FloatingMenuPanelLayout.presentationContentSize(
+                capturedExistingContentSize: resizedBeforeContentRebuild,
+                currentContentSize: replacementContentDefault,
+                isNewPanel: false,
+                visibleFrame: nil
+            ),
+            resizedBeforeContentRebuild
+        )
+    }
+
+    func testCompactContextMatrixUsesTwoThirdsContextColumnWidth() {
+        XCTAssertEqual(
+            FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: true),
+            170 * 2 / 3,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: false),
+            220
+        )
+    }
+
+    func testCompactContextMatrixUsesShortSingleLineStatusLabels() {
+        let strings = SBSStrings(language: .english)
+
+        XCTAssertEqual(
+            FloatingMenuContextMatrixLayout.statusTitle(for: .current, isCompact: true, strings: strings),
+            "Current"
+        )
+        XCTAssertEqual(
+            FloatingMenuContextMatrixLayout.statusTitle(for: .needsSync, isCompact: true, strings: strings),
+            "Sync"
+        )
+        XCTAssertEqual(
+            FloatingMenuContextMatrixLayout.statusTitle(for: .paused, isCompact: true, strings: strings),
+            "Paused"
+        )
+        XCTAssertNil(
+            FloatingMenuContextMatrixLayout.statusTitle(for: .normal, isCompact: true, strings: strings)
+        )
+        XCTAssertEqual(FloatingMenuContextMatrixLayout.headerLineLimit, 1)
+    }
+
+    func testFloatingMenuInteractiveControlsUsePointingHandCursor() {
+        XCTAssertTrue(FloatingMenuInteractiveCursorPolicy.usesPointingHand(for: .button))
+        XCTAssertTrue(FloatingMenuInteractiveCursorPolicy.usesPointingHand(for: .toggle))
+        XCTAssertTrue(FloatingMenuInteractiveCursorPolicy.usesPointingHand(for: .picker))
+    }
+
+    func testFloatingMenuSectionsDefaultToCompactState() {
+        let expansion = FloatingMenuSectionExpansion.default
+
+        XCTAssertEqual(
+            expansion,
+            FloatingMenuSectionExpansion(
+                showsInput: false,
+                showsPermissions: false,
+                showsGeneral: false,
+                showsDiagnostics: false
+            )
+        )
+        XCTAssertFalse(expansion.showsInput)
+        XCTAssertFalse(expansion.showsPermissions)
+        XCTAssertFalse(expansion.showsGeneral)
+        XCTAssertFalse(expansion.showsDiagnostics)
+    }
+
+    func testFloatingMenuPresentationUsesMenuBarFallbackAfterOnboarding() {
+        XCTAssertEqual(
+            FloatingMenuPanelPresentationPolicy.anchor(for: .onboardingCompletion),
+            .menuBarFallback
+        )
+        XCTAssertEqual(
+            FloatingMenuPanelPresentationPolicy.anchor(for: .settingsRedirect),
+            .menuBarFallback
+        )
+        XCTAssertEqual(
+            FloatingMenuPanelPresentationPolicy.anchor(for: .menuBarIcon),
+            .sourceWindow
+        )
+    }
+
+    func testFloatingMenuSectionExpansionTogglesIndividualSections() {
+        var expansion = FloatingMenuSectionExpansion.default
+
+        XCTAssertFalse(expansion.isExpanded(.input))
+        expansion.toggle(.input)
+        XCTAssertTrue(expansion.isExpanded(.input))
+
+        XCTAssertFalse(expansion.isExpanded(.permissions))
+        expansion.set(.permissions, isExpanded: true)
+        XCTAssertTrue(expansion.isExpanded(.permissions))
+        XCTAssertFalse(expansion.isExpanded(.general))
+        XCTAssertFalse(expansion.isExpanded(.diagnostics))
+    }
+
+    func testFloatingMenuContextSectionGroupsCaptureBeforeMatrix() {
+        XCTAssertEqual(
+            FloatingMenuContextSectionContent.defaultItems,
+            [.captureControls, .matrix]
+        )
+    }
+
+    func testContextCaptureButtonAvailabilityDoesNotDependOnSidebyEnabled() {
+        XCTAssertTrue(
+            FloatingMenuContextCaptureAvailability.canStart(
+                displayCount: 1,
+                isSwitching: false,
+                isCapturing: false
+            )
+        )
+        XCTAssertFalse(
+            FloatingMenuContextCaptureAvailability.canStart(
+                displayCount: 0,
+                isSwitching: false,
+                isCapturing: false
+            )
+        )
+    }
+
     func testHUDPresenterUsesDirectionAndContextName() {
         let hud = HUDPresenter().state(for: .next, contextName: "Work")
 
         XCTAssertEqual(hud.text, "-> Work")
         XCTAssertEqual(hud.duration, 0.8)
+    }
+
+    func testHUDPresenterShowsContextNameOnlyForSuccessfulContextSwitch() {
+        let hud = HUDPresenter().stateForContextSwitch(contextName: "Work")
+
+        XCTAssertEqual(hud.text, "Work")
+        XCTAssertFalse(hud.isCompact)
+        XCTAssertEqual(hud.duration, 1.0)
+        XCTAssertEqual(hud.fadeOutDuration, 0.28)
+        XCTAssertEqual(hud.visualScale, 4.0)
+        XCTAssertEqual(hud.backgroundOpacity, 0.66)
+    }
+
+    func testHUDPanelLayoutCentersAgainstFullScreenFrame() {
+        let origin = HUDPanelLayout.centeredOrigin(
+            panelSize: NSSize(width: 400, height: 200),
+            screenFrame: NSRect(x: -1000, y: 40, width: 900, height: 700)
+        )
+
+        XCTAssertEqual(origin.x, -750)
+        XCTAssertEqual(origin.y, 290)
+    }
+
+    func testHUDPanelLayoutPrefersMeasuredContentSizeOverTextEstimate() {
+        let size = HUDPanelLayout.contentSize(
+            fittingSize: NSSize(width: 360, height: 120),
+            text: "Long Context Name",
+            visualScale: 4
+        )
+
+        XCTAssertEqual(size.width, 528)
+        XCTAssertEqual(size.height, 176)
+    }
+
+    func testHUDPresentationGenerationRejectsStaleFadeCompletion() {
+        var generation = HUDPresentationGeneration()
+
+        let firstPresentation = generation.advance()
+        let secondPresentation = generation.advance()
+
+        XCTAssertFalse(generation.isCurrent(firstPresentation))
+        XCTAssertTrue(generation.isCurrent(secondPresentation))
+    }
+
+    func testContextSwitchHUDPolicyShowsTargetContextNameForExecutedContextMove() {
+        let intent = ContextSwitchIntent(
+            command: .next,
+            targetContext: ContextDefinition(
+                id: "context-2",
+                order: 2,
+                name: "Review",
+                displayIDs: ["built-in"]
+            ),
+            targetDisplayIDs: ["built-in"],
+            diagnostic: nil,
+            shouldExecute: true
+        )
+
+        let presentation = ContextSwitchHUDPolicy().presentation(
+            for: intent,
+            didExecute: true,
+            executedDisplayIDs: ["built-in", "external"]
+        )
+
+        XCTAssertEqual(presentation?.state.text, "Review")
+        XCTAssertEqual(presentation?.displayIDs, ["built-in", "external"])
+    }
+
+    func testContextSwitchHUDPolicySkipsGeneralMovementWithoutTargetContext() {
+        let intent = ContextSwitchIntent(
+            command: .next,
+            targetContext: nil,
+            targetDisplayIDs: [],
+            diagnostic: nil,
+            shouldExecute: true
+        )
+
+        XCTAssertNil(
+            ContextSwitchHUDPolicy().presentation(
+                for: intent,
+                didExecute: true,
+                executedDisplayIDs: ["built-in"]
+            )
+        )
     }
 
     func testHUDPresenterCanShowDiagnosticCompactly() {
@@ -83,6 +330,16 @@ final class AppShellTests: XCTestCase {
 
         XCTAssertEqual(rows.map(\.name), ["Context 1", "Research", "Context 3"])
         XCTAssertEqual(rows[0].state, .needsSync)
+        XCTAssertEqual(rows[1].state, .normal)
+    }
+
+    func testContextListRowsExposePausedStateWhenMatchingIsPaused() {
+        var plan = ContextPlan.default
+        plan.pauseContextMatchingForUnsynchronizedMovement()
+
+        let rows = ContextListModel.rows(plan: plan)
+
+        XCTAssertEqual(rows[0].state, .paused)
         XCTAssertEqual(rows[1].state, .normal)
     }
 
@@ -154,24 +411,27 @@ final class AppShellTests: XCTestCase {
             ContextCaptureStatusDisplay.statusText(
                 phase: .aligning(attempt: 2),
                 captureLimit: 5,
+                maxAlignmentAttempts: 5,
                 completedContextCount: 0,
                 strings: strings
             ),
-            "Aligning to first Space"
+            "Finding first Space · try 2/5"
         )
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(
                 phase: .capturing(order: 3),
                 captureLimit: 5,
+                maxAlignmentAttempts: 5,
                 completedContextCount: 0,
                 strings: strings
             ),
-            "Capturing Context 3 of up to 5"
+            "Capturing Context 3 · up to 5"
         )
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(
                 phase: .completed(currentContextID: "captured-final"),
                 captureLimit: 5,
+                maxAlignmentAttempts: 5,
                 completedContextCount: 4,
                 strings: strings
             ),
@@ -186,6 +446,7 @@ final class AppShellTests: XCTestCase {
             ContextCaptureStatusDisplay.statusText(
                 phase: .failed(reason: "No Space movement detected"),
                 captureLimit: 5,
+                maxAlignmentAttempts: 5,
                 completedContextCount: 0,
                 strings: strings
             ),
@@ -195,11 +456,27 @@ final class AppShellTests: XCTestCase {
             ContextCaptureStatusDisplay.statusText(
                 phase: .stopped,
                 captureLimit: 5,
+                maxAlignmentAttempts: 5,
                 completedContextCount: 0,
                 strings: strings
             ),
             "Capture stopped. Existing Contexts were kept."
         )
+    }
+
+    func testContextCaptureStatusDisplayReportsProgress() {
+        var session = ContextCaptureSession(captureLimit: 4, maxAlignmentAttempts: 4)
+
+        XCTAssertEqual(ContextCaptureStatusDisplay.progressValue(session: session), 0.04, accuracy: 0.0001)
+
+        session.recordAlignment(previousDidChange: true)
+        XCTAssertEqual(ContextCaptureStatusDisplay.progressValue(session: session), 0.08, accuracy: 0.0001)
+
+        session.recordAlignment(previousDidChange: false)
+        XCTAssertEqual(ContextCaptureStatusDisplay.progressValue(session: session), 0.16, accuracy: 0.0001)
+
+        session.recordCurrentSpace(name: "Context 1", displayIDs: ["built-in"])
+        XCTAssertEqual(ContextCaptureStatusDisplay.progressValue(session: session), 0.25, accuracy: 0.0001)
     }
 
     func testContextCaptureStatusDisplayUsesSessionCompletedCount() {

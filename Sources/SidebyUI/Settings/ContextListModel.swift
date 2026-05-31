@@ -3,6 +3,7 @@ import SidebyCore
 public enum ContextRowState: Equatable, Sendable {
     case current
     case needsSync
+    case paused
     case normal
 }
 
@@ -31,21 +32,26 @@ public struct ContextListRow: Equatable, Identifiable, Sendable {
 public enum ContextListModel {
     public static func rows(plan: ContextPlan) -> [ContextListRow] {
         plan.contexts.sorted { $0.order < $1.order }.map { context in
-            let state: ContextRowState
-            if plan.currentContextID == context.id {
-                state = plan.syncState == .needsSync ? .needsSync : .current
-            } else {
-                state = .normal
-            }
-
             return ContextListRow(
                 id: context.id,
                 name: context.name,
                 order: context.order,
-                state: state,
+                state: rowState(for: context, plan: plan),
                 displayIDs: context.displayIDs
             )
         }
+    }
+
+    private static func rowState(for context: ContextDefinition, plan: ContextPlan) -> ContextRowState {
+        guard plan.currentContextID == context.id else {
+            return .normal
+        }
+
+        guard plan.syncState == .needsSync else {
+            return .current
+        }
+
+        return plan.isPinned ? .needsSync : .paused
     }
 }
 
@@ -105,18 +111,11 @@ public enum ContextMatrixModel {
     public static func matrix(plan: ContextPlan, displays: [DisplayInfo]) -> ContextMatrix {
         let contexts = plan.contexts.sorted { $0.order < $1.order }
         let columns = contexts.map { context in
-            let state: ContextRowState
-            if plan.currentContextID == context.id {
-                state = plan.syncState == .needsSync ? .needsSync : .current
-            } else {
-                state = .normal
-            }
-
             return ContextMatrixColumn(
                 id: context.id,
                 order: context.order,
                 name: context.name,
-                state: state
+                state: columnState(for: context, plan: plan)
             )
         }
         let rows = displays.map { display in
@@ -134,5 +133,17 @@ public enum ContextMatrixModel {
         }
 
         return ContextMatrix(columns: columns, rows: rows)
+    }
+
+    private static func columnState(for context: ContextDefinition, plan: ContextPlan) -> ContextRowState {
+        guard plan.currentContextID == context.id else {
+            return .normal
+        }
+
+        guard plan.syncState == .needsSync else {
+            return .current
+        }
+
+        return plan.isPinned ? .needsSync : .paused
     }
 }

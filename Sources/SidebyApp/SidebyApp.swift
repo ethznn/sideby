@@ -473,6 +473,197 @@ private enum ProductMainWindowPresenter {
 }
 
 @MainActor
+private final class ProductContextHUDController {
+    static let shared = ProductContextHUDController()
+
+    private var panels: [NSPanel] = []
+    private var hideWorkItem: DispatchWorkItem?
+    private var presentationGeneration = HUDPresentationGeneration()
+
+    private init() {}
+
+    func show(_ state: HUDPresentationState, screen: NSScreen? = NSScreen.main) {
+        show(state, screens: [screen ?? NSScreen.main ?? NSScreen.screens.first].compactMap(\.self))
+    }
+
+    func show(_ state: HUDPresentationState, displayIDs: Set<String>, displayLayout: DisplayLayout) {
+        show(state, screens: screens(for: displayIDs, displayLayout: displayLayout))
+    }
+
+    private func show(_ state: HUDPresentationState, screens requestedScreens: [NSScreen]) {
+        let generation = presentationGeneration.advance()
+        hideWorkItem?.cancel()
+
+        let screens = requestedScreens.isEmpty
+            ? [NSScreen.main ?? NSScreen.screens.first].compactMap(\.self)
+            : requestedScreens
+        guard !screens.isEmpty else {
+            return
+        }
+
+        while panels.count < screens.count {
+            panels.append(makePanel())
+        }
+
+        var activePanels: [NSPanel] = []
+        for (index, panel) in panels.enumerated() {
+            guard index < screens.count else {
+                panel.orderOut(nil)
+                continue
+            }
+
+            panel.alphaValue = 1
+            let hostingController = NSHostingController(rootView: HUDView(state: state))
+            panel.contentViewController = hostingController
+            applyContentSize(to: panel, hostingView: hostingController.view, state: state)
+            position(panel, on: screens[index])
+            panel.orderFrontRegardless()
+            panel.displayIfNeeded()
+            position(panel, on: screens[index])
+            recenterAfterLayout(panel, on: screens[index])
+            activePanels.append(panel)
+        }
+
+        scheduleFadeOut(activePanels, state: state, generation: generation)
+    }
+
+    private func makePanel() -> NSPanel {
+        let panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: NSSize(width: 180, height: 52)),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isReleasedWhenClosed = false
+        panel.level = .screenSaver
+        panel.hidesOnDeactivate = false
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.ignoresMouseEvents = true
+        panel.collectionBehavior.insert([
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .transient
+        ])
+        return panel
+    }
+
+    private func applyContentSize(
+        to panel: NSPanel,
+        hostingView: NSView,
+        state: HUDPresentationState
+    ) {
+        hostingView.layoutSubtreeIfNeeded()
+        let fittingSize = hostingView.fittingSize
+        let contentSize = HUDPanelLayout.contentSize(
+            fittingSize: fittingSize,
+            text: state.text,
+            visualScale: state.visualScale
+        )
+        panel.setContentSize(contentSize)
+    }
+
+    private func position(_ panel: NSPanel, on screen: NSScreen?) {
+        guard let screen else {
+            return
+        }
+
+        let frame = panel.frame
+        panel.setFrame(
+            NSRect(
+                origin: HUDPanelLayout.centeredOrigin(panelSize: frame.size, screenFrame: screen.frame),
+                size: frame.size
+            ),
+            display: true
+        )
+    }
+
+    private func recenterAfterLayout(_ panel: NSPanel, on screen: NSScreen) {
+        DispatchQueue.main.async { [weak self, weak panel] in
+            guard let self, let panel, panel.isVisible else {
+                return
+            }
+
+            self.position(panel, on: screen)
+        }
+    }
+
+    private func screens(for displayIDs: Set<String>, displayLayout: DisplayLayout) -> [NSScreen] {
+        let requestedDisplayIDs = displayIDs.isEmpty
+            ? Set(displayLayout.displays.map(\.id))
+            : displayIDs
+        let screensByDisplayID = Dictionary(
+            uniqueKeysWithValues: NSScreen.screens.compactMap { screen -> (String, NSScreen)? in
+                guard let displayID = Self.stableDisplayID(for: screen) else {
+                    return nil
+                }
+                return (displayID, screen)
+            }
+        )
+        let screens = displayLayout.displays.compactMap { display -> NSScreen? in
+            guard requestedDisplayIDs.contains(display.id) else {
+                return nil
+            }
+            return screensByDisplayID[display.id]
+        }
+
+        return screens.isEmpty ? NSScreen.screens : screens
+    }
+
+    private static func stableDisplayID(for screen: NSScreen) -> String? {
+        let screenNumberKey = NSDeviceDescriptionKey("NSScreenNumber")
+        guard let number = screen.deviceDescription[screenNumberKey] as? NSNumber else {
+            return nil
+        }
+
+        let displayID = CGDirectDisplayID(number.uint32Value)
+        return [
+            String(CGDisplayVendorNumber(displayID)),
+            String(CGDisplayModelNumber(displayID)),
+            String(CGDisplaySerialNumber(displayID)),
+            String(displayID)
+        ].joined(separator: "-")
+    }
+
+    private func scheduleFadeOut(
+        _ activePanels: [NSPanel],
+        state: HUDPresentationState,
+        generation: Int
+    ) {
+        let workItem = DispatchWorkItem { [weak self, activePanels] in
+            guard let self, self.presentationGeneration.isCurrent(generation) else {
+                return
+            }
+
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = state.fadeOutDuration
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                activePanels.forEach { panel in
+                    panel.animator().alphaValue = 0
+                }
+            } completionHandler: { [weak self, activePanels] in
+                Task { @MainActor [weak self, activePanels] in
+                    guard let self, self.presentationGeneration.isCurrent(generation) else {
+                        return
+                    }
+
+                    activePanels.forEach { panel in
+                        guard panel.alphaValue == 0 else {
+                            return
+                        }
+                        panel.orderOut(nil)
+                        panel.alphaValue = 1
+                    }
+                }
+            }
+        }
+        hideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + state.duration, execute: workItem)
+    }
+}
+
+@MainActor
 private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var settings: AppSettings
     @Published var displayLayout = DisplayLayout(displays: [])
@@ -504,10 +695,14 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private let systemEventsAutomationProbe = SystemEventsAutomationProbe<NSAppleScriptRunner>()
     private let setupFlow = V1SetupFlow()
     private let visibleAppSuggestionProvider = MacVisibleAppSuggestionProvider()
+    private let contextHUDPolicy = ContextSwitchHUDPolicy()
     private let observerTokens = SidebyAppObserverTokens()
     private static let enabledDefaultsKey = "sideby.enabled"
     fileprivate static let automaticContextCaptureLimit = 12
-    private static let contextCaptureObserverWait: TimeInterval = 1.45
+    private static let contextCaptureConfiguration = ContextCaptureConfiguration.automatic
+    private static let contextCaptureObserverWait: TimeInterval = contextCaptureConfiguration.observerWait
+    private static let contextCaptureAlignmentRetryDelay: TimeInterval = contextCaptureConfiguration.alignmentRetryDelay
+    private static let contextCaptureForwardRetryDelay: TimeInterval = contextCaptureConfiguration.forwardRetryDelay
     private static let contextCaptureCompletionIgnoreInterval: TimeInterval = 2.5
     private var didInitializeSelectedDisplays = false
     private var swipeInputSource: GlobalEventTapInputSource?
@@ -759,8 +954,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     func startContextCapture() {
         refresh()
-        guard isEnabled else {
-            blockSwitchBecauseSidebyIsOff(command: .next, label: "context-capture")
+        guard InputControlStartPolicy.decision(
+            hasAccessibilityPermission: hasAccessibilityPermission,
+            hasSwitchingAccess: hasSwitchingAccess
+        ) == .startListeners else {
+            requestPermissions()
+            contextCaptureStatus = strings.couldNotStartInput
             return
         }
         guard hasSelectedMoveTargets(command: .next, label: "context-capture") else {
@@ -774,7 +973,10 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         let sessionID = contextCaptureSessionID
         contextCaptureActiveDisplayIDs = selectedDisplayIDs
         contextsToCapture = Self.automaticContextCaptureLimit
-        contextCaptureSession = ContextCaptureSession(captureLimit: Self.automaticContextCaptureLimit)
+        contextCaptureSession = ContextCaptureSession(
+            captureLimit: Self.automaticContextCaptureLimit,
+            maxAlignmentAttempts: Self.contextCaptureConfiguration.maxAlignmentAttempts
+        )
         updateContextCaptureStatus()
         continueContextCaptureAlignment(sessionID: sessionID)
     }
@@ -839,12 +1041,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         updateContextCaptureStatus()
-        performAcknowledgedSwitchPerDisplay(
+        performAcknowledgedSwitch(
             .previous,
             targetDisplayIDs: contextCaptureActiveDisplayIDs,
             label: "context-capture-align",
             observerWait: Self.contextCaptureObserverWait
-        ) { [weak self] movedDisplayIDs, didPost in
+        ) { [weak self] result in
             guard let self,
                   self.contextCaptureSessionID == sessionID,
                   var activeSession = self.contextCaptureSession
@@ -852,7 +1054,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 return
             }
 
-            guard didPost else {
+            guard result.didPost else {
                 activeSession.fail(reason: self.strings.systemEventsFailedReason)
                 self.contextCaptureSession = activeSession
                 self.updateContextCaptureStatus()
@@ -861,7 +1063,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 return
             }
 
-            activeSession.recordAlignment(previousDidChange: !movedDisplayIDs.isEmpty)
+            activeSession.recordAlignment(previousDidChange: result.didObserveAnyChange)
             self.contextCaptureSession = activeSession
             self.updateContextCaptureStatus()
 
@@ -869,7 +1071,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 return
             }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.contextCaptureAlignmentRetryDelay) { [weak self] in
                 guard let self,
                       self.contextCaptureSessionID == sessionID,
                       self.contextCaptureSession != nil
@@ -940,7 +1142,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 return
             }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.contextCaptureForwardRetryDelay) { [weak self] in
                 guard let self,
                       self.contextCaptureSessionID == sessionID,
                       self.contextCaptureSession != nil
@@ -1089,16 +1291,19 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        guard settings.contextPlan.syncState == .synchronized else {
+        guard ExternalSpaceChangeContextPolicy.shouldPauseContextMatching(
+            isSidebyEnabled: isEnabled,
+            plan: settings.contextPlan
+        ) else {
             return
         }
 
         updateContextPlan { plan in
-            plan.markNeedsSync()
+            plan.pauseContextMatchingForUnsynchronizedMovement()
         }
 
         diagnostics = currentDiagnostics()
-        lastSwitchResult = strings.contextNeedsSync
+        lastSwitchResult = strings.contextMatchingPaused
     }
 
     private func reloadSettingsFromStoreIfChanged() {
@@ -1210,6 +1415,18 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         } else {
             refresh()
         }
+
+        guard InputControlStartPolicy.decision(
+            hasAccessibilityPermission: hasAccessibilityPermission,
+            hasSwitchingAccess: hasSwitchingAccess
+        ) == .startListeners else {
+            stopRunningInputSources()
+            isInputRunning = false
+            inputStatus = strings.couldNotStartInput
+            lastInputEvent = strings.couldNotStartInput
+            return false
+        }
+
         stopRunningInputSources()
         swipePipeline = SwipeInputPipeline(settings: currentGestureSettings)
         inputLatch.reset()
@@ -1575,7 +1792,8 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     result,
                     command: command,
                     label: label,
-                    targetContext: intent.targetContext,
+                    intent: intent,
+                    executedDisplayIDs: targetDisplayIDs,
                     navigationDiagnostic: intent.diagnostic
                 )
                 self.isSwitching = false
@@ -1592,11 +1810,13 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         _ result: ContextSwitchResult,
         command: SwitchCommand,
         label: String,
-        targetContext: ContextDefinition?,
+        intent: ContextSwitchIntent,
+        executedDisplayIDs: Set<String>,
         navigationDiagnostic: DiagnosticState?
     ) {
         diagnostics = result.diagnostics
         if result.didExecute {
+            let targetContext = intent.targetContext
             updateContextPlan { plan in
                 if let targetContext {
                     _ = plan.setCurrentContext(id: targetContext.id)
@@ -1608,6 +1828,17 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 diagnostics = result.diagnostics + [navigationDiagnostic]
             }
             lastSwitchResult = strings.postedSwitch(label: label, command: command)
+            if let presentation = contextHUDPolicy.presentation(
+                for: intent,
+                didExecute: result.didExecute,
+                executedDisplayIDs: executedDisplayIDs
+            ) {
+                ProductContextHUDController.shared.show(
+                    presentation.state,
+                    displayIDs: presentation.displayIDs,
+                    displayLayout: displayLayout
+                )
+            }
         } else {
             updateContextPlan { plan in
                 plan.applyFailedNavigation(command)
@@ -2035,7 +2266,12 @@ private struct ProductRootView: View {
 
     var body: some View {
         if didCompleteOnboarding {
-            V1SettingsView(model: model, didCompleteOnboarding: $didCompleteOnboarding)
+            ProductMenuOnlySettingsRedirectView(
+                model: model,
+                openMenuPanel: {
+                    openMenuPanelForPresentationTrigger(.settingsRedirect)
+                }
+            )
         } else {
             OnboardingFlowView(viewModel: model, language: model.settings.language) {
                 finishOnboardingToSettings()
@@ -2052,54 +2288,87 @@ private struct ProductRootView: View {
     }
 
     private func finishOnboardingToSettings() {
-        let sourceWindow = NSApplication.shared.keyWindow
-            ?? NSApplication.shared.windows.first { window in
-                window.identifier == ProductMainWindowPresenter.windowIdentifier
-                    || window.title == "Sideby"
-            }
-
         didCompleteOnboarding = true
-        ProductFloatingMenuPanelController.shared.close()
-        ProductFloatingSettingsPanelController.shared.show(
+        openMenuPanelForPresentationTrigger(.onboardingCompletion)
+    }
+
+    private func openMenuPanelForPresentationTrigger(
+        _ trigger: FloatingMenuPanelPresentationTrigger,
+        initialExpansion: FloatingMenuSectionExpansion = .default
+    ) {
+        let sourceWindow: NSWindow?
+        switch FloatingMenuPanelPresentationPolicy.anchor(for: trigger) {
+        case .sourceWindow:
+            sourceWindow = currentMainWindow
+        case .menuBarFallback:
+            sourceWindow = nil
+        }
+
+        openMenuPanel(from: sourceWindow, initialExpansion: initialExpansion)
+    }
+
+    private func openMenuPanel(
+        from sourceWindow: NSWindow? = NSApplication.shared.keyWindow,
+        initialExpansion: FloatingMenuSectionExpansion = .default
+    ) {
+        ProductFloatingMenuPanelController.shared.present(
             from: sourceWindow,
             model: model,
-            didCompleteOnboarding: $didCompleteOnboarding,
-            initialSection: .overview
+            actions: menuActions,
+            initialExpansion: initialExpansion
         )
         ProductMainWindowPresenter.hideIfVisible()
     }
 
-    private func openSettingsPanel(initialSection: SettingsPanelSection = .overview) {
-        ProductFloatingMenuPanelController.shared.close()
-        ProductFloatingSettingsPanelController.shared.show(
-            from: NSApplication.shared.keyWindow,
-            model: model,
-            didCompleteOnboarding: $didCompleteOnboarding,
-            initialSection: initialSection
-        )
-        ProductMainWindowPresenter.hideIfVisible()
+    private var currentMainWindow: NSWindow? {
+        NSApplication.shared.keyWindow
+            ?? NSApplication.shared.windows.first { window in
+                window.identifier == ProductMainWindowPresenter.windowIdentifier
+                    || window.title == "Sideby"
+            }
     }
 
     private var menuActions: ProductMenuPanelActions {
         ProductMenuPanelActions(
             openSettings: {
-                openSettingsPanel()
+                openMenuPanel(initialExpansion: .opening(.overview))
             },
             replayOnboarding: {
                 ProductFloatingMenuPanelController.shared.close()
-                ProductFloatingSettingsPanelController.shared.close()
                 model.prepareMiniOnboarding()
                 didCompleteOnboarding = false
                 openWindow(id: "main")
                 ProductMainWindowPresenter.present()
             },
             customizeShortcuts: {
-                openSettingsPanel(initialSection: .input)
+                openMenuPanel(initialExpansion: .opening(.input))
             },
             quit: {
                 NSApplication.shared.terminate(nil)
             }
         )
+    }
+}
+
+private struct ProductMenuOnlySettingsRedirectView: View {
+    @ObservedObject var model: SidebyAppModel
+    let openMenuPanel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .center, spacing: 10) {
+            SidebyMenuBarIcon()
+                .frame(width: 32, height: 26)
+            Text(model.strings.settings)
+                .font(.title3.weight(.semibold))
+            Button(model.strings.openSettings, action: openMenuPanel)
+                .pointingHandCursor()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            DispatchQueue.main.async {
+                openMenuPanel()
+            }
+        }
     }
 }
 
@@ -2123,331 +2392,16 @@ private struct ProductMainWindowConfigurator: NSViewRepresentable {
     }
 }
 
-private struct V1SettingsView: View {
-    @ObservedObject var model: SidebyAppModel
-    @Binding var didCompleteOnboarding: Bool
-    @State private var selectedSection: SettingsPanelSection?
-    let settingsVariant: SettingsPanelVariant
-    let onSwitchQueued: (SwitchCommand) -> Void
-
-    init(
-        model: SidebyAppModel,
-        didCompleteOnboarding: Binding<Bool>,
-        initialSection: SettingsPanelSection = .overview,
-        settingsVariant: SettingsPanelVariant = .product,
-        onSwitchQueued: @escaping (SwitchCommand) -> Void = { _ in }
-    ) {
-        self.model = model
-        self._didCompleteOnboarding = didCompleteOnboarding
-        self._selectedSection = State(initialValue: initialSection)
-        self.settingsVariant = settingsVariant
-        self.onSwitchQueued = onSwitchQueued
-    }
-
-    var body: some View {
-        let strings = model.strings
-
-        NavigationSplitView {
-            List(selection: $selectedSection) {
-                ForEach(SettingsPanelPolicy.sections(for: settingsVariant)) { section in
-                    Label(section.title(strings), systemImage: section.systemImage)
-                        .tag(section as SettingsPanelSection?)
-                }
-            }
-            .navigationTitle(strings.settings)
-            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 230)
-        } detail: {
-            let section = selectedSection ?? .overview
-            SettingsDetailPage(
-                title: section.title(strings),
-                subtitle: section.subtitle(strings)
-            ) {
-                settingsDetail(for: section)
-            }
-        }
-        .navigationSplitViewStyle(.balanced)
-    }
-
-    @ViewBuilder
-    private func settingsDetail(for section: SettingsPanelSection) -> some View {
-        let strings = model.strings
-
-        switch section {
-        case .overview:
-            VStack(alignment: .leading, spacing: 10) {
-                SidebyActivationView(
-                    model: model,
-                    showsLastInputStatus: SettingsPanelPolicy.showsLastInputStatus(for: settingsVariant)
-                )
-
-                GroupBox(strings.screenSwitching) {
-                    ScreenSwitchingControls(
-                        model: model,
-                        onSwitchQueued: onSwitchQueued
-                    )
-                }
-
-                DiagnosticsView(model: model)
-            }
-        case .input:
-            ShortcutSettingsView(
-                settings: Binding(
-                    get: { model.settings },
-                    set: { model.updateSettings($0) }
-                ),
-                showsInputExperiment: false
-            )
-        case .permissions:
-            PrivacyPermissionsView(model: model)
-        case .general:
-            VStack(alignment: .leading, spacing: 12) {
-                LanguageSettingsView(settings: Binding(
-                    get: { model.settings },
-                    set: { model.updateSettings($0) }
-                ))
-
-                Divider()
-
-                LaunchAtLoginControls(model: model)
-
-                Divider()
-
-                HStack {
-                    Button(strings.replayOnboarding) {
-                        model.prepareMiniOnboarding()
-                        didCompleteOnboarding = false
-                    }
-                    Button(strings.refresh) {
-                        model.refresh()
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        case .advanced:
-            GroupBox(strings.labs) {
-                InputExperimentSettingsView(
-                    settings: Binding(
-                        get: { model.settings },
-                        set: { model.updateSettings($0) }
-                    )
-                )
-            }
-        }
-    }
-}
-
-private extension SettingsPanelSection {
-    var systemImage: String {
-        switch self {
-        case .overview:
-            return "switch.2"
-        case .input:
-            return "keyboard"
-        case .permissions:
-            return "lock"
-        case .general:
-            return "gearshape"
-        case .advanced:
-            return "testtube.2"
-        }
-    }
-
-    func title(_ strings: SBSStrings) -> String {
-        switch self {
-        case .overview:
-            return strings.overview
-        case .input:
-            return strings.input
-        case .permissions:
-            return strings.permissions
-        case .general:
-            return strings.general
-        case .advanced:
-            return strings.advanced
-        }
-    }
-
-    func subtitle(_ strings: SBSStrings) -> String {
-        switch self {
-        case .overview:
-            return strings.overviewSubtitle
-        case .input:
-            return strings.inputSubtitle
-        case .permissions:
-            return strings.permissionsSubtitle
-        case .general:
-            return strings.generalSubtitle
-        case .advanced:
-            return strings.advancedSubtitle
-        }
-    }
-
-    init(_ destination: SettingsAccessDestination) {
+private extension FloatingMenuSectionExpansion {
+    static func opening(_ destination: SettingsAccessDestination) -> FloatingMenuSectionExpansion {
+        var expansion = FloatingMenuSectionExpansion.default
         switch destination {
         case .overview:
-            self = .overview
+            expansion.showsDiagnostics = true
         case .input:
-            self = .input
+            expansion.showsInput = true
         }
-    }
-}
-
-private struct SettingsDetailPage<Content: View>: View {
-    let title: String
-    let subtitle: String
-    let content: Content
-
-    init(
-        title: String,
-        subtitle: String,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.title = title
-        self.subtitle = subtitle
-        self.content = content()
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                ProductHeaderView(title: title, subtitle: subtitle)
-                content
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-}
-
-@MainActor
-private final class ProductFloatingSettingsPanelController {
-    static let shared = ProductFloatingSettingsPanelController()
-
-    private var panel: NSPanel?
-    private var lockedRelocation: ProductMenuBarWindowRelocation?
-    private var activeSpaceObserver: NSObjectProtocol?
-    private var screenParametersObserver: NSObjectProtocol?
-    private let panelSize = NSSize(width: 760, height: 560)
-
-    private init() {
-        startPlacementObservers()
-    }
-
-    func show(
-        from sourceWindow: NSWindow?,
-        model: SidebyAppModel,
-        didCompleteOnboarding: Binding<Bool>,
-        initialSection: SettingsPanelSection = .overview
-    ) {
-        let panel = panel ?? makePanel()
-        self.panel = panel
-        let relocation = ProductMenuBarWindowRelocation.capture(window: sourceWindow)
-            ?? ProductMenuBarWindowRelocation.fallback()
-        lockedRelocation = relocation
-        panel.title = model.strings.settings
-        panel.contentViewController = NSHostingController(
-            rootView: V1SettingsView(
-                model: model,
-                didCompleteOnboarding: didCompleteOnboarding,
-                initialSection: initialSection
-            )
-        )
-        panel.setContentSize(panelSize)
-        position(panel, using: relocation)
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
-        panel.orderFrontRegardless()
-    }
-
-    func close() {
-        panel?.orderOut(nil)
-    }
-
-    private func startPlacementObservers() {
-        activeSpaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.activeSpaceDidChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.scheduleLockedReposition()
-            }
-        }
-
-        screenParametersObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.scheduleLockedReposition()
-            }
-        }
-    }
-
-    private func scheduleLockedReposition() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.repositionIfVisible(orderFront: false)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            self?.repositionIfVisible(orderFront: false)
-        }
-    }
-
-    private func repositionIfVisible(orderFront: Bool) {
-        guard let panel,
-              panel.isVisible,
-              let relocation = lockedRelocation
-        else {
-            return
-        }
-
-        position(panel, using: relocation)
-        if orderFront {
-            panel.orderFrontRegardless()
-        }
-    }
-
-    private func makePanel() -> NSPanel {
-        let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: panelSize),
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        panel.isReleasedWhenClosed = false
-        panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.hidesOnDeactivate = false
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.collectionBehavior.insert([
-            .canJoinAllSpaces,
-            .fullScreenAuxiliary
-        ])
-        return panel
-    }
-
-    private func position(_ panel: NSPanel, using relocation: ProductMenuBarWindowRelocation) {
-        let targetScreen = ProductMenuBarWindowConfigurator.targetScreen(for: relocation)
-            ?? panel.screen
-            ?? NSScreen.main
-            ?? NSScreen.screens.first
-        guard let targetScreen else {
-            return
-        }
-
-        let visibleFrame = targetScreen.visibleFrame
-        let windowFrame = panel.frame
-        let xRange = max(visibleFrame.width - windowFrame.width, 1)
-        let yRange = max(visibleFrame.height - windowFrame.height, 1)
-        let x = visibleFrame.minX + xRange * min(max(relocation.xRatio, 0), 1)
-        let y = visibleFrame.maxY - windowFrame.height - relocation.topInset
-        panel.setFrameOrigin(CGPoint(
-            x: min(max(x, visibleFrame.minX), visibleFrame.minX + xRange),
-            y: min(max(y, visibleFrame.minY), visibleFrame.minY + yRange)
-        ))
+        return expansion
     }
 }
 
@@ -2465,6 +2419,7 @@ private struct LaunchAtLoginControls: View {
                     set: { model.setLaunchAtLogin($0) }
                 )
             )
+            .pointingHandCursor()
             Text(model.loginItemStatus)
                 .foregroundStyle(.secondary)
         }
@@ -2518,7 +2473,10 @@ private struct MenuBarControlView: View {
         }
     }
 
-    private func openFloatingMenu(from sourceWindow: NSWindow?) {
+    private func openFloatingMenu(
+        from sourceWindow: NSWindow?,
+        initialExpansion: FloatingMenuSectionExpansion = .default
+    ) {
         guard !didOpenFloatingMenu else {
             return
         }
@@ -2527,24 +2485,24 @@ private struct MenuBarControlView: View {
         ProductFloatingMenuPanelController.shared.toggle(
             from: sourceWindow,
             model: model,
-            actions: menuActions
+            actions: menuActions,
+            initialExpansion: initialExpansion
         )
         closeMenuBarWindow()
     }
 
     private func openMainWindow() {
-        ProductFloatingSettingsPanelController.shared.close()
         openWindow(id: "main")
         closeMenuBarWindow()
         ProductMainWindowPresenter.present()
     }
 
-    private func openSettingsPanel(initialSection: SettingsPanelSection = .overview) {
-        ProductFloatingSettingsPanelController.shared.show(
+    private func openMenuPanel(opening destination: SettingsAccessDestination) {
+        ProductFloatingMenuPanelController.shared.present(
             from: menuWindow,
             model: model,
-            didCompleteOnboarding: $didCompleteOnboarding,
-            initialSection: initialSection
+            actions: menuActions,
+            initialExpansion: .opening(destination)
         )
         ProductMainWindowPresenter.hideIfVisible()
         closeMenuBarWindow()
@@ -2552,8 +2510,8 @@ private struct MenuBarControlView: View {
 
     private func handleMenuRoute(_ route: SettingsAccessRoute) {
         switch route {
-        case .mainSettings(let destination):
-            openSettingsPanel(initialSection: SettingsPanelSection(destination))
+        case .menuPanel(let destination):
+            openMenuPanel(opening: destination)
         case .onboarding:
             model.prepareMiniOnboarding()
             didCompleteOnboarding = false
@@ -2611,16 +2569,26 @@ private struct ProductMenuContentView: View {
     @ObservedObject var model: SidebyAppModel
     let onSwitchQueued: (SwitchCommand) -> Void
     let actions: ProductMenuPanelActions
+    @State private var expansion = FloatingMenuSectionExpansion.default
+
+    init(
+        model: SidebyAppModel,
+        onSwitchQueued: @escaping (SwitchCommand) -> Void,
+        actions: ProductMenuPanelActions,
+        initialExpansion: FloatingMenuSectionExpansion = .default
+    ) {
+        self.model = model
+        self.onSwitchQueued = onSwitchQueued
+        self.actions = actions
+        self._expansion = State(initialValue: initialExpansion)
+    }
 
     var body: some View {
         let strings = model.strings
 
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             MenuBarStatusHeader(model: model)
 
-            MoveTargetsView(model: model, showsSummary: false)
-            ContextCaptureControlsView(model: model)
-            ContextsView(model: model)
             GroupBox(strings.switchSection) {
                 ScreenSwitchingControls(
                     model: model,
@@ -2630,11 +2598,178 @@ private struct ProductMenuContentView: View {
                 )
             }
 
-            Button(strings.openSettings, action: actions.openSettings)
-            Button(strings.replayOnboarding, action: actions.replayOnboarding)
-            Button(strings.customizeShortcuts, action: actions.customizeShortcuts)
-            Button(strings.quit, action: actions.quit)
+            MoveTargetsView(
+                model: model,
+                showsSummary: true,
+                wrapsInGroupBox: true
+            )
+
+            contextsSection
+
+            CompactDisclosureSection(
+                title: strings.input,
+                systemImage: "keyboard",
+                isExpanded: expansionBinding(for: .input)
+            ) {
+                ShortcutSettingsView(
+                    settings: settingsBinding,
+                    showsInputExperiment: false
+                )
+            }
+
+            CompactDisclosureSection(
+                title: strings.permissions,
+                systemImage: "lock",
+                isExpanded: expansionBinding(for: .permissions)
+            ) {
+                PrivacyPermissionsView(model: model)
+            }
+
+            CompactDisclosureSection(
+                title: strings.general,
+                systemImage: "gearshape",
+                isExpanded: expansionBinding(for: .general)
+            ) {
+                generalSettings
+            }
+
+            CompactDisclosureSection(
+                title: strings.status,
+                systemImage: "waveform.path.ecg",
+                isExpanded: expansionBinding(for: .diagnostics)
+            ) {
+                DiagnosticsView(model: model)
+            }
+
+            menuActions
         }
+    }
+
+    private var contextsSection: some View {
+        GroupBox(model.strings.contextPlanner) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(
+                    Array(FloatingMenuContextSectionContent.defaultItems.enumerated()),
+                    id: \.offset
+                ) { index, item in
+                    if index > 0 {
+                        Divider()
+                    }
+
+                    switch item {
+                    case .captureControls:
+                        ContextCaptureControlsView(model: model, wrapsInGroupBox: false)
+                    case .matrix:
+                        ContextsView(
+                            model: model,
+                            wrapsInGroupBox: false,
+                            showsHelp: false,
+                            isCompact: true
+                        )
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var settingsBinding: Binding<AppSettings> {
+        Binding(
+            get: { model.settings },
+            set: { model.updateSettings($0) }
+        )
+    }
+
+    private func expansionBinding(for section: FloatingMenuCollapsibleSection) -> Binding<Bool> {
+        Binding(
+            get: { expansion.isExpanded(section) },
+            set: { expansion.set(section, isExpanded: $0) }
+        )
+    }
+
+    private var generalSettings: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LanguageSettingsView(settings: settingsBinding)
+
+            Divider()
+
+            LaunchAtLoginControls(model: model)
+
+            Divider()
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    generalButtons
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    generalButtons
+                }
+            }
+            .font(.caption)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var generalButtons: some View {
+        Group {
+            Button(model.strings.replayOnboarding, action: actions.replayOnboarding)
+                .pointingHandCursor()
+            Button(model.strings.refresh) {
+                model.refresh()
+            }
+            .pointingHandCursor()
+        }
+    }
+
+    private var menuActions: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Button(model.strings.quit, action: actions.quit)
+                .pointingHandCursor()
+        }
+        .font(.caption)
+    }
+}
+
+private struct CompactDisclosureSection<Content: View>: View {
+    let title: String
+    let systemImage: String
+    @Binding var isExpanded: Bool
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Label(title, systemImage: systemImage)
+                        .font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 8)
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16, height: 16)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(title)
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+            .pointingHandCursor()
+
+            if isExpanded {
+                content()
+                    .padding(.top, 8)
+            }
+        }
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -2713,28 +2848,35 @@ private final class ProductFloatingMenuPanelController {
     private var pendingRelocation: ProductMenuBarWindowRelocation?
     private weak var pendingModel: SidebyAppModel?
     private var pendingActions: ProductMenuPanelActions?
+    private var pendingInitialExpansion: FloatingMenuSectionExpansion = .default
     private var didObserveSwitching = false
-    private let panelSize = NSSize(width: 720, height: 760)
 
     private init() {}
 
     func toggle(
         from sourceWindow: NSWindow?,
         model: SidebyAppModel,
-        actions: ProductMenuPanelActions
+        actions: ProductMenuPanelActions,
+        initialExpansion: FloatingMenuSectionExpansion = .default
     ) {
         if panel?.isVisible == true {
             close()
             return
         }
 
-        present(from: sourceWindow, model: model, actions: actions)
+        present(
+            from: sourceWindow,
+            model: model,
+            actions: actions,
+            initialExpansion: initialExpansion
+        )
     }
 
     func present(
         from sourceWindow: NSWindow?,
         model: SidebyAppModel,
-        actions: ProductMenuPanelActions
+        actions: ProductMenuPanelActions,
+        initialExpansion: FloatingMenuSectionExpansion = .default
     ) {
         let relocation = ProductMenuBarWindowRelocation.capture(window: sourceWindow)
             ?? ProductMenuBarWindowRelocation.fallback()
@@ -2753,12 +2895,18 @@ private final class ProductFloatingMenuPanelController {
                     from: self.panel,
                     model: model,
                     actions: actions,
+                    initialExpansion: initialExpansion,
                     alreadySwitching: true
                 )
             }
         }
 
-        show(model: model, relocation: relocation, actions: actions)
+        show(
+            model: model,
+            relocation: relocation,
+            actions: actions,
+            initialExpansion: initialExpansion
+        )
     }
 
     func close() {
@@ -2771,12 +2919,14 @@ private final class ProductFloatingMenuPanelController {
         from sourceWindow: NSWindow?,
         model: SidebyAppModel,
         actions: ProductMenuPanelActions,
+        initialExpansion: FloatingMenuSectionExpansion,
         alreadySwitching: Bool = false
     ) {
         pendingRelocation = ProductMenuBarWindowRelocation.capture(window: sourceWindow)
             ?? ProductMenuBarWindowRelocation.fallback()
         pendingModel = model
         pendingActions = actions
+        pendingInitialExpansion = initialExpansion
         didObserveSwitching = alreadySwitching
         showWorkItem?.cancel()
 
@@ -2834,9 +2984,15 @@ private final class ProductFloatingMenuPanelController {
             return
         }
 
+        let initialExpansion = pendingInitialExpansion
         clearPendingReopen()
         switchObserver = nil
-        show(model: model, relocation: relocation, actions: actions)
+        show(
+            model: model,
+            relocation: relocation,
+            actions: actions,
+            initialExpansion: initialExpansion
+        )
     }
 
     private func clearPendingReopen() {
@@ -2845,6 +3001,7 @@ private final class ProductFloatingMenuPanelController {
         pendingRelocation = nil
         pendingModel = nil
         pendingActions = nil
+        pendingInitialExpansion = .default
         didObserveSwitching = false
     }
 
@@ -2855,9 +3012,12 @@ private final class ProductFloatingMenuPanelController {
     private func show(
         model: SidebyAppModel,
         relocation: ProductMenuBarWindowRelocation,
-        actions: ProductMenuPanelActions
+        actions: ProductMenuPanelActions,
+        initialExpansion: FloatingMenuSectionExpansion
     ) {
+        let isNewPanel = panel == nil
         let panel = panel ?? makePanel()
+        let capturedExistingContentSize = isNewPanel ? nil : panel.contentView?.bounds.size
         self.panel = panel
         panel.contentViewController = NSHostingController(
             rootView: ProductFloatingMenuPanelView(
@@ -2870,7 +3030,8 @@ private final class ProductFloatingMenuPanelController {
                     queueReopenAfterSwitch(
                         from: panel,
                         model: model,
-                        actions: actions
+                        actions: actions,
+                        initialExpansion: initialExpansion
                     )
                 },
                 actions: ProductMenuPanelActions(
@@ -2887,10 +3048,16 @@ private final class ProductFloatingMenuPanelController {
                         actions.customizeShortcuts()
                     },
                     quit: actions.quit
-                )
+                ),
+                initialExpansion: initialExpansion
             )
         )
-        panel.setContentSize(panelSize)
+        applyContentSize(
+            to: panel,
+            relocation: relocation,
+            isNewPanel: isNewPanel,
+            capturedExistingContentSize: capturedExistingContentSize
+        )
         position(panel, using: relocation)
         NSApplication.shared.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
@@ -2899,8 +3066,8 @@ private final class ProductFloatingMenuPanelController {
 
     private func makePanel() -> NSPanel {
         let panel = DismissibleFloatingPanel(
-            contentRect: NSRect(origin: .zero, size: panelSize),
-            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
+            contentRect: NSRect(origin: .zero, size: FloatingMenuPanelLayout.defaultSize),
+            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -2919,11 +3086,29 @@ private final class ProductFloatingMenuPanelController {
         panel.standardWindowButton(.closeButton)?.isHidden = true
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
+        panel.contentMinSize = FloatingMenuPanelLayout.minimumSize
         panel.collectionBehavior.insert([
             .canJoinAllSpaces,
             .fullScreenAuxiliary
         ])
         return panel
+    }
+
+    private func applyContentSize(
+        to panel: NSPanel,
+        relocation: ProductMenuBarWindowRelocation,
+        isNewPanel: Bool,
+        capturedExistingContentSize: NSSize?
+    ) {
+        let visibleFrame = ProductMenuBarWindowConfigurator.targetScreen(for: relocation)?.visibleFrame
+        let currentSize = panel.contentView?.bounds.size
+        let contentSize = FloatingMenuPanelLayout.presentationContentSize(
+            capturedExistingContentSize: capturedExistingContentSize,
+            currentContentSize: currentSize,
+            isNewPanel: isNewPanel,
+            visibleFrame: visibleFrame
+        )
+        panel.setContentSize(contentSize)
     }
 
     private func position(_ panel: NSPanel, using relocation: ProductMenuBarWindowRelocation) {
@@ -2952,18 +3137,26 @@ private struct ProductFloatingMenuPanelView: View {
     @ObservedObject var model: SidebyAppModel
     let onSwitchQueued: (SwitchCommand) -> Void
     let actions: ProductMenuPanelActions
+    let initialExpansion: FloatingMenuSectionExpansion
 
     var body: some View {
         ScrollView(.vertical) {
             ProductMenuContentView(
                 model: model,
                 onSwitchQueued: onSwitchQueued,
-                actions: actions
+                actions: actions,
+                initialExpansion: initialExpansion
             )
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: 720, height: 760, alignment: .topLeading)
+        .frame(
+            minWidth: FloatingMenuPanelLayout.minimumSize.width,
+            maxWidth: .infinity,
+            minHeight: FloatingMenuPanelLayout.minimumSize.height,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }
@@ -3047,6 +3240,7 @@ private struct MenuBarStatusHeader: View {
                     )
                 )
                 .toggleStyle(.switch)
+                .pointingHandCursor()
             }
 
             Text(statusText)
@@ -3065,82 +3259,100 @@ private struct MenuBarStatusHeader: View {
     }
 }
 
-private struct ProductHeaderView: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.title2)
-                .fontWeight(.semibold)
-            Text(subtitle)
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
 private struct ContextCaptureControlsView: View {
     @ObservedObject var model: SidebyAppModel
+    var wrapsInGroupBox = true
 
     var body: some View {
         let strings = model.strings
 
-        GroupBox(strings.captureContexts) {
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle(
-                    isOn: Binding(
-                        get: { model.settings.contextPlan.isPinned },
-                        set: { model.setContextPinning($0) }
-                    )
-                ) {
-                    Text(strings.pinContexts)
-                }
-                .toggleStyle(.checkbox)
-
-                HStack(alignment: .center, spacing: 8) {
-                    if model.contextCaptureSession == nil {
-                        Button {
-                            model.startContextCapture()
-                        } label: {
-                            Label(strings.captureContexts, systemImage: "rectangle.stack")
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.displayLayout.displays.isEmpty || model.isSwitching || !model.isEnabled)
-                    } else {
-                        Button(strings.stopCapture) {
-                            model.stopContextCapture()
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Text(strings.contextsToCapture(SidebyAppModel.automaticContextCaptureLimit))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let contextCaptureStatus = model.contextCaptureStatus {
-                    Text(contextCaptureStatus)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
+        if wrapsInGroupBox {
+            GroupBox(strings.captureContexts) {
+                content(strings: strings)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            content(strings: strings)
         }
+    }
+
+    private func content(strings: SBSStrings) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(
+                isOn: Binding(
+                    get: { model.settings.contextPlan.isPinned },
+                    set: { model.setContextPinning($0) }
+                )
+            ) {
+                Text(strings.pinContexts)
+            }
+            .toggleStyle(.checkbox)
+            .pointingHandCursor()
+
+            HStack(alignment: .center, spacing: 8) {
+                if model.contextCaptureSession == nil {
+                    Button {
+                        model.startContextCapture()
+                    } label: {
+                        Label(strings.captureContexts, systemImage: "rectangle.stack")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!FloatingMenuContextCaptureAvailability.canStart(
+                        displayCount: model.displayLayout.displayCount,
+                        isSwitching: model.isSwitching,
+                        isCapturing: model.contextCaptureSession != nil
+                    ))
+                    .pointingHandCursor(FloatingMenuContextCaptureAvailability.canStart(
+                        displayCount: model.displayLayout.displayCount,
+                        isSwitching: model.isSwitching,
+                        isCapturing: model.contextCaptureSession != nil
+                    ))
+                } else {
+                    Button(strings.stopCapture) {
+                        model.stopContextCapture()
+                    }
+                    .buttonStyle(.bordered)
+                    .pointingHandCursor()
+                }
+
+                Spacer(minLength: 8)
+
+                Text(strings.contextsToCapture(SidebyAppModel.automaticContextCaptureLimit))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let contextCaptureStatus = model.contextCaptureStatus {
+                Text(contextCaptureStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let session = model.contextCaptureSession {
+                ProgressView(value: ContextCaptureStatusDisplay.progressValue(session: session))
+                    .progressViewStyle(.linear)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 private struct ContextsView: View {
     @ObservedObject var model: SidebyAppModel
+    var wrapsInGroupBox = true
+    var showsHelp = true
+    var isCompact = false
 
-    private let displayColumnWidth: CGFloat = 170
-    private let contextColumnWidth: CGFloat = 220
-    private let headerHeight: CGFloat = 82
-    private let rowHeight: CGFloat = 36
+    private var displayColumnWidth: CGFloat {
+        FloatingMenuContextMatrixLayout.displayColumnWidth(isCompact: isCompact)
+    }
+
+    private var contextColumnWidth: CGFloat {
+        FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: isCompact)
+    }
+
+    private var headerHeight: CGFloat { isCompact ? 74 : 82 }
+    private var rowHeight: CGFloat { isCompact ? 32 : 36 }
 
     var body: some View {
         let strings = model.strings
@@ -3149,39 +3361,49 @@ private struct ContextsView: View {
             displays: model.displayLayout.displays
         )
 
-        GroupBox(strings.contextPlanner) {
-            VStack(alignment: .leading, spacing: 12) {
+        if wrapsInGroupBox {
+            GroupBox(strings.contextPlanner) {
+                content(strings: strings, matrix: matrix)
+            }
+        } else {
+            content(strings: strings, matrix: matrix)
+        }
+    }
+
+    private func content(strings: SBSStrings, matrix: ContextMatrix) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if showsHelp {
                 Text(strings.contextPlannerHelp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
 
-                HStack(alignment: .top, spacing: 8) {
-                    displayColumn(rows: matrix.rows)
+            HStack(alignment: .top, spacing: 8) {
+                displayColumn(rows: matrix.rows)
 
-                    ScrollView(.horizontal) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) {
-                                ForEach(matrix.columns) { column in
-                                    contextHeader(column)
-                                }
-                            }
-
-                            ForEach(matrix.rows) { row in
-                                HStack(spacing: 8) {
-                                    ForEach(row.cells) { cell in
-                                        membershipCell(cell)
-                                    }
-                                }
-                                .frame(height: rowHeight)
+                ScrollView(.horizontal) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            ForEach(matrix.columns) { column in
+                                contextHeader(column)
                             }
                         }
-                        .padding(.bottom, 2)
+
+                        ForEach(matrix.rows) { row in
+                            HStack(spacing: 8) {
+                                ForEach(row.cells) { cell in
+                                    membershipCell(cell)
+                                }
+                            }
+                            .frame(height: rowHeight)
+                        }
                     }
+                    .padding(.bottom, 2)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func displayColumn(rows: [ContextMatrixRow]) -> some View {
@@ -3207,17 +3429,23 @@ private struct ContextsView: View {
                 Text(model.strings.contextOrder(column.order))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .lineLimit(FloatingMenuContextMatrixLayout.headerLineLimit)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
 
                 Spacer(minLength: 4)
 
-                if column.state == .current {
-                    Text(model.strings.currentContext)
+                if let statusTitle = FloatingMenuContextMatrixLayout.statusTitle(
+                    for: column.state,
+                    isCompact: isCompact,
+                    strings: model.strings
+                ) {
+                    Text(statusTitle)
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                } else if column.state == .needsSync {
-                    Text(model.strings.contextNeedsSync)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(column.state == .needsSync ? .orange : .secondary)
+                        .lineLimit(FloatingMenuContextMatrixLayout.headerLineLimit)
+                        .truncationMode(.tail)
+                        .minimumScaleFactor(0.8)
                 }
             }
 
@@ -3239,6 +3467,8 @@ private struct ContextsView: View {
             }
             .font(.caption2)
             .buttonStyle(.borderless)
+            .lineLimit(1)
+            .pointingHandCursor()
         }
         .frame(width: contextColumnWidth, height: headerHeight, alignment: .topLeading)
     }
@@ -3266,43 +3496,53 @@ private struct ContextsView: View {
 private struct MoveTargetsView: View {
     @ObservedObject var model: SidebyAppModel
     var showsSummary = true
+    var wrapsInGroupBox = true
 
     var body: some View {
         let strings = model.strings
 
-        GroupBox(strings.moveTargets) {
-            VStack(alignment: .leading, spacing: 10) {
-                if model.displayLayout.displays.isEmpty {
-                    Text(strings.selectedDisplaySummary(selected: 0, total: 0))
-                        .foregroundStyle(.secondary)
-                } else {
-                    DisplayArrangementView(
-                        displays: model.displayLayout.displays,
-                        selectedDisplayIDs: model.selectedDisplayIDs,
-                        strings: strings,
-                        toggleDisplay: { display in
-                            model.setDisplayTarget(
-                                display,
-                                isSelected: !model.selectedDisplayIDs.contains(display.id)
-                            )
-                        }
-                    )
-                    .padding(.bottom, 2)
+        if wrapsInGroupBox {
+            GroupBox(strings.moveTargets) {
+                content(strings: strings)
+            }
+        } else {
+            content(strings: strings)
+        }
+    }
+
+    private func content(strings: SBSStrings) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if model.displayLayout.displays.isEmpty {
+                Text(strings.selectedDisplaySummary(selected: 0, total: 0))
+                    .foregroundStyle(.secondary)
+            } else {
+                DisplayArrangementView(
+                    displays: model.displayLayout.displays,
+                    selectedDisplayIDs: model.selectedDisplayIDs,
+                    strings: strings,
+                    toggleDisplay: { display in
+                        model.setDisplayTarget(
+                            display,
+                            isSelected: !model.selectedDisplayIDs.contains(display.id)
+                        )
+                    }
+                )
+                .padding(.bottom, 2)
+            }
+
+            HStack {
+                Button(strings.allDisplaysButton) {
+                    model.selectAllDisplayTargets()
                 }
+                .pointingHandCursor()
 
-                HStack {
-                    Button(strings.allDisplaysButton) {
-                        model.selectAllDisplayTargets()
-                    }
-
-                    if showsSummary {
-                        Text(model.selectedDisplaySummary)
-                            .foregroundStyle(.secondary)
-                    }
+                if showsSummary {
+                    Text(model.selectedDisplaySummary)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -3400,6 +3640,7 @@ private struct DisplayArrangementView: View {
         .accessibilityLabel(display.name)
         .accessibilityValue(isSelected ? strings.selected : strings.notSelected)
         .help(display.name)
+        .pointingHandCursor()
     }
 
     private func fallbackSize(for display: DisplayInfo) -> CGSize {
@@ -3570,6 +3811,7 @@ private struct PrivacyPermissionsView: View {
                             }
                         }
                         .buttonStyle(.bordered)
+                        .pointingHandCursor()
                     }
                 }
 
@@ -3578,9 +3820,11 @@ private struct PrivacyPermissionsView: View {
                         Button(strings.enablePermissions) {
                             model.requestPermissions()
                         }
+                        .pointingHandCursor()
                         Button(strings.accessibilitySettings) {
                             model.openAccessibilitySettings()
                         }
+                        .pointingHandCursor()
                     }
                 }
             }
@@ -3606,6 +3850,7 @@ private struct ScreenSwitchingControls: View {
                     }
                 }
                 .disabled(!model.isEnabled || model.isSwitching || model.contextCaptureSession != nil)
+                .pointingHandCursor(model.isEnabled && !model.isSwitching && model.contextCaptureSession == nil)
 
                 Button("\(strings.next) ->") {
                     if model.switchContext(.next) {
@@ -3613,6 +3858,7 @@ private struct ScreenSwitchingControls: View {
                     }
                 }
                 .disabled(!model.isEnabled || model.isSwitching || model.contextCaptureSession != nil)
+                .pointingHandCursor(model.isEnabled && !model.isSwitching && model.contextCaptureSession == nil)
             }
 
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
@@ -3638,40 +3884,6 @@ private struct ScreenSwitchingControls: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct SidebyActivationView: View {
-    @ObservedObject var model: SidebyAppModel
-    var showsLastInputStatus = false
-
-    var body: some View {
-        let strings = model.strings
-
-        GroupBox(strings.sideby) {
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle(
-                    strings.sideby,
-                    isOn: Binding(
-                        get: { model.isEnabled },
-                        set: { model.setSidebyEnabled($0) }
-                    )
-                )
-                .toggleStyle(.switch)
-
-                Text(model.inputStatus)
-                    .foregroundStyle(.secondary)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    StatusRow(label: strings.swipe, value: model.gestureInputSummary)
-                    StatusRow(label: strings.command, value: model.keyboardCommandSummary)
-                    if showsLastInputStatus {
-                        StatusRow(label: strings.lastInput, value: model.lastInputEvent)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
     }
 }
 

@@ -96,6 +96,9 @@ public struct SBSStrings: Sendable {
     public var captureContexts: String { text("Capture Contexts", "컨텍스트 캡처") }
     public var stopCapture: String { text("Stop", "중지") }
     public var pinContexts: String { text("Move by Contexts", "컨텍스트대로 움직이기") }
+    public var currentContextCompact: String { text("Current", "현재") }
+    public var contextNeedsSyncCompact: String { text("Sync", "동기화") }
+    public var contextMatchingPausedCompact: String { text("Paused", "일시 정지") }
     public var contextRequiresDisplay: String {
         text("Capture needs at least one Context.", "캡처에는 컨텍스트가 하나 이상 필요합니다.")
     }
@@ -103,13 +106,27 @@ public struct SBSStrings: Sendable {
     public var useTitle: String { text("Use Title", "제목 사용") }
     public var noCurrentContext: String { text("No current Context", "현재 컨텍스트 없음") }
     public var contextNeedsSync: String { text("Context needs sync", "컨텍스트 동기화 필요") }
+    public var contextMatchingPaused: String { text("Context matching paused", "컨텍스트 맞춤 일시 정지") }
     public var contextPlannerHelp: String {
         text(
             "Each Context is the shared Space position across selected displays. Sideby stores one name per Context.",
             "각 컨텍스트는 선택한 디스플레이들이 함께 있는 같은 순번의 Space입니다. Sideby는 컨텍스트마다 이름 하나만 저장합니다."
         )
     }
-    public var aligningToFirstSpace: String { text("Aligning to first Space", "첫 번째 Space로 맞추는 중") }
+    public var aligningToFirstSpace: String { text("Finding first Space", "첫 번째 Space 찾는 중") }
+    public func aligningToFirstSpace(attempt: Int, maxAttempts: Int? = nil) -> String {
+        if let maxAttempts {
+            return text(
+                "Finding first Space · try \(attempt)/\(maxAttempts)",
+                "첫 번째 Space 찾는 중 · \(attempt)/\(maxAttempts)번째 시도"
+            )
+        }
+
+        return text(
+            "Finding first Space · try \(attempt)",
+            "첫 번째 Space 찾는 중 · \(attempt)번째 시도"
+        )
+    }
     public var contextCaptureStopped: String {
         text(
             "Capture stopped. Existing Contexts were kept.",
@@ -128,7 +145,7 @@ public struct SBSStrings: Sendable {
     }
 
     public func capturingContextUpTo(current: Int, limit: Int) -> String {
-        text("Capturing Context \(current) of up to \(limit)", "최대 \(limit)개 중 컨텍스트 \(current) 캡처 중")
+        text("Capturing Context \(current) · up to \(limit)", "컨텍스트 \(current) 캡처 중 · 최대 \(limit)개")
     }
 
     public func capturedContexts(count: Int) -> String {

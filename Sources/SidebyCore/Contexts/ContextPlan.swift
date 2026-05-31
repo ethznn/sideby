@@ -220,6 +220,11 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         syncState = .needsSync
     }
 
+    public mutating func pauseContextMatchingForUnsynchronizedMovement() {
+        syncState = .needsSync
+        isPinned = false
+    }
+
     public func navigation(for command: SwitchCommand) -> ContextPlanNavigation {
         guard syncState == .synchronized else {
             return ContextPlanNavigation(

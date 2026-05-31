@@ -2,17 +2,17 @@ import XCTest
 @testable import SidebyCore
 
 final class SettingsAccessRouteTests: XCTestCase {
-    func testOpenSettingsUsesMainSettingsEvenWhenOnboardingIsIncomplete() {
+    func testOpenSettingsUsesMenuPanelEvenWhenOnboardingIsIncomplete() {
         XCTAssertEqual(
             SettingsAccessRoute.route(for: .openSettings, didCompleteOnboarding: false),
-            .mainSettings(.overview)
+            .menuPanel(.overview)
         )
     }
 
-    func testCustomizeShortcutsUsesInputSectionEvenWhenOnboardingIsIncomplete() {
+    func testCustomizeShortcutsUsesMenuPanelInputSectionEvenWhenOnboardingIsIncomplete() {
         XCTAssertEqual(
             SettingsAccessRoute.route(for: .customizeShortcuts, didCompleteOnboarding: false),
-            .mainSettings(.input)
+            .menuPanel(.input)
         )
     }
 
