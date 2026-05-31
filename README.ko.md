@@ -14,17 +14,23 @@ Sideby의 목표는 멀티 디스플레이 환경을 하나의 작업공간처�
 
 ## 현재 상태
 
-Sideby는 pre-1.0 소프트웨어입니다. V1 앱 셸, 온보딩 플로우, 메뉴바 설정, 메인 설정, 디스플레이 선택, 입력 파이프라인, 진단, 로컬 번들 스크립트를 개발 중입니다.
+Sideby는 pre-1.0 소프트웨어입니다. 0.2.0은 Context V2에 집중합니다. 메뉴바 중심 설정, 디스플레이 membership을 가진 이름 있는 Context, Context Capture, Context-aware switching, 온보딩, 진단, 로컬 번들 스크립트를 개발 중입니다.
 
 현재 릴리즈 전략은 App Sandbox off 직접 배포입니다. Sideby는 공개 macOS API만 사용해야 하며 private Mission Control 또는 Spaces API에 의존하지 않습니다.
 
 ## 기능
 
-- 여러 디스플레이를 빠르게 제어하는 메뉴바 앱
-- 함께 전환할 디스플레이를 고르는 Move Targets
+- 여러 디스플레이를 빠르게 제어하는 리사이즈 가능한 메뉴바 설정 팝오버
+- 하나 이상의 디스플레이를 묶는 이름 있는 Context
+- 각 Context에 속한 디스플레이를 확인하는 Context matrix
+- 현재 디스플레이/Space 배치에서 Context 묶음을 만드는 Capture Contexts 흐름
+- 일반 이동 모드에서 함께 전환할 디스플레이를 고르는 Move Targets
+- 현재 Context에 속한 디스플레이를 전환하는 Move by Contexts
 - 공개 macOS 키보드 명령 경로를 통한 Previous/Next Screen Switching
 - 기본 입력 습관: `Option + Shift + horizontal swipe`
-- 메인 설정에서 켤 수 있는 선택적 Previous/Next 키보드 단축키
+- 메뉴바 설정 팝오버에서 켤 수 있는 선택적 Previous/Next 키보드 단축키
+- 외부 Space 변경으로 Context matching이 안전하지 않을 때 일반 이동으로 돌아가는 best-effort fallback
+- Move by Contexts로 전환할 때 화면 중앙에 표시되는 Context HUD
 - Accessibility와 Screen Switching access를 안내하는 첫 실행 온보딩
 - 권한, 디스플레이, 전환 한계를 설명하는 진단
 - Display Spaces 라벨과 best-effort visible app/window suggestion
@@ -41,6 +47,8 @@ Sideby는 pre-1.0 소프트웨어입니다. V1 앱 셸, 온보딩 플로우, 메
 Sideby는 V1 Screen Switching을 위해 Screen Recording 권한을 요청하지 않습니다.
 
 ## 빠른 시작
+
+[GitHub Releases](https://github.com/ethznn/sideby/releases)에서 최신 signed/notarized DMG를 다운로드할 수 있습니다.
 
 저장소를 클론한 뒤 테스트를 실행하고 로컬 제품 번들을 빌드합니다.
 

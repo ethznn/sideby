@@ -24,6 +24,23 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.load(), settings)
     }
 
+    func testEncodingCurrentSettingsOmitsLegacyDisplaySpacePlan() throws {
+        var settings = AppSettings.default
+        settings.displaySpacePlan = DisplaySpacePlan(
+            displaySpaces: [
+                DisplaySpaceSet(displayID: "built-in", spaces: [
+                    DisplaySpaceSlot(order: 1, label: "Legacy")
+                ])
+            ],
+            defaultCaptureCount: 4
+        )
+
+        let object = try jsonObject(from: settings)
+
+        XCTAssertNil(object["displaySpacePlan"])
+        XCTAssertNotNil(object["contextPlan"])
+    }
+
     func testFallsBackToDefaultsForCorruptData() {
         let defaults = makeDefaults()
         defaults.set(Data([0, 1, 2]), forKey: "settings")
@@ -218,7 +235,8 @@ final class SettingsStoreTests: XCTestCase {
         let migratedSettings = store.load()
 
         XCTAssertEqual(migratedSettings.version, AppSettings.currentVersion)
-        XCTAssertEqual(migratedSettings.contextPlan, .default)
+        XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.name), ["Context 1"])
+        XCTAssertEqual(migratedSettings.contextPlan.captureLimit, 4)
     }
 
     func testMigratesLegacySettingsWithoutDisplaySpacePlan() throws {
@@ -284,8 +302,191 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(migratedSettings.language, .english)
     }
 
+    func testMigratesV12DisplaySpacePlanIntoContextPlanAndClearsLegacyLabels() throws {
+        let defaults = makeDefaults()
+        let store = UserDefaultsSettingsStore(userDefaults: defaults, key: "settings")
+        var legacySettings = AppSettings.default
+        legacySettings.version = 12
+        let legacyDisplaySpacePlan = DisplaySpacePlan(
+            displaySpaces: [
+                DisplaySpaceSet(displayID: "built-in", spaces: [
+                    DisplaySpaceSlot(order: 1, label: "Mail"),
+                    DisplaySpaceSlot(order: 2, label: "Code")
+                ]),
+                DisplaySpaceSet(displayID: "external-lg", spaces: [
+                    DisplaySpaceSlot(order: 1, label: "Calendar"),
+                    DisplaySpaceSlot(order: 2, label: "Preview")
+                ])
+            ],
+            defaultCaptureCount: 4
+        )
+
+        try saveLegacySettings(
+            legacySettings,
+            displaySpacePlan: legacyDisplaySpacePlan,
+            to: defaults
+        )
+
+        let migratedSettings = store.load()
+
+        XCTAssertEqual(migratedSettings.version, AppSettings.currentVersion)
+        XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.name), [
+            "Mail / Calendar",
+            "Code / Preview"
+        ])
+        XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.displayIDs), [
+            ["built-in", "external-lg"],
+            ["built-in", "external-lg"]
+        ])
+        XCTAssertEqual(migratedSettings.contextPlan.captureLimit, 4)
+        XCTAssertEqual(migratedSettings.displaySpacePlan, .default)
+    }
+
+    func testV12ContextMigrationPreservesUnrelatedSettings() throws {
+        let defaults = makeDefaults()
+        let store = UserDefaultsSettingsStore(userDefaults: defaults, key: "settings")
+        var legacySettings = AppSettings.default
+        legacySettings.version = 12
+        legacySettings.mode = .shortcut
+        legacySettings.language = .korean
+        legacySettings.requiredModifiers = [.control, .command]
+        legacySettings.keyboardShortcutsEnabled = true
+        legacySettings.shortcutPrevious = KeyboardShortcut(keyCode: 18, modifiers: [.control, .command])
+        legacySettings.shortcutNext = KeyboardShortcut(keyCode: 19, modifiers: [.control, .command])
+        legacySettings.horizontalThreshold = 120
+        legacySettings.launchAtLogin = true
+        let legacyDisplaySpacePlan = DisplaySpacePlan(
+            displaySpaces: [
+                DisplaySpaceSet(displayID: "built-in", spaces: [
+                    DisplaySpaceSlot(order: 1, label: "Writing")
+                ])
+            ],
+            defaultCaptureCount: 2
+        )
+
+        try saveLegacySettings(
+            legacySettings,
+            displaySpacePlan: legacyDisplaySpacePlan,
+            to: defaults
+        )
+
+        let migratedSettings = store.load()
+
+        XCTAssertEqual(migratedSettings.version, AppSettings.currentVersion)
+        XCTAssertEqual(migratedSettings.mode, .shortcut)
+        XCTAssertEqual(migratedSettings.language, .korean)
+        XCTAssertEqual(migratedSettings.requiredModifiers, [.control, .command])
+        XCTAssertTrue(migratedSettings.keyboardShortcutsEnabled)
+        XCTAssertEqual(
+            migratedSettings.shortcutPrevious,
+            KeyboardShortcut(keyCode: 18, modifiers: [.control, .command])
+        )
+        XCTAssertEqual(
+            migratedSettings.shortcutNext,
+            KeyboardShortcut(keyCode: 19, modifiers: [.control, .command])
+        )
+        XCTAssertEqual(migratedSettings.horizontalThreshold, 120)
+        XCTAssertTrue(migratedSettings.launchAtLogin)
+        XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.name), ["Writing"])
+        XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.displayIDs), [["built-in"]])
+        XCTAssertEqual(migratedSettings.contextPlan.captureLimit, 2)
+        XCTAssertEqual(migratedSettings.displaySpacePlan, .default)
+    }
+
+    func testMigratesV12SettingsWhenLegacyContextPlanOmitsV2Fields() throws {
+        let defaults = makeDefaults()
+        let store = UserDefaultsSettingsStore(userDefaults: defaults, key: "settings")
+        var legacySettings = AppSettings.default
+        legacySettings.version = 12
+        legacySettings.language = .korean
+        let legacyDisplaySpacePlan = DisplaySpacePlan(
+            displaySpaces: [
+                DisplaySpaceSet(displayID: "built-in", spaces: [
+                    DisplaySpaceSlot(order: 1, label: "Mail")
+                ]),
+                DisplaySpaceSet(displayID: "external-lg", spaces: [
+                    DisplaySpaceSlot(order: 1, label: "Calendar")
+                ])
+            ],
+            defaultCaptureCount: 5
+        )
+        var object = try jsonObject(from: legacySettings)
+        object["displaySpacePlan"] = try jsonObject(from: legacyDisplaySpacePlan)
+        var legacyContextPlan = try XCTUnwrap(object["contextPlan"] as? [String: Any])
+        legacyContextPlan.removeValue(forKey: "syncState")
+        legacyContextPlan.removeValue(forKey: "captureLimit")
+        object["contextPlan"] = legacyContextPlan
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        defaults.set(legacyData, forKey: "settings")
+
+        let migratedSettings = store.load()
+
+        XCTAssertEqual(migratedSettings.version, AppSettings.currentVersion)
+        XCTAssertEqual(migratedSettings.language, .korean)
+        XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.name), ["Mail / Calendar"])
+        XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.displayIDs), [["built-in", "external-lg"]])
+        XCTAssertEqual(migratedSettings.contextPlan.captureLimit, 5)
+        XCTAssertEqual(migratedSettings.displaySpacePlan, .default)
+    }
+
+    func testLoadingCurrentV13SettingsClearsLegacyLabelsWithoutRerunningContextMigration() throws {
+        let defaults = makeDefaults()
+        let store = UserDefaultsSettingsStore(userDefaults: defaults, key: "settings")
+        var currentSettings = AppSettings.default
+        currentSettings.version = 13
+        currentSettings.contextPlan = ContextPlan(
+            contexts: [
+                ContextDefinition(id: "focus", order: 1, name: "Focus"),
+                ContextDefinition(id: "review", order: 2, name: "Review")
+            ],
+            currentContextID: "review",
+            syncState: .needsSync,
+            captureLimit: 2
+        )
+        let legacyDisplaySpacePlan = DisplaySpacePlan(
+            displaySpaces: [
+                DisplaySpaceSet(displayID: "built-in", spaces: [
+                    DisplaySpaceSlot(order: 1, label: "Legacy label")
+                ])
+            ],
+            defaultCaptureCount: 4
+        )
+
+        try saveLegacySettings(
+            currentSettings,
+            displaySpacePlan: legacyDisplaySpacePlan,
+            to: defaults
+        )
+
+        let loadedSettings = store.load()
+
+        XCTAssertEqual(loadedSettings.version, AppSettings.currentVersion)
+        XCTAssertEqual(loadedSettings.contextPlan.contexts.map(\.name), ["Focus", "Review"])
+        XCTAssertEqual(loadedSettings.contextPlan.currentContextID, "review")
+        XCTAssertEqual(loadedSettings.contextPlan.syncState, .needsSync)
+        XCTAssertEqual(loadedSettings.contextPlan.captureLimit, 2)
+        XCTAssertEqual(loadedSettings.displaySpacePlan, .default)
+    }
+
     private func makeDefaults() -> UserDefaults {
         let suiteName = "SidebyTests.\(UUID().uuidString)"
         return UserDefaults(suiteName: suiteName)!
+    }
+
+    private func saveLegacySettings(
+        _ settings: AppSettings,
+        displaySpacePlan: DisplaySpacePlan,
+        to defaults: UserDefaults,
+        key: String = "settings"
+    ) throws {
+        var object = try jsonObject(from: settings)
+        object["displaySpacePlan"] = try jsonObject(from: displaySpacePlan)
+        let data = try JSONSerialization.data(withJSONObject: object)
+        defaults.set(data, forKey: key)
+    }
+
+    private func jsonObject<T: Encodable>(from value: T) throws -> [String: Any] {
+        let data = try JSONEncoder().encode(value)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 }

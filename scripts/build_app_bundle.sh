@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PRODUCT_NAME="SidebyApp"
 APP_NAME="Sideby.app"
 EXECUTABLE_NAME="Sideby"
-APP_BUNDLE_ID="${SIDEBY_BUNDLE_ID:-dev.sideby.Sideby}"
+APP_BUNDLE_ID="${SIDEBY_BUNDLE_ID:-io.github.ethznn.sideby}"
 BUILD_NUMBER="${SIDEBY_BUILD_NUMBER:-1}"
 VERSION="${SIDEBY_VERSION:-0.1.0}"
 # Protected product-bundle decision: keep sandbox off for the current direct

@@ -14,17 +14,23 @@ The goal is to make a multi-display setup feel like one workspace that can move 
 
 ## Status
 
-Sideby is pre-1.0 software. The V1 app shell, onboarding flow, menu bar settings (`메뉴바 설정`), main settings (`메인 설정`), display targeting, input pipeline, diagnostics, and local bundle scripts are in active development.
+Sideby is pre-1.0 software. Version 0.2.0 is focused on Context V2: a menu-bar-first settings surface, named Contexts with display membership, Context Capture, Context-aware switching, onboarding, diagnostics, and local bundle scripts.
 
 The current release strategy is direct distribution with App Sandbox off. Sideby must continue to use public macOS APIs only; it does not depend on private Mission Control or Spaces APIs.
 
 ## Features
 
-- Menu bar app for quick control across multiple displays.
-- Move Targets for selecting which displays should switch together.
+- Menu bar app with a resizable settings popover for quick control across multiple displays.
+- Named Contexts for workspaces that span one or more displays.
+- Context matrix for reviewing which displays belong to each Context.
+- Capture Contexts flow for building a Context set from the current display/Space arrangement.
+- Move Targets for selecting which displays should switch together in general movement mode.
+- Move by Contexts for switching the displays that belong to the current Context.
 - Previous/Next Screen Switching through public macOS keyboard-command paths.
 - Default input habit: `Option + Shift + horizontal swipe`.
-- Optional Previous/Next keyboard shortcuts from main settings (`메인 설정`).
+- Optional Previous/Next keyboard shortcuts from the menu bar settings popover.
+- Best-effort fallback to general movement when external Space changes make Context matching unsafe.
+- Center-screen Context HUD when switching with Move by Contexts.
 - First-run onboarding for Accessibility and Screen Switching access.
 - Diagnostics for permission, display, and switching limitations.
 - Display Spaces labels and best-effort visible app/window suggestions.
@@ -41,6 +47,8 @@ The current release strategy is direct distribution with App Sandbox off. Sideby
 Sideby does not request Screen Recording for V1 Screen Switching.
 
 ## Quick Start
+
+Download the latest signed and notarized DMG from [GitHub Releases](https://github.com/ethznn/sideby/releases).
 
 Clone the repository, run the tests, then build the local product bundle:
 

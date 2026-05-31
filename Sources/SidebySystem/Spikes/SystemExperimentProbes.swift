@@ -677,7 +677,7 @@ public struct HiddenSwitchTimingConfiguration: Equatable, Sendable {
     }
 }
 
-public struct ActiveSpaceObservedRun: Equatable, Sendable {
+public struct SpikeActiveSpaceObservedRun: Equatable, Sendable {
     public let didPost: Bool
     public let beforeChangeCount: Int
     public let afterChangeCount: Int
@@ -689,19 +689,19 @@ public struct ActiveSpaceObservedRun: Equatable, Sendable {
     }
 }
 
-public protocol ActiveSpaceChangeObserving: Sendable {
-    func runObservingChanges(wait: TimeInterval, action: () -> Bool) -> ActiveSpaceObservedRun
+public protocol SpikeActiveSpaceChangeObserving: Sendable {
+    func runObservingChanges(wait: TimeInterval, action: () -> Bool) -> SpikeActiveSpaceObservedRun
 }
 
-public struct NSWorkspaceActiveSpaceChangeObserver: ActiveSpaceChangeObserving {
+public struct SpikeNSWorkspaceActiveSpaceChangeObserver: SpikeActiveSpaceChangeObserving {
     public init() {}
 
-    public func runObservingChanges(wait: TimeInterval, action: () -> Bool) -> ActiveSpaceObservedRun {
-        let counter = NSWorkspaceActiveSpaceChangeCounter()
+    public func runObservingChanges(wait: TimeInterval, action: () -> Bool) -> SpikeActiveSpaceObservedRun {
+        let counter = SpikeNSWorkspaceActiveSpaceChangeCounter()
         let before = counter.changeCount
         let didPost = action()
         RunLoop.current.run(until: Date().addingTimeInterval(wait))
-        return ActiveSpaceObservedRun(
+        return SpikeActiveSpaceObservedRun(
             didPost: didPost,
             beforeChangeCount: before,
             afterChangeCount: counter.changeCount
@@ -709,9 +709,16 @@ public struct NSWorkspaceActiveSpaceChangeObserver: ActiveSpaceChangeObserving {
     }
 }
 
-private final class NSWorkspaceActiveSpaceChangeCounter: @unchecked Sendable {
+private final class SpikeNSWorkspaceActiveSpaceChangeCounter: @unchecked Sendable {
     private var observer: NSObjectProtocol?
-    private(set) var changeCount = 0
+    private let lock = NSLock()
+    private var storedChangeCount = 0
+
+    var changeCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedChangeCount
+    }
 
     init() {
         observer = NSWorkspace.shared.notificationCenter.addObserver(
@@ -719,7 +726,7 @@ private final class NSWorkspaceActiveSpaceChangeCounter: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.changeCount += 1
+            self?.incrementChangeCount()
         }
     }
 
@@ -727,6 +734,12 @@ private final class NSWorkspaceActiveSpaceChangeCounter: @unchecked Sendable {
         if let observer {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
+    }
+
+    private func incrementChangeCount() {
+        lock.lock()
+        defer { lock.unlock() }
+        storedChangeCount += 1
     }
 }
 

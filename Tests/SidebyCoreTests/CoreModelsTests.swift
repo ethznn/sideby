@@ -66,4 +66,31 @@ final class CoreModelsTests: XCTestCase {
         XCTAssertEqual(layout.primaryDisplay?.id, "built-in")
         XCTAssertEqual(layout.stableKey, "built-in|external-lg")
     }
+
+    func testInputControlStartPolicyWaitsForPermissionsBeforeStartingListeners() {
+        XCTAssertEqual(
+            InputControlStartPolicy.decision(
+                hasAccessibilityPermission: false,
+                hasSwitchingAccess: false
+            ),
+            .waitForPermissions
+        )
+        XCTAssertEqual(
+            InputControlStartPolicy.decision(
+                hasAccessibilityPermission: true,
+                hasSwitchingAccess: false
+            ),
+            .waitForPermissions
+        )
+    }
+
+    func testInputControlStartPolicyStartsOnlyWhenPermissionsAreReady() {
+        XCTAssertEqual(
+            InputControlStartPolicy.decision(
+                hasAccessibilityPermission: true,
+                hasSwitchingAccess: true
+            ),
+            .startListeners
+        )
+    }
 }

@@ -91,52 +91,79 @@ public struct SBSStrings: Sendable {
     public var addContext: String { text("Add Context", "컨텍스트 추가") }
     public var setCurrent: String { text("Set Current", "현재 위치로 맞춤") }
     public var deleteContext: String { text("Delete", "삭제") }
-    public var contextLabelPlaceholder: String { text("Label", "라벨") }
+    public var contextLabelPlaceholder: String { text("Context name", "컨텍스트 이름") }
     public var scanCurrentDisplays: String { text("Scan Current Displays", "현재 디스플레이 스캔") }
-    public var scanCurrentSpace: String { text("Scan Current Space", "현재 화면 스캔") }
     public var captureContexts: String { text("Capture Contexts", "컨텍스트 캡처") }
-    public var displaySpaces: String { text("Display Spaces", "디스플레이별 화면") }
-    public var captureSpaces: String { text("Capture Spaces", "화면 캡처") }
     public var stopCapture: String { text("Stop", "중지") }
+    public var pinContexts: String { text("Move by Contexts", "컨텍스트대로 움직이기") }
+    public var currentContextCompact: String { text("Current", "현재") }
+    public var contextNeedsSyncCompact: String { text("Sync", "동기화") }
+    public var contextMatchingPausedCompact: String { text("Paused", "일시 정지") }
+    public var contextRequiresDisplay: String {
+        text("Capture needs at least one Context.", "캡처에는 컨텍스트가 하나 이상 필요합니다.")
+    }
     public var useApp: String { text("Use App", "앱 사용") }
     public var useTitle: String { text("Use Title", "제목 사용") }
     public var noCurrentContext: String { text("No current Context", "현재 컨텍스트 없음") }
+    public var contextNeedsSync: String { text("Context needs sync", "컨텍스트 동기화 필요") }
+    public var contextMatchingPaused: String { text("Context matching paused", "컨텍스트 맞춤 일시 정지") }
     public var contextPlannerHelp: String {
         text(
-            "Labels are written by you. Sideby moves only Previous or Next and updates the current Context after a successful switch.",
-            "라벨은 사용자가 직접 입력합니다. Sideby는 이전/다음으로만 이동하고 전환 성공 후 현재 컨텍스트를 갱신합니다."
+            "Each Context is the shared Space position across selected displays. Sideby stores one name per Context.",
+            "각 컨텍스트는 선택한 디스플레이들이 함께 있는 같은 순번의 Space입니다. Sideby는 컨텍스트마다 이름 하나만 저장합니다."
         )
     }
-    public var displaySpacesHelp: String {
-        text(
-            "Each connected display is a Context. Add labels for the Spaces you move through on that display.",
-            "연결된 디스플레이 하나가 컨텍스트입니다. 각 디스플레이에서 이동할 화면별 라벨을 입력합니다."
-        )
-    }
-
-    public func spacesToCapture(_ count: Int) -> String {
-        if count == 1 {
-            return text("Capture 1 Space", "1개 화면 캡처")
+    public var aligningToFirstSpace: String { text("Finding first Space", "첫 번째 Space 찾는 중") }
+    public func aligningToFirstSpace(attempt: Int, maxAttempts: Int? = nil) -> String {
+        if let maxAttempts {
+            return text(
+                "Finding first Space · try \(attempt)/\(maxAttempts)",
+                "첫 번째 Space 찾는 중 · \(attempt)/\(maxAttempts)번째 시도"
+            )
         }
-        return text("Capture \(count) Spaces", "\(count)개 화면 캡처")
-    }
 
-    public func spaceName(_ order: Int) -> String {
-        text("Space \(order)", "화면 \(order)")
+        return text(
+            "Finding first Space · try \(attempt)",
+            "첫 번째 Space 찾는 중 · \(attempt)번째 시도"
+        )
     }
-
-    public var spaceLabelPlaceholder: String { text("App or title", "앱 또는 제목") }
+    public var contextCaptureStopped: String {
+        text(
+            "Capture stopped. Existing Contexts were kept.",
+            "캡처가 중지되었습니다. 기존 컨텍스트는 유지되었습니다."
+        )
+    }
+    public func contextsToCapture(_ count: Int) -> String {
+        if count == 1 {
+            return text("Capture up to 1 Context", "최대 1개 컨텍스트 캡처")
+        }
+        return text("Capture up to \(count) Contexts", "최대 \(count)개 컨텍스트 캡처")
+    }
 
     public func detectedApp(_ label: String) -> String {
         text("Detected: \(label)", "감지됨: \(label)")
     }
 
-    public func capturingContext(current: Int, total: Int, name: String) -> String {
-        text("Capturing Context \(current) of \(total): \(name)", "컨텍스트 \(current)/\(total) 캡처 중: \(name)")
+    public func capturingContextUpTo(current: Int, limit: Int) -> String {
+        text("Capturing Context \(current) · up to \(limit)", "컨텍스트 \(current) 캡처 중 · 최대 \(limit)개")
     }
 
-    public func capturingSpace(current: Int, total: Int) -> String {
-        text("Capturing Space \(current) of \(total)", "화면 \(current)/\(total) 캡처 중")
+    public func capturedContexts(count: Int) -> String {
+        if count == 1 {
+            return text("Captured 1 Context · Now at Context 1", "컨텍스트 1개 캡처됨 · 현재 컨텍스트 1")
+        }
+        return text(
+            "Captured \(count) Contexts · Now at Context \(count)",
+            "컨텍스트 \(count)개 캡처됨 · 현재 컨텍스트 \(count)"
+        )
+    }
+
+    public func contextOrder(_ order: Int) -> String {
+        text("Context \(order)", "컨텍스트 \(order)")
+    }
+
+    public func contextCaptureFailed(_ reason: String) -> String {
+        text("Capture failed: \(reason)", "캡처 실패: \(reason)")
     }
 
     public func selectedDisplaySummary(selected: Int, total: Int) -> String {
@@ -286,6 +313,13 @@ public struct SBSStrings: Sendable {
         return text("Ignored \(commandName(command)): switch already running", "\(commandName(command)) 무시됨: 이미 전환 중")
     }
 
+    public func ignoredSwitchContextCaptureActive(label: String, command: SwitchCommand) -> String {
+        text(
+            "Ignored \(label) \(commandName(command)): context capture active",
+            "\(label) \(commandName(command)) 무시됨: 컨텍스트 캡처 중"
+        )
+    }
+
     public func acceptedCommand(command: SwitchCommand, modifiers: String) -> String {
         text("Accepted \(commandName(command)); release \(modifiers)", "\(commandName(command)) 입력됨; \(modifiers)를 떼세요")
     }
@@ -390,6 +424,8 @@ public struct SBSStrings: Sendable {
             text("No previous Context", "이전 컨텍스트 없음")
         case "No next Context":
             text("No next Context", "다음 컨텍스트 없음")
+        case "Context needs sync":
+            contextNeedsSync
         default:
             title
         }

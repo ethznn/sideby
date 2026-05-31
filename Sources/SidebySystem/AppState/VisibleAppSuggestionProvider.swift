@@ -97,12 +97,7 @@ public struct MacVisibleAppSuggestionProvider: VisibleAppSuggestionProviding {
         let windows = windowProvider.visibleWindows()
 
         return displayLayout.displays.compactMap { display in
-            let accessibilitySuggestion = samplePoints(for: display)
-                .lazy
-                .compactMap { point in
-                    accessibilityProbe.suggestion(at: point, displayID: display.id)
-                }
-                .first
+            let accessibilitySuggestion = firstAccessibilitySuggestion(for: display)
 
             return VisibleAppSuggestionResolver.suggestion(
                 for: display,
@@ -110,6 +105,16 @@ public struct MacVisibleAppSuggestionProvider: VisibleAppSuggestionProviding {
                 windows: windows
             )
         }
+    }
+
+    private func firstAccessibilitySuggestion(for display: DisplayInfo) -> VisibleAppSuggestion? {
+        for point in samplePoints(for: display) {
+            if let suggestion = accessibilityProbe.suggestion(at: point, displayID: display.id) {
+                return suggestion
+            }
+        }
+
+        return nil
     }
 
     private func samplePoints(for display: DisplayInfo) -> [CGPoint] {

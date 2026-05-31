@@ -29,6 +29,7 @@ public struct LanguageSettingsView: View {
             }
             .pickerStyle(.segmented)
             .frame(maxWidth: 220)
+            .pointingHandCursor(FloatingMenuInteractiveCursorPolicy.usesPointingHand(for: .picker))
 
             Text(strings.languageHelp)
                 .font(.caption)

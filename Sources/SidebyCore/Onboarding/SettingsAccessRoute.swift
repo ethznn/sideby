@@ -10,7 +10,7 @@ public enum SettingsAccessDestination: Equatable {
 }
 
 public enum SettingsAccessRoute: Equatable {
-    case mainSettings(SettingsAccessDestination)
+    case menuPanel(SettingsAccessDestination)
     case onboarding
 
     public static func route(
@@ -19,9 +19,9 @@ public enum SettingsAccessRoute: Equatable {
     ) -> SettingsAccessRoute {
         switch action {
         case .openSettings:
-            return .mainSettings(.overview)
+            return .menuPanel(.overview)
         case .customizeShortcuts:
-            return .mainSettings(.input)
+            return .menuPanel(.input)
         case .replayOnboarding:
             return .onboarding
         }

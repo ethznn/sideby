@@ -6,17 +6,8 @@ public enum ContextPlanSummary {
         displays: [DisplayInfo],
         strings: SBSStrings
     ) -> String {
-        let labels = displays
-            .compactMap { display in
-                context.label(for: display.id)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            .filter { !$0.isEmpty }
-
-        let detail = labels.isEmpty
-            ? strings.displayCountChip(displays.count)
-            : labels.joined(separator: " / ")
-
-        return "\(context.name) · \(detail)"
+        _ = displays
+        _ = strings
+        return context.name
     }
 }

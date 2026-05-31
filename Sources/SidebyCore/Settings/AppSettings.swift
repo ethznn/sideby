@@ -23,7 +23,7 @@ public enum AppLanguage: String, CaseIterable, Codable, Identifiable, Sendable {
 }
 
 public struct AppSettings: Equatable, Codable, Sendable {
-    public static let currentVersion = 12
+    public static let currentVersion = 13
     public static let defaultGestureModifiers: ModifierFlags = [.option, .shift]
     public static let defaultShortcutModifiers: ModifierFlags = [.option, .shift]
 
@@ -118,6 +118,21 @@ public struct AppSettings: Equatable, Codable, Sendable {
         self.launchAtLogin = try container.decode(Bool.self, forKey: .launchAtLogin)
         self.contextPlan = try container.decodeIfPresent(ContextPlan.self, forKey: .contextPlan) ?? .default
         self.displaySpacePlan = try container.decodeIfPresent(DisplaySpacePlan.self, forKey: .displaySpacePlan) ?? .default
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(mode, forKey: .mode)
+        try container.encode(language, forKey: .language)
+        try container.encode(requiredModifiers, forKey: .requiredModifiers)
+        try container.encode(keyboardShortcutsEnabled, forKey: .keyboardShortcutsEnabled)
+        try container.encode(shortcutNext, forKey: .shortcutNext)
+        try container.encode(shortcutPrevious, forKey: .shortcutPrevious)
+        try container.encode(inputExecutionStrategy, forKey: .inputExecutionStrategy)
+        try container.encode(horizontalThreshold, forKey: .horizontalThreshold)
+        try container.encode(launchAtLogin, forKey: .launchAtLogin)
+        try container.encode(contextPlan, forKey: .contextPlan)
     }
 }
 

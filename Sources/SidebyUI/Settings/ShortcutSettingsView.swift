@@ -167,6 +167,7 @@ public struct ShortcutSettingsView: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(settings.requiredModifiers.contains(choice.flag) ? .accentColor : .secondary)
+                    .pointingHandCursor()
                 }
             }
 
@@ -190,6 +191,7 @@ public struct ShortcutSettingsView: View {
                 .buttonStyle(.plain)
                 .font(.caption)
                 .disabled(!settings.keyboardShortcutsEnabled)
+                .pointingHandCursor(settings.keyboardShortcutsEnabled)
             }
 
             Toggle(strings.enableKeyboardShortcuts, isOn: Binding(
@@ -197,6 +199,7 @@ public struct ShortcutSettingsView: View {
                 set: { setKeyboardShortcutsEnabled($0) }
             ))
             .toggleStyle(.switch)
+            .pointingHandCursor()
 
             Text(strings.keyboardShortcutsOptionalHint)
                 .font(.caption)
@@ -244,6 +247,7 @@ public struct ShortcutSettingsView: View {
                 isErrorStatus = false
             }
             .buttonStyle(.bordered)
+            .pointingHandCursor(settings.keyboardShortcutsEnabled)
 
             KeyboardShortcutCaptureView(
                 isRecording: recordingRole == role,
