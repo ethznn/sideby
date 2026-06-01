@@ -6,6 +6,10 @@ Sideby는 여러 디스플레이를 사용하는 macOS 사용자가 여러 화�
 
 Sideby는 Mission Control 대체제나 전체 윈도우 매니저가 아닙니다. 함께 이동할 디스플레이를 고르고, Sideby를 켠 뒤, 제스처나 선택적 단축키로 이전/다음 macOS Space로 이동하는 좁은 워크플로에 집중합니다.
 
+## 미리 보기
+
+<img src="./docs/images/sideby-swipe-onboarding.png" width="800" alt="Option Shift 스와이프 제스처를 보여주는 Sideby 온보딩" />
+
 ## 만들게 된 배경
 
 Sideby는 한 작업 컨텍스트를 여러 디스플레이에 나눠 정리해두고 싶은 생각에서 출발했습니다. 각 화면에는 같은 일의 서로 다른 조각이 놓여 있고, 컨텍스트를 바꿀 때는 그 화면 묶음이 디스플레이별로 따로 움직이는 대신 함께 이동하면 좋겠다고 봤습니다.

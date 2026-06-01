@@ -6,6 +6,10 @@ Sideby is a native macOS menu bar utility for people who work across multiple di
 
 Sideby does not replace Mission Control and is not a full window manager. It focuses on a narrow workflow: choose the displays that should move together, turn Sideby on, then use a gesture or optional shortcut to move to the previous or next macOS Space.
 
+## Preview
+
+<img src="./docs/images/sideby-swipe-onboarding.png" width="800" alt="Sideby onboarding showing Option Shift swipe gesture" />
+
 ## Why Sideby Exists
 
 Sideby started from a simple way of organizing work: keep one context spread across multiple displays, with each screen holding a useful part of the same task. When the context changes, those screens should move together instead of being switched one display at a time.
