@@ -2,6 +2,48 @@ import XCTest
 @testable import SidebyCore
 
 final class ContextCaptureSessionTests: XCTestCase {
+    func testMovementPolicyTreatsFingerprintChangeAsMovementWhenSpaceNotificationIsMissing() {
+        let observation = ContextCaptureDisplayMovementObservation(
+            displayID: "built-in",
+            didObserveActiveSpaceChange: false,
+            visibleFingerprintBefore: "Xcode - SidebyApp.swift",
+            visibleFingerprintAfter: "Arc - Docs"
+        )
+
+        XCTAssertEqual(
+            ContextCaptureMovementPolicy.movedDisplayIDs(from: [observation]),
+            ["built-in"]
+        )
+    }
+
+    func testMovementPolicyRequiresNotificationOrFingerprintChange() {
+        let observation = ContextCaptureDisplayMovementObservation(
+            displayID: "built-in",
+            didObserveActiveSpaceChange: false,
+            visibleFingerprintBefore: "Xcode - SidebyApp.swift",
+            visibleFingerprintAfter: "Xcode - SidebyApp.swift"
+        )
+
+        XCTAssertEqual(
+            ContextCaptureMovementPolicy.movedDisplayIDs(from: [observation]),
+            []
+        )
+    }
+
+    func testMovementPolicyTreatsSpaceNotificationAsMovement() {
+        let observation = ContextCaptureDisplayMovementObservation(
+            displayID: "external-lg",
+            didObserveActiveSpaceChange: true,
+            visibleFingerprintBefore: "Xcode - SidebyApp.swift",
+            visibleFingerprintAfter: "Xcode - SidebyApp.swift"
+        )
+
+        XCTAssertEqual(
+            ContextCaptureMovementPolicy.movedDisplayIDs(from: [observation]),
+            ["external-lg"]
+        )
+    }
+
     func testSessionStartsAligningWithCaptureLimit() {
         let session = ContextCaptureSession(captureLimit: 4)
 

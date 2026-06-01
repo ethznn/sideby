@@ -8,7 +8,9 @@ Sideby는 Mission Control 대체제나 전체 윈도우 매니저가 아닙니�
 
 ## 미리 보기
 
-<img src="./docs/images/sideby-swipe-onboarding.png" width="800" alt="Option Shift 스와이프 제스처를 보여주는 Sideby 온보딩" />
+<img src="./docs/images/sideby-context-capture.png" width="720" alt="두 디스플레이에 걸쳐 캡처된 Sideby Context Capture 화면" />
+
+<img src="./docs/images/sideby-swipe-onboarding.png" width="400" alt="Option Shift 스와이프 제스처를 보여주는 Sideby 온보딩" />
 
 ## 만들게 된 배경
 
@@ -18,7 +20,7 @@ Sideby의 목표는 멀티 디스플레이 환경을 하나의 작업공간처�
 
 ## 현재 상태
 
-Sideby는 pre-1.0 소프트웨어입니다. 0.2.0은 Context V2에 집중합니다. 메뉴바 중심 설정, 디스플레이 membership을 가진 이름 있는 Context, Context Capture, Context-aware switching, 온보딩, 진단, 로컬 번들 스크립트를 개발 중입니다.
+Sideby는 pre-1.0 소프트웨어입니다. 0.2.1은 Context V2 안정성에 집중합니다. 메뉴바 중심 설정, 디스플레이 membership을 가진 이름 있는 Context, 더 탄탄한 Context Capture, Context-aware switching, 온보딩, 진단, 로컬 번들 스크립트를 개발 중입니다.
 
 현재 릴리즈 전략은 App Sandbox off 직접 배포입니다. Sideby는 공개 macOS API만 사용해야 하며 private Mission Control 또는 Spaces API에 의존하지 않습니다.
 

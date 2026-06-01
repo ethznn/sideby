@@ -704,6 +704,10 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private static let contextCaptureAlignmentRetryDelay: TimeInterval = contextCaptureConfiguration.alignmentRetryDelay
     private static let contextCaptureForwardRetryDelay: TimeInterval = contextCaptureConfiguration.forwardRetryDelay
     private static let contextCaptureCompletionIgnoreInterval: TimeInterval = 2.5
+    private static let contextCaptureLog = Logger(
+        subsystem: "dev.sideby.Sideby",
+        category: "ContextCapture"
+    )
     private var didInitializeSelectedDisplays = false
     private var swipeInputSource: GlobalEventTapInputSource?
     private var keyboardShortcutInputSource: GlobalShortcutInputSource?
@@ -1669,14 +1673,19 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         var movedDisplayIDs = Set<String>()
+        var observations: [ContextCaptureDisplayMovementObservation] = []
 
         func switchDisplay(at index: Int) {
             guard index < orderedDisplayIDs.count else {
-                completion(movedDisplayIDs, true)
+                completion(
+                    ContextCaptureMovementPolicy.movedDisplayIDs(from: observations),
+                    true
+                )
                 return
             }
 
             let displayID = orderedDisplayIDs[index]
+            let visibleFingerprintBefore = visibleContextFingerprint(for: displayID)
             performAcknowledgedSwitch(
                 command,
                 targetDisplayIDs: [displayID],
@@ -1688,7 +1697,19 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     return
                 }
 
-                if result.didObserveAnyChange {
+                let visibleFingerprintAfter = self.visibleContextFingerprint(for: displayID)
+                let observation = ContextCaptureDisplayMovementObservation(
+                    displayID: displayID,
+                    didObserveActiveSpaceChange: result.didObserveAnyChange,
+                    visibleFingerprintBefore: visibleFingerprintBefore,
+                    visibleFingerprintAfter: visibleFingerprintAfter
+                )
+                observations.append(observation)
+                Self.contextCaptureLog.notice(
+                    "display=\(displayID, privacy: .public) posted=\(result.didPost, privacy: .public) activeSpaceChange=\(result.didObserveAnyChange, privacy: .public) fingerprintChange=\(observation.didChangeVisibleFingerprint, privacy: .public)"
+                )
+
+                if observation.didMove {
                     movedDisplayIDs.insert(displayID)
                 }
                 switchDisplay(at: index + 1)
@@ -1696,6 +1717,13 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         switchDisplay(at: 0)
+    }
+
+    private func visibleContextFingerprint(for displayID: String) -> String? {
+        visibleAppSuggestionProvider
+            .suggestions(for: displayLayout)
+            .first { $0.displayID == displayID }?
+            .combinedLabel
     }
 
     private func performSwitch(

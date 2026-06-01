@@ -8,7 +8,9 @@ Sideby does not replace Mission Control and is not a full window manager. It foc
 
 ## Preview
 
-<img src="./docs/images/sideby-swipe-onboarding.png" width="800" alt="Sideby onboarding showing Option Shift swipe gesture" />
+<img src="./docs/images/sideby-context-capture.png" width="720" alt="Sideby Context Capture showing captured Contexts across two displays" />
+
+<img src="./docs/images/sideby-swipe-onboarding.png" width="400" alt="Sideby onboarding showing Option Shift swipe gesture" />
 
 ## Why Sideby Exists
 
@@ -18,7 +20,7 @@ The goal is to make a multi-display setup feel like one workspace that can move 
 
 ## Status
 
-Sideby is pre-1.0 software. Version 0.2.0 is focused on Context V2: a menu-bar-first settings surface, named Contexts with display membership, Context Capture, Context-aware switching, onboarding, diagnostics, and local bundle scripts.
+Sideby is pre-1.0 software. Version 0.2.1 focuses on Context V2 reliability: a menu-bar-first settings surface, named Contexts with display membership, more resilient Context Capture, Context-aware switching, onboarding, diagnostics, and local bundle scripts.
 
 The current release strategy is direct distribution with App Sandbox off. Sideby must continue to use public macOS APIs only; it does not depend on private Mission Control or Spaces APIs.
 
