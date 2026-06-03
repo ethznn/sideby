@@ -22,6 +22,10 @@ scripts/build_app_bundle.sh
 scripts/build_dev_app_bundle.sh
 ```
 
+Before publishing a public DMG, follow [docs/RELEASE.md](RELEASE.md). The release
+DMG must use the designed Finder installer window with `Sideby.app`, an
+`/Applications` alias, and the app-to-Applications layout verified after mounting.
+
 Open the package in Xcode:
 
 ```bash
