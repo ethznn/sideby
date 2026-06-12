@@ -195,6 +195,7 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         self.currentContextID = currentContextID
         self.captureLimit = max(captureLimit, 1)
         syncState = .synchronized
+        isPinned = true
         ensureValidCurrentContext()
     }
 

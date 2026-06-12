@@ -198,6 +198,19 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(plan.captureLimit, 1)
     }
 
+    func testReplaceContextsRearmsPinnedMatching() {
+        var plan = ContextPlan.default
+        plan.setPinned(false)
+
+        plan.replaceContexts(
+            [ContextDefinition(id: "context-1", order: 1, name: "Code")],
+            currentContextID: "context-1",
+            captureLimit: 1
+        )
+
+        XCTAssertTrue(plan.isPinned)
+    }
+
     func testDecodesLegacyPlanMissingSyncStateAndCaptureLimitIgnoringDisplaySlots() throws {
         let data = Data("""
         {

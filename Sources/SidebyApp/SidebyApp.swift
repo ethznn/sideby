@@ -717,6 +717,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var switchSessionID = 0
     private var contextCaptureSessionID = 0
     private var contextCaptureActiveDisplayIDs: Set<String> = []
+    /// Displays whose presence at the current capture order was actually
+    /// observed. Only these become members of the recorded context;
+    /// `contextCaptureActiveDisplayIDs` may additionally hold displays that
+    /// are merely within their no-move grace window.
+    private var contextCaptureMemberDisplayIDs: Set<String> = []
     private var contextCaptureNoMoveStreaks: [String: Int] = [:]
     private var permissionPollingID = 0
     private var lastScrollStatusUpdate = 0.0
@@ -977,6 +982,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         contextCaptureSessionID += 1
         let sessionID = contextCaptureSessionID
         contextCaptureActiveDisplayIDs = selectedDisplayIDs
+        contextCaptureMemberDisplayIDs = selectedDisplayIDs
         contextCaptureNoMoveStreaks = [:]
         contextsToCapture = Self.automaticContextCaptureLimit
         contextCaptureSession = ContextCaptureSession(
@@ -992,6 +998,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         session?.stop()
         contextCaptureSessionID += 1
         contextCaptureActiveDisplayIDs = []
+        contextCaptureMemberDisplayIDs = []
         contextCaptureNoMoveStreaks = [:]
         ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(Self.contextCaptureCompletionIgnoreInterval)
         contextCaptureSession = nil
@@ -1126,7 +1133,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
         let activeDisplayIDs = contextCaptureActiveDisplayIDs
         let name = suggestedContextName(order: order)
-        session.recordCurrentSpace(name: name, displayIDs: Array(activeDisplayIDs))
+        session.recordCurrentSpace(name: name, displayIDs: Array(contextCaptureMemberDisplayIDs))
         contextCaptureSession = session
         updateContextCaptureStatus()
 
@@ -1186,6 +1193,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
             activeSession.recordForwardSwitch(movedDisplayIDs: decision.activeDisplayIDs)
             self.contextCaptureActiveDisplayIDs = decision.activeDisplayIDs
+            self.contextCaptureMemberDisplayIDs = decision.confirmedDisplayIDs
             self.contextCaptureSession = activeSession
             self.updateContextCaptureStatus()
 
@@ -1214,6 +1222,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         contextCaptureSession = nil
         contextCaptureStatus = ContextCaptureStatusDisplay.statusText(
             session: session,
+            currentContextName: settings.contextPlan.currentContext?.name,
             strings: strings
         )
     }

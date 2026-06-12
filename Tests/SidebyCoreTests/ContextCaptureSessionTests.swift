@@ -96,6 +96,17 @@ final class ContextCaptureSessionTests: XCTestCase {
         XCTAssertEqual(decision.noMoveStreaks, ["built-in": 0, "external-lg": 0])
     }
 
+    func testForwardDecisionConfirmsOnlyMovedDisplaysWhileRetainingGraceTargets() {
+        let decision = ContextCaptureMovementPolicy.forwardDecision(
+            activeDisplayIDs: ["built-in", "external-lg"],
+            movedDisplayIDs: ["external-lg"],
+            noMoveStreaks: [:]
+        )
+
+        XCTAssertEqual(decision.confirmedDisplayIDs, ["external-lg"])
+        XCTAssertEqual(decision.activeDisplayIDs, ["built-in", "external-lg"])
+    }
+
     func testForwardDecisionGivesGraceToFirstMissedObservation() {
         let decision = ContextCaptureMovementPolicy.forwardDecision(
             activeDisplayIDs: ["built-in", "external-lg"],

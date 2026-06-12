@@ -158,6 +158,13 @@ public struct SBSStrings: Sendable {
         )
     }
 
+    public func contextCaptureReadySummary(count: Int, currentName: String) -> String {
+        text(
+            "Captured \(count) Context\(count == 1 ? "" : "s") · Move by Contexts on · Current: \(currentName)",
+            "컨텍스트 \(count)개 캡처됨 · 컨텍스트대로 움직이기 켜짐 · 현재: \(currentName)"
+        )
+    }
+
     public func contextOrder(_ order: Int) -> String {
         text("Context \(order)", "컨텍스트 \(order)")
     }

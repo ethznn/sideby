@@ -6,6 +6,7 @@ public enum ContextCaptureStatusDisplay {
         captureLimit: Int,
         maxAlignmentAttempts: Int? = nil,
         completedContextCount: Int,
+        currentContextName: String? = nil,
         strings: SBSStrings
     ) -> String {
         switch phase {
@@ -17,7 +18,13 @@ public enum ContextCaptureStatusDisplay {
         case .capturing(let order):
             return strings.capturingContextUpTo(current: order, limit: captureLimit)
         case .completed:
-            return strings.capturedContexts(count: completedContextCount)
+            guard let currentContextName else {
+                return strings.capturedContexts(count: completedContextCount)
+            }
+            return strings.contextCaptureReadySummary(
+                count: completedContextCount,
+                currentName: currentContextName
+            )
         case .failed(let reason):
             return strings.contextCaptureFailed(reason)
         case .stopped:
@@ -25,7 +32,11 @@ public enum ContextCaptureStatusDisplay {
         }
     }
 
-    public static func statusText(session: ContextCaptureSession, strings: SBSStrings) -> String {
+    public static func statusText(
+        session: ContextCaptureSession,
+        currentContextName: String? = nil,
+        strings: SBSStrings
+    ) -> String {
         let completedContextCount: Int
         if case .completed = session.phase {
             guard let completedContexts = session.completedContextDefinitions else {
@@ -41,6 +52,7 @@ public enum ContextCaptureStatusDisplay {
             captureLimit: session.captureLimit,
             maxAlignmentAttempts: session.maxAlignmentAttempts,
             completedContextCount: completedContextCount,
+            currentContextName: currentContextName,
             strings: strings
         )
     }

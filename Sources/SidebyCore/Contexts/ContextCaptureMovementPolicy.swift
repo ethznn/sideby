@@ -64,11 +64,13 @@ public enum ContextCaptureMovementPolicy: Sendable {
     ) -> ContextCaptureForwardDecision {
         var updatedStreaks: [String: Int] = [:]
         var retainedDisplayIDs = Set<String>()
+        var confirmedDisplayIDs = Set<String>()
 
         for displayID in activeDisplayIDs {
             if movedDisplayIDs.contains(displayID) {
                 updatedStreaks[displayID] = 0
                 retainedDisplayIDs.insert(displayID)
+                confirmedDisplayIDs.insert(displayID)
             } else {
                 let streak = (noMoveStreaks[displayID] ?? 0) + 1
                 updatedStreaks[displayID] = streak
@@ -80,17 +82,28 @@ public enum ContextCaptureMovementPolicy: Sendable {
 
         return ContextCaptureForwardDecision(
             activeDisplayIDs: retainedDisplayIDs,
+            confirmedDisplayIDs: confirmedDisplayIDs,
             noMoveStreaks: updatedStreaks
         )
     }
 }
 
 public struct ContextCaptureForwardDecision: Equatable, Sendable {
+    /// Displays that should keep receiving forward presses (confirmed movers
+    /// plus displays still within their no-move grace window).
     public let activeDisplayIDs: Set<String>
+    /// Displays whose arrival at the new order was actually observed. Only
+    /// these may become members of the next recorded context.
+    public let confirmedDisplayIDs: Set<String>
     public let noMoveStreaks: [String: Int]
 
-    public init(activeDisplayIDs: Set<String>, noMoveStreaks: [String: Int]) {
+    public init(
+        activeDisplayIDs: Set<String>,
+        confirmedDisplayIDs: Set<String>,
+        noMoveStreaks: [String: Int]
+    ) {
         self.activeDisplayIDs = activeDisplayIDs
+        self.confirmedDisplayIDs = confirmedDisplayIDs
         self.noMoveStreaks = noMoveStreaks
     }
 }

@@ -16,6 +16,12 @@ public struct ContextCaptureConfiguration: Equatable, Sendable {
         self.forwardRetryDelay = max(forwardRetryDelay, 0)
     }
 
+    // observerWait doubles as the attribution window for the global
+    // activeSpaceDidChange notification. Shortening it below the space-switch
+    // animation time makes notifications bleed into the next display's press
+    // window and corrupts per-display movement attribution — keep it
+    // conservative until sensing no longer relies on time-windowed
+    // notifications.
     public static let automatic = ContextCaptureConfiguration(
         maxAlignmentAttempts: 12,
         observerWait: 0.90,

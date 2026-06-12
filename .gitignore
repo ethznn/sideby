@@ -1,5 +1,6 @@
 # macOS / Xcode / SwiftPM
 .DS_Store
+.vscode/
 DerivedData/
 *.xcuserstate
 xcuserdata/

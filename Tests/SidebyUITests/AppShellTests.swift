@@ -439,6 +439,48 @@ final class AppShellTests: XCTestCase {
         )
     }
 
+    func testContextCaptureStatusDisplayAnnouncesPinnedMatchingAndCurrentContextName() {
+        let english = ContextCaptureStatusDisplay.statusText(
+            phase: .completed(currentContextID: "context-4"),
+            captureLimit: 4,
+            maxAlignmentAttempts: 5,
+            completedContextCount: 4,
+            currentContextName: "Design / Docs",
+            strings: SBSStrings(language: .english)
+        )
+        XCTAssertEqual(
+            english,
+            "Captured 4 Contexts · Move by Contexts on · Current: Design / Docs"
+        )
+
+        let korean = ContextCaptureStatusDisplay.statusText(
+            phase: .completed(currentContextID: "context-4"),
+            captureLimit: 4,
+            maxAlignmentAttempts: 5,
+            completedContextCount: 4,
+            currentContextName: "Design / Docs",
+            strings: SBSStrings(language: .korean)
+        )
+        XCTAssertEqual(
+            korean,
+            "컨텍스트 4개 캡처됨 · 컨텍스트대로 움직이기 켜짐 · 현재: Design / Docs"
+        )
+    }
+
+    func testContextCaptureStatusDisplayFallsBackWithoutCurrentContextName() {
+        XCTAssertEqual(
+            ContextCaptureStatusDisplay.statusText(
+                phase: .completed(currentContextID: "context-4"),
+                captureLimit: 4,
+                maxAlignmentAttempts: 5,
+                completedContextCount: 4,
+                currentContextName: nil,
+                strings: SBSStrings(language: .english)
+            ),
+            "Captured 4 Contexts · Now at Context 4"
+        )
+    }
+
     func testContextCaptureStatusDisplayShowsFailedAndStopped() {
         let strings = SBSStrings(language: .english)
 
