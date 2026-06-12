@@ -337,6 +337,65 @@ final class SystemAdapterTests: XCTestCase {
         XCTAssertEqual(result.windowDiff.appearedOwners, ["Xcode"])
     }
 
+    func testPerDisplayCaptureObservationProbeRunsLayoutOrderAndRestoresOnlyMovedDisplays() {
+        let layout = DisplayLayout(displays: [
+            DisplayInfo(id: "built-in", name: "Built-in", isPrimary: true, isBuiltin: true),
+            DisplayInfo(id: "external-lg", name: "LG", isPrimary: false, isBuiltin: false)
+        ])
+        let switchLog = SwitchInvocationLog()
+        let runner = PerDisplayCaptureObservationProbeRunner(
+            displayObserver: StaticDisplayObserver(layout: layout),
+            suggestionProvider: SequencedVisibleAppSuggestionProvider(sequence: []),
+            switchRunner: { command, displayID in
+                switchLog.append("\(command):\(displayID)")
+                return AcknowledgedSpaceSwitchResult(
+                    command: command,
+                    didPost: true,
+                    expectedChangeCount: 1,
+                    observedChangeCount: displayID == "built-in" ? 1 : 0
+                )
+            }
+        )
+
+        let steps = runner.run(.next)
+
+        XCTAssertEqual(steps.map(\.displayID), ["built-in", "external-lg"])
+        XCTAssertEqual(switchLog.all, ["next:built-in", "previous:built-in", "next:external-lg"])
+        XCTAssertTrue(steps[0].didMove)
+        XCTAssertTrue(steps[0].didRestore)
+        XCTAssertFalse(steps[1].didMove)
+        XCTAssertFalse(steps[1].didRestore)
+    }
+
+    func testPerDisplayCaptureObservationProbeTreatsFingerprintChangeAsMovement() {
+        let layout = DisplayLayout(displays: [
+            DisplayInfo(id: "external-lg", name: "LG", isPrimary: false, isBuiltin: false)
+        ])
+        let runner = PerDisplayCaptureObservationProbeRunner(
+            displayObserver: StaticDisplayObserver(layout: layout),
+            suggestionProvider: SequencedVisibleAppSuggestionProvider(sequence: [
+                [VisibleAppSuggestion(displayID: "external-lg", appName: "Xcode", windowTitle: nil, source: .accessibility)],
+                [VisibleAppSuggestion(displayID: "external-lg", appName: "Arc", windowTitle: nil, source: .accessibility)]
+            ]),
+            switchRunner: { command, _ in
+                AcknowledgedSpaceSwitchResult(
+                    command: command,
+                    didPost: true,
+                    expectedChangeCount: 1,
+                    observedChangeCount: 0
+                )
+            }
+        )
+
+        let steps = runner.run(.next)
+
+        XCTAssertEqual(steps.count, 1)
+        XCTAssertFalse(steps[0].didObserveActiveSpaceChange)
+        XCTAssertTrue(steps[0].didChangeVisibleFingerprint)
+        XCTAssertTrue(steps[0].didMove)
+        XCTAssertTrue(steps[0].didRestore)
+    }
+
     func testAcknowledgedSpaceSwitcherReportsFullTargetMovement() {
         let executor = RecordingSpaceCommandExecutor()
         let switcher = AcknowledgedSpaceSwitcher(
@@ -1079,6 +1138,49 @@ private final class LoggingSpaceCommandExecutor: SpaceCommandExecuting, @uncheck
     func execute(_ command: SwitchCommand) -> Bool {
         log.append("execute \(command)")
         return true
+    }
+}
+
+private struct StaticDisplayObserver: DisplayObserving {
+    let layout: DisplayLayout
+
+    func currentLayout() -> DisplayLayout {
+        layout
+    }
+}
+
+private final class SequencedVisibleAppSuggestionProvider: VisibleAppSuggestionProviding, @unchecked Sendable {
+    private let lock = NSLock()
+    private var sequence: [[VisibleAppSuggestion]]
+
+    init(sequence: [[VisibleAppSuggestion]]) {
+        self.sequence = sequence
+    }
+
+    func suggestions(for displayLayout: DisplayLayout) -> [VisibleAppSuggestion] {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !sequence.isEmpty else {
+            return []
+        }
+        return sequence.removeFirst()
+    }
+}
+
+private final class SwitchInvocationLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [String] = []
+
+    func append(_ entry: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        entries.append(entry)
+    }
+
+    var all: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries
     }
 }
 

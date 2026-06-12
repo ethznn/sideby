@@ -599,6 +599,16 @@ private enum DevCommandLineRunner {
             return true
         }
 
+        if arguments.contains("--probe-capture-per-display-next") {
+            runPerDisplayCaptureObservationProbe(.next)
+            return true
+        }
+
+        if arguments.contains("--probe-capture-per-display-previous") {
+            runPerDisplayCaptureObservationProbe(.previous)
+            return true
+        }
+
         if arguments.contains("--probe-ax-anchor") {
             runAXAnchorProbe()
             return true
@@ -634,6 +644,36 @@ private enum DevCommandLineRunner {
             afterChangeCount: observer.changeCount
         )
         printAndLog("ActiveObserverProbe: \(observation.summary)")
+    }
+
+    // Mirrors the production context-capture stack: per-display acknowledged
+    // switch with the same executor, observer wait, and movement observation,
+    // then restores any display whose movement was detected.
+    private static func runPerDisplayCaptureObservationProbe(_ command: SwitchCommand) {
+        let runner = PerDisplayCaptureObservationProbeRunner(
+            displayObserver: MacDisplayObserver(),
+            suggestionProvider: MacVisibleAppSuggestionProvider(),
+            switchRunner: { command, displayID in
+                let targetProvider = CGDisplaySwitchTargetProvider(includedStableIDs: [displayID])
+                let switcher = AcknowledgedSpaceSwitcher(
+                    executor: HiddenCursorDisplaySpaceCommandExecutor(
+                        baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                        targetProvider: targetProvider
+                    ),
+                    targetProvider: targetProvider,
+                    observerWait: 0.90
+                )
+                return switcher.execute(command)
+            }
+        )
+
+        printAndLog("PerDisplayCaptureProbe(\(command)): start")
+        let steps = runner.run(command)
+        for step in steps {
+            printAndLog("PerDisplayCaptureProbe: \(step.summary)")
+        }
+        let movedCount = steps.filter(\.didMove).count
+        printAndLog("PerDisplayCaptureProbeSummary: moved=\(movedCount)/\(steps.count), command=\(command)")
     }
 
     private static func runWindowDiffProbe(_ command: SwitchCommand) {

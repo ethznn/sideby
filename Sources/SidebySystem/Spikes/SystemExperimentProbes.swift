@@ -743,6 +743,117 @@ private final class SpikeNSWorkspaceActiveSpaceChangeCounter: @unchecked Sendabl
     }
 }
 
+public struct PerDisplayCaptureObservationStep: Equatable, Sendable {
+    public let displayID: String
+    public let displayName: String
+    public let command: SwitchCommand
+    public let didPost: Bool
+    public let didObserveActiveSpaceChange: Bool
+    public let observedChangeCount: Int
+    public let didChangeVisibleFingerprint: Bool
+    public let didMove: Bool
+    public let didRestore: Bool
+    public let elapsedSeconds: Double
+
+    public init(
+        displayID: String,
+        displayName: String,
+        command: SwitchCommand,
+        didPost: Bool,
+        didObserveActiveSpaceChange: Bool,
+        observedChangeCount: Int,
+        didChangeVisibleFingerprint: Bool,
+        didMove: Bool,
+        didRestore: Bool,
+        elapsedSeconds: Double
+    ) {
+        self.displayID = displayID
+        self.displayName = displayName
+        self.command = command
+        self.didPost = didPost
+        self.didObserveActiveSpaceChange = didObserveActiveSpaceChange
+        self.observedChangeCount = observedChangeCount
+        self.didChangeVisibleFingerprint = didChangeVisibleFingerprint
+        self.didMove = didMove
+        self.didRestore = didRestore
+        self.elapsedSeconds = elapsedSeconds
+    }
+
+    public var summary: String {
+        let movement = didMove ? "moved" : "no-move"
+        let elapsed = String(format: "%.2f", elapsedSeconds)
+        return "display=\(displayName) [\(displayID)] \(command): \(didPost ? "posted" : "failed"), activeSpaceChanges=\(observedChangeCount), fingerprintChange=\(didChangeVisibleFingerprint), \(movement), restored=\(didRestore), elapsed=\(elapsed)s"
+    }
+}
+
+public struct PerDisplayCaptureObservationProbeRunner: Sendable {
+    private let displayObserver: any DisplayObserving
+    private let suggestionProvider: any VisibleAppSuggestionProviding
+    private let switchRunner: @Sendable (SwitchCommand, String) -> AcknowledgedSpaceSwitchResult
+
+    public init(
+        displayObserver: any DisplayObserving,
+        suggestionProvider: any VisibleAppSuggestionProviding,
+        switchRunner: @escaping @Sendable (SwitchCommand, String) -> AcknowledgedSpaceSwitchResult
+    ) {
+        self.displayObserver = displayObserver
+        self.suggestionProvider = suggestionProvider
+        self.switchRunner = switchRunner
+    }
+
+    public func run(_ command: SwitchCommand) -> [PerDisplayCaptureObservationStep] {
+        let layout = displayObserver.currentLayout()
+
+        return layout.displays.map { display in
+            let fingerprintBefore = fingerprint(for: display.id, in: layout)
+            let startedAt = Date()
+            let result = switchRunner(command, display.id)
+            let fingerprintAfter = fingerprint(for: display.id, in: layout)
+            let elapsedSeconds = Date().timeIntervalSince(startedAt)
+            let observation = ContextCaptureDisplayMovementObservation(
+                displayID: display.id,
+                didObserveActiveSpaceChange: result.didObserveAnyChange,
+                visibleFingerprintBefore: fingerprintBefore,
+                visibleFingerprintAfter: fingerprintAfter
+            )
+
+            var didRestore = false
+            if observation.didMove {
+                didRestore = switchRunner(Self.restoreCommand(for: command), display.id).didPost
+            }
+
+            return PerDisplayCaptureObservationStep(
+                displayID: display.id,
+                displayName: display.name,
+                command: command,
+                didPost: result.didPost,
+                didObserveActiveSpaceChange: result.didObserveAnyChange,
+                observedChangeCount: result.observedChangeCount,
+                didChangeVisibleFingerprint: observation.didChangeVisibleFingerprint,
+                didMove: observation.didMove,
+                didRestore: didRestore,
+                elapsedSeconds: elapsedSeconds
+            )
+        }
+    }
+
+    private func fingerprint(for displayID: String, in layout: DisplayLayout) -> String? {
+        suggestionProvider
+            .suggestions(for: layout)
+            .first { $0.displayID == displayID }?
+            .combinedLabel
+    }
+
+    private static func restoreCommand(for command: SwitchCommand) -> SwitchCommand {
+        switch command {
+        case .next:
+            .previous
+        case .previous:
+            .next
+        }
+    }
+}
+
 public struct AckingHiddenSpaceCommandRunner: Sendable {
     private let executor: any SpaceCommandExecuting
     private let targetProvider: any DisplaySwitchTargetProviding
