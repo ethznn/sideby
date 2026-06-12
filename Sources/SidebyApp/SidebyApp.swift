@@ -695,6 +695,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private let systemEventsAutomationProbe = SystemEventsAutomationProbe<NSAppleScriptRunner>()
     private let setupFlow = V1SetupFlow()
     private let visibleAppSuggestionProvider = MacVisibleAppSuggestionProvider()
+    private let spaceLayoutReader: any SpaceLayoutReading = SLSSpaceLayoutReader()
     private let contextHUDPolicy = ContextSwitchHUDPolicy()
     private let observerTokens = SidebyAppObserverTokens()
     private static let enabledDefaultsKey = "sideby.enabled"
@@ -962,6 +963,80 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
+    /// Builds the context plan directly from the Space layout. Returns false
+    /// when the layout is unavailable so the caller can fall back to the
+    /// walk-based capture.
+    private func startInstantContextCapture() -> Bool {
+        guard let layouts = spaceLayoutReader.readLayout(), !layouts.isEmpty else {
+            return false
+        }
+
+        let mapping = DisplayLayoutMapper.stableIDsByUUID(
+            snapshots: MacDisplayObserver().currentSnapshots(),
+            uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
+        )
+        let layoutsByStableID: [String: DisplaySpaceLayout] = layouts.reduce(into: [:]) {
+            result, layout in
+            if let stableID = mapping[layout.displayUUID] {
+                result[stableID] = layout
+            }
+        }
+
+        var captureDisplays: [InstantCaptureDisplay] = []
+        for display in displayLayout.displays where selectedDisplayIDs.contains(display.id) {
+            guard let layout = layoutsByStableID[display.id],
+                  let currentIndex = layout.spaceIDs.firstIndex(of: layout.currentSpaceID)
+            else {
+                return false
+            }
+            captureDisplays.append(
+                InstantCaptureDisplay(
+                    displayID: display.id,
+                    spaceCount: layout.spaceIDs.count,
+                    currentSpaceIndex: currentIndex
+                )
+            )
+        }
+
+        guard let instantPlan = InstantContextCapturePlanner.plan(for: captureDisplays) else {
+            return false
+        }
+
+        let currentOrder = instantPlan.contexts
+            .first { $0.id == instantPlan.currentContextID }?.order ?? 1
+        let currentName = suggestedContextName(order: currentOrder)
+        let contexts = instantPlan.contexts.map { context in
+            context.id == instantPlan.currentContextID
+                ? ContextDefinition(
+                    id: context.id,
+                    order: context.order,
+                    name: currentName,
+                    displayIDs: context.displayIDs
+                )
+                : context
+        }
+
+        contextsToCapture = instantPlan.captureLimit
+        updateContextPlan { plan in
+            plan.replaceContexts(
+                contexts,
+                currentContextID: instantPlan.currentContextID,
+                captureLimit: instantPlan.captureLimit
+            )
+            if !instantPlan.isSynchronized {
+                plan.markNeedsSync()
+            }
+        }
+        contextCaptureStatus = strings.contextCaptureReadySummary(
+            count: contexts.count,
+            currentName: settings.contextPlan.currentContext?.name ?? currentName
+        )
+        Self.contextCaptureLog.notice(
+            "instant-capture displays=\(captureDisplays.count, privacy: .public) contexts=\(contexts.count, privacy: .public) synchronized=\(instantPlan.isSynchronized, privacy: .public)"
+        )
+        return true
+    }
+
     func startContextCapture() {
         refresh()
         guard InputControlStartPolicy.decision(
@@ -978,6 +1053,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         guard !isSwitching, contextCaptureSession == nil else {
             return
         }
+
+        if startInstantContextCapture() {
+            return
+        }
+        // SLS unavailable — fall back to the walk-based capture below.
 
         contextCaptureSessionID += 1
         let sessionID = contextCaptureSessionID
