@@ -18,23 +18,65 @@ public struct ActiveSpaceObservedRun: Equatable, Sendable {
 }
 
 public protocol ActiveSpaceChangeObserving: Sendable {
-    func runObservingChanges(wait: TimeInterval, action: () -> Bool) -> ActiveSpaceObservedRun
+    func runObservingChanges(
+        wait: TimeInterval,
+        expectedChangeCount: Int,
+        action: () -> Bool
+    ) -> ActiveSpaceObservedRun
 }
 
 public struct NSWorkspaceActiveSpaceChangeObserver: ActiveSpaceChangeObserving {
+    private static let pollInterval: TimeInterval = 0.05
+
     public init() {}
 
-    public func runObservingChanges(wait: TimeInterval, action: () -> Bool) -> ActiveSpaceObservedRun {
+    public func runObservingChanges(
+        wait: TimeInterval,
+        expectedChangeCount: Int,
+        action: () -> Bool
+    ) -> ActiveSpaceObservedRun {
         let counter = NSWorkspaceActiveSpaceChangeCounter()
         let before = counter.changeCount
         let didPost = action()
-        RunLoop.current.run(until: Date().addingTimeInterval(wait))
+        waitForExpectedChanges(
+            counter: counter,
+            beforeChangeCount: before,
+            expectedChangeCount: expectedChangeCount,
+            deadline: Date().addingTimeInterval(wait)
+        )
 
         return ActiveSpaceObservedRun(
             didPost: didPost,
             beforeChangeCount: before,
             afterChangeCount: counter.changeCount
         )
+    }
+
+    // RunLoop.run(until:) returns immediately on source-less GCD worker threads,
+    // so the wait must not depend on the calling thread's run loop. The counter
+    // observes on the main queue; polling only needs this thread to stay off main.
+    private func waitForExpectedChanges(
+        counter: NSWorkspaceActiveSpaceChangeCounter,
+        beforeChangeCount: Int,
+        expectedChangeCount: Int,
+        deadline: Date
+    ) {
+        let requiredChangeCount = max(1, expectedChangeCount)
+        while counter.changeCount - beforeChangeCount < requiredChangeCount {
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else {
+                return
+            }
+
+            let step = min(Self.pollInterval, remaining)
+            if Thread.isMainThread {
+                if !RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(step)) {
+                    Thread.sleep(forTimeInterval: step)
+                }
+            } else {
+                Thread.sleep(forTimeInterval: step)
+            }
+        }
     }
 }
 

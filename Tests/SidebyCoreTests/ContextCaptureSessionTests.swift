@@ -44,6 +44,90 @@ final class ContextCaptureSessionTests: XCTestCase {
         )
     }
 
+    func testAnyMovementPolicyTreatsGlobalSpaceNotificationAsMovement() {
+        XCTAssertTrue(
+            ContextCaptureMovementPolicy.didObserveAnyMovement(
+                didObserveActiveSpaceChange: true,
+                observations: []
+            )
+        )
+    }
+
+    func testAnyMovementPolicyTreatsFingerprintChangeAsMovementWhenNotificationIsMissing() {
+        let observation = ContextCaptureDisplayMovementObservation(
+            displayID: "external-lg",
+            didObserveActiveSpaceChange: false,
+            visibleFingerprintBefore: "Xcode - SidebyApp.swift",
+            visibleFingerprintAfter: "Arc - Docs"
+        )
+
+        XCTAssertTrue(
+            ContextCaptureMovementPolicy.didObserveAnyMovement(
+                didObserveActiveSpaceChange: false,
+                observations: [observation]
+            )
+        )
+    }
+
+    func testAnyMovementPolicyReportsNoMovementWithoutNotificationOrFingerprintChange() {
+        let observation = ContextCaptureDisplayMovementObservation(
+            displayID: "external-lg",
+            didObserveActiveSpaceChange: false,
+            visibleFingerprintBefore: "Xcode - SidebyApp.swift",
+            visibleFingerprintAfter: "Xcode - SidebyApp.swift"
+        )
+
+        XCTAssertFalse(
+            ContextCaptureMovementPolicy.didObserveAnyMovement(
+                didObserveActiveSpaceChange: false,
+                observations: [observation]
+            )
+        )
+    }
+
+    func testForwardDecisionRetainsMovedDisplaysAndResetsStreaks() {
+        let decision = ContextCaptureMovementPolicy.forwardDecision(
+            activeDisplayIDs: ["built-in", "external-lg"],
+            movedDisplayIDs: ["built-in", "external-lg"],
+            noMoveStreaks: ["external-lg": 1]
+        )
+
+        XCTAssertEqual(decision.activeDisplayIDs, ["built-in", "external-lg"])
+        XCTAssertEqual(decision.noMoveStreaks, ["built-in": 0, "external-lg": 0])
+    }
+
+    func testForwardDecisionGivesGraceToFirstMissedObservation() {
+        let decision = ContextCaptureMovementPolicy.forwardDecision(
+            activeDisplayIDs: ["built-in", "external-lg"],
+            movedDisplayIDs: ["built-in"],
+            noMoveStreaks: [:]
+        )
+
+        XCTAssertEqual(decision.activeDisplayIDs, ["built-in", "external-lg"])
+        XCTAssertEqual(decision.noMoveStreaks, ["built-in": 0, "external-lg": 1])
+    }
+
+    func testForwardDecisionDropsDisplayAfterConsecutiveMissedObservations() {
+        let decision = ContextCaptureMovementPolicy.forwardDecision(
+            activeDisplayIDs: ["built-in", "external-lg"],
+            movedDisplayIDs: ["built-in"],
+            noMoveStreaks: ["external-lg": 1]
+        )
+
+        XCTAssertEqual(decision.activeDisplayIDs, ["built-in"])
+        XCTAssertEqual(decision.noMoveStreaks, ["built-in": 0, "external-lg": 2])
+    }
+
+    func testForwardDecisionPrunesStreaksForInactiveDisplays() {
+        let decision = ContextCaptureMovementPolicy.forwardDecision(
+            activeDisplayIDs: ["built-in"],
+            movedDisplayIDs: ["built-in"],
+            noMoveStreaks: ["external-lg": 2]
+        )
+
+        XCTAssertEqual(decision.noMoveStreaks, ["built-in": 0])
+    }
+
     func testSessionStartsAligningWithCaptureLimit() {
         let session = ContextCaptureSession(captureLimit: 4)
 

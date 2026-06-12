@@ -717,6 +717,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var switchSessionID = 0
     private var contextCaptureSessionID = 0
     private var contextCaptureActiveDisplayIDs: Set<String> = []
+    private var contextCaptureNoMoveStreaks: [String: Int] = [:]
     private var permissionPollingID = 0
     private var lastScrollStatusUpdate = 0.0
     private var isOnboardingGestureTestActive = false
@@ -976,6 +977,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         contextCaptureSessionID += 1
         let sessionID = contextCaptureSessionID
         contextCaptureActiveDisplayIDs = selectedDisplayIDs
+        contextCaptureNoMoveStreaks = [:]
         contextsToCapture = Self.automaticContextCaptureLimit
         contextCaptureSession = ContextCaptureSession(
             captureLimit: Self.automaticContextCaptureLimit,
@@ -990,6 +992,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         session?.stop()
         contextCaptureSessionID += 1
         contextCaptureActiveDisplayIDs = []
+        contextCaptureNoMoveStreaks = [:]
         ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(Self.contextCaptureCompletionIgnoreInterval)
         contextCaptureSession = nil
         contextCaptureStatus = session.map {
@@ -1045,9 +1048,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         updateContextCaptureStatus()
+        let alignmentDisplayIDs = contextCaptureActiveDisplayIDs
+        let fingerprintsBefore = visibleContextFingerprints(for: alignmentDisplayIDs)
         performAcknowledgedSwitch(
             .previous,
-            targetDisplayIDs: contextCaptureActiveDisplayIDs,
+            targetDisplayIDs: alignmentDisplayIDs,
             label: "context-capture-align",
             observerWait: Self.contextCaptureObserverWait
         ) { [weak self] result in
@@ -1067,7 +1072,24 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 return
             }
 
-            activeSession.recordAlignment(previousDidChange: result.didObserveAnyChange)
+            let fingerprintsAfter = self.visibleContextFingerprints(for: alignmentDisplayIDs)
+            let observations = alignmentDisplayIDs.map { displayID in
+                ContextCaptureDisplayMovementObservation(
+                    displayID: displayID,
+                    didObserveActiveSpaceChange: false,
+                    visibleFingerprintBefore: fingerprintsBefore[displayID],
+                    visibleFingerprintAfter: fingerprintsAfter[displayID]
+                )
+            }
+            let previousDidChange = ContextCaptureMovementPolicy.didObserveAnyMovement(
+                didObserveActiveSpaceChange: result.didObserveAnyChange,
+                observations: observations
+            )
+            Self.contextCaptureLog.notice(
+                "align posted=\(result.didPost, privacy: .public) activeSpaceChange=\(result.didObserveAnyChange, privacy: .public) fingerprintChanges=\(observations.filter(\.didChangeVisibleFingerprint).count, privacy: .public)"
+            )
+
+            activeSession.recordAlignment(previousDidChange: previousDidChange)
             self.contextCaptureSession = activeSession
             self.updateContextCaptureStatus()
 
@@ -1102,8 +1124,8 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        let name = suggestedContextName(order: order)
         let activeDisplayIDs = contextCaptureActiveDisplayIDs
+        let name = suggestedContextName(order: order)
         session.recordCurrentSpace(name: name, displayIDs: Array(activeDisplayIDs))
         contextCaptureSession = session
         updateContextCaptureStatus()
@@ -1137,8 +1159,33 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 return
             }
 
-            activeSession.recordForwardSwitch(movedDisplayIDs: movedDisplayIDs)
-            self.contextCaptureActiveDisplayIDs = movedDisplayIDs
+            let decision = ContextCaptureMovementPolicy.forwardDecision(
+                activeDisplayIDs: activeDisplayIDs,
+                movedDisplayIDs: movedDisplayIDs,
+                noMoveStreaks: self.contextCaptureNoMoveStreaks
+            )
+            self.contextCaptureNoMoveStreaks = decision.noMoveStreaks
+
+            if movedDisplayIDs.isEmpty, !decision.activeDisplayIDs.isEmpty {
+                // No confirmed movement, but some displays still have grace:
+                // re-press them at the same order instead of ending the capture
+                // on a possibly missed observation.
+                self.contextCaptureActiveDisplayIDs = decision.activeDisplayIDs
+                self.updateContextCaptureStatus()
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.contextCaptureForwardRetryDelay) { [weak self] in
+                    guard let self,
+                          self.contextCaptureSessionID == sessionID,
+                          self.contextCaptureSession != nil
+                    else {
+                        return
+                    }
+                    self.continueContextCaptureForward(sessionID: sessionID)
+                }
+                return
+            }
+
+            activeSession.recordForwardSwitch(movedDisplayIDs: decision.activeDisplayIDs)
+            self.contextCaptureActiveDisplayIDs = decision.activeDisplayIDs
             self.contextCaptureSession = activeSession
             self.updateContextCaptureStatus()
 
@@ -1720,10 +1767,18 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func visibleContextFingerprint(for displayID: String) -> String? {
-        visibleAppSuggestionProvider
-            .suggestions(for: displayLayout)
-            .first { $0.displayID == displayID }?
-            .combinedLabel
+        visibleContextFingerprints(for: [displayID])[displayID]
+    }
+
+    private func visibleContextFingerprints(for displayIDs: Set<String>) -> [String: String] {
+        let suggestions = visibleAppSuggestionProvider.suggestions(for: displayLayout)
+        var fingerprints: [String: String] = [:]
+        for displayID in displayIDs {
+            if let label = suggestions.first(where: { $0.displayID == displayID })?.combinedLabel {
+                fingerprints[displayID] = label
+            }
+        }
+        return fingerprints
     }
 
     private func performSwitch(

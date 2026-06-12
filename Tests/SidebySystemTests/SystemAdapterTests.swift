@@ -526,12 +526,12 @@ final class SystemAdapterTests: XCTestCase {
         ])
     }
 
-    func testDisplaySwitchTargetProviderUsesEdgeClippedFocusPoint() {
+    func testDisplaySwitchTargetProviderUsesDisplayCenterFocusPoint() {
         let point = CGDisplaySwitchTargetProvider.focusPoint(
-            in: CGRect(x: 100, y: 200, width: 1000, height: 800)
+            in: CGRect(x: 100, y: 200, width: 1000, height: 600)
         )
 
-        XCTAssertEqual(point, CGPoint(x: 1098, y: 998))
+        XCTAssertEqual(point, CGPoint(x: 600, y: 500))
     }
 
     func testCoordinatedDisplayExecutorMovesCursorAcrossTargetsAndRestoresIt() {
@@ -1085,7 +1085,11 @@ private final class LoggingSpaceCommandExecutor: SpaceCommandExecuting, @uncheck
 private struct StaticActiveSpaceChangeObserver: ActiveSpaceChangeObserving {
     let afterChangeCount: Int
 
-    func runObservingChanges(wait: TimeInterval, action: () -> Bool) -> ActiveSpaceObservedRun {
+    func runObservingChanges(
+        wait: TimeInterval,
+        expectedChangeCount: Int,
+        action: () -> Bool
+    ) -> ActiveSpaceObservedRun {
         ActiveSpaceObservedRun(
             didPost: action(),
             beforeChangeCount: 0,

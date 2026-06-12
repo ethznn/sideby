@@ -569,9 +569,10 @@ public struct CGDisplaySwitchTargetProvider: DisplaySwitchTargetProviding {
         )
     }
 
+    // Display center keeps the warped cursor away from hot corners, the Dock,
+    // and ambiguous shared edges between adjacent displays.
     public static func focusPoint(in bounds: CGRect) -> CGPoint {
-        let inset = min(CGFloat(2), max(CGFloat(0), min(bounds.width, bounds.height) / 2))
-        return CGPoint(x: bounds.maxX - inset, y: bounds.maxY - inset)
+        CGPoint(x: bounds.midX, y: bounds.midY)
     }
 }
 

@@ -788,7 +788,10 @@ public struct AckingHiddenSpaceCommandRunner: Sendable {
         let beforeWindowSnapshot = windowSnapshotProvider.snapshot()
         let displayTargetCount = targetProvider.targetPoints().count
         let startedAt = Date()
-        let observedRun = activeSpaceObserver.runObservingChanges(wait: timing.observerWait) {
+        let observedRun = activeSpaceObserver.runObservingChanges(
+            wait: timing.observerWait,
+            expectedChangeCount: max(1, displayTargetCount)
+        ) {
             executor.execute(command)
         }
         let afterWindowSnapshot = windowSnapshotProvider.snapshot()

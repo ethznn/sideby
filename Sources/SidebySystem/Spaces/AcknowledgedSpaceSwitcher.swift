@@ -48,7 +48,10 @@ public struct AcknowledgedSpaceSwitcher: Sendable {
 
     public func execute(_ command: SwitchCommand) -> AcknowledgedSpaceSwitchResult {
         let expectedChangeCount = max(1, targetProvider.targetPoints().count)
-        let observedRun = activeSpaceObserver.runObservingChanges(wait: observerWait) {
+        let observedRun = activeSpaceObserver.runObservingChanges(
+            wait: observerWait,
+            expectedChangeCount: expectedChangeCount
+        ) {
             executor.execute(command)
         }
 

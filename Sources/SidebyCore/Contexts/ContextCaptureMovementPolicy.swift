@@ -47,4 +47,50 @@ public enum ContextCaptureMovementPolicy: Sendable {
                 .filter { !$0.isEmpty }
         )
     }
+
+    public static func didObserveAnyMovement(
+        didObserveActiveSpaceChange: Bool,
+        observations: [ContextCaptureDisplayMovementObservation]
+    ) -> Bool {
+        didObserveActiveSpaceChange || observations.contains(where: \.didMove)
+    }
+
+    private static let maxConsecutiveNoMoves = 2
+
+    public static func forwardDecision(
+        activeDisplayIDs: Set<String>,
+        movedDisplayIDs: Set<String>,
+        noMoveStreaks: [String: Int]
+    ) -> ContextCaptureForwardDecision {
+        var updatedStreaks: [String: Int] = [:]
+        var retainedDisplayIDs = Set<String>()
+
+        for displayID in activeDisplayIDs {
+            if movedDisplayIDs.contains(displayID) {
+                updatedStreaks[displayID] = 0
+                retainedDisplayIDs.insert(displayID)
+            } else {
+                let streak = (noMoveStreaks[displayID] ?? 0) + 1
+                updatedStreaks[displayID] = streak
+                if streak < Self.maxConsecutiveNoMoves {
+                    retainedDisplayIDs.insert(displayID)
+                }
+            }
+        }
+
+        return ContextCaptureForwardDecision(
+            activeDisplayIDs: retainedDisplayIDs,
+            noMoveStreaks: updatedStreaks
+        )
+    }
+}
+
+public struct ContextCaptureForwardDecision: Equatable, Sendable {
+    public let activeDisplayIDs: Set<String>
+    public let noMoveStreaks: [String: Int]
+
+    public init(activeDisplayIDs: Set<String>, noMoveStreaks: [String: Int]) {
+        self.activeDisplayIDs = activeDisplayIDs
+        self.noMoveStreaks = noMoveStreaks
+    }
 }
