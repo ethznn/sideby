@@ -983,6 +983,36 @@ final class SystemAdapterTests: XCTestCase {
         XCTAssertNil(EventTapInputNormalizer.modifierFlag(forKeyCode: 124))
     }
 
+    func testStableIDsByUUIDMapsResolvableSnapshots() {
+        let snapshotA = DisplaySnapshot(
+            displayID: 2,
+            name: "FA2440P",
+            isPrimary: true,
+            isBuiltin: false,
+            vendorNumber: 23598,
+            modelNumber: 9216,
+            serialNumber: 0
+        )
+        let snapshotB = DisplaySnapshot(
+            displayID: 1,
+            name: "Built-in",
+            isPrimary: false,
+            isBuiltin: true,
+            vendorNumber: 1552,
+            modelNumber: 41038,
+            serialNumber: 4251086178
+        )
+
+        let mapping = DisplayLayoutMapper.stableIDsByUUID(
+            snapshots: [snapshotA, snapshotB],
+            uuidForDisplayID: { displayID in
+                displayID == 2 ? "UUID-EXT" : nil
+            }
+        )
+
+        XCTAssertEqual(mapping, ["UUID-EXT": "23598-9216-0-2"])
+    }
+
     func testGlobalEventTapSuppressesConfiguredModifierFlagChanges() {
         XCTAssertTrue(
             GlobalEventTapInputSource.shouldSuppressModifierFlagChange(

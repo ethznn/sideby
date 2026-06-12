@@ -56,6 +56,27 @@ public enum DisplayLayoutMapper {
             String(snapshot.displayID)
         ].joined(separator: "-")
     }
+
+    public static func stableIDsByUUID(
+        snapshots: [DisplaySnapshot],
+        uuidForDisplayID: (CGDirectDisplayID) -> String?
+    ) -> [String: String] {
+        var mapping: [String: String] = [:]
+        for snapshot in snapshots {
+            guard let uuid = uuidForDisplayID(snapshot.displayID) else {
+                continue
+            }
+            mapping[uuid] = stableID(for: snapshot)
+        }
+        return mapping
+    }
+
+    public static func displayUUID(for displayID: CGDirectDisplayID) -> String? {
+        guard let cfUUID = CGDisplayCreateUUIDFromDisplayID(displayID)?.takeRetainedValue() else {
+            return nil
+        }
+        return CFUUIDCreateString(nil, cfUUID) as String?
+    }
 }
 
 public struct MacDisplayObserver: DisplayObserving {
