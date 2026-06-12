@@ -972,7 +972,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         let mapping = DisplayLayoutMapper.stableIDsByUUID(
-            snapshots: MacDisplayObserver().currentSnapshots(),
+            snapshots: displayObserver.currentSnapshots(),
             uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
         )
         let layoutsByStableID: [String: DisplaySpaceLayout] = layouts.reduce(into: [:]) {
@@ -1016,7 +1016,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 : context
         }
 
-        contextsToCapture = instantPlan.captureLimit
         updateContextPlan { plan in
             plan.replaceContexts(
                 contexts,
@@ -1057,7 +1056,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         if startInstantContextCapture() {
             return
         }
-        // SLS unavailable — fall back to the walk-based capture below.
+        // Instant capture unavailable — fall back to the walk-based capture below.
 
         contextCaptureSessionID += 1
         let sessionID = contextCaptureSessionID
