@@ -57,4 +57,42 @@ final class SpaceLayoutReaderTests: XCTestCase {
         XCTAssertNil(DisplaySpaceLayout.displays(fromManagedDisplaySpaces: missingCurrent))
         XCTAssertNil(DisplaySpaceLayout.displays(fromManagedDisplaySpaces: emptySpaces))
     }
+
+    func testParsingFailsOnNegativeSpaceID() {
+        let payload: [[String: Any]] = [
+            [
+                "Display Identifier": "A",
+                "Current Space": ["ManagedSpaceID": NSNumber(value: 1)],
+                "Spaces": [["ManagedSpaceID": NSNumber(value: -1)]]
+            ]
+        ]
+
+        XCTAssertNil(DisplaySpaceLayout.displays(fromManagedDisplaySpaces: payload))
+    }
+
+    func testParsingFailsWhenLaterEntryIsMalformedAfterValidEntry() {
+        let payload: [[String: Any]] = [
+            [
+                "Display Identifier": "A",
+                "Current Space": ["ManagedSpaceID": NSNumber(value: 1)],
+                "Spaces": [["ManagedSpaceID": NSNumber(value: 1)]]
+            ],
+            ["Display Identifier": "B"]
+        ]
+
+        XCTAssertNil(DisplaySpaceLayout.displays(fromManagedDisplaySpaces: payload))
+    }
+
+    func testSLSReaderReturnsCoherentLayoutOrNil() {
+        guard let layouts = SLSSpaceLayoutReader().readLayout() else {
+            // SLS unavailable on this machine/OS — acceptable per spec.
+            return
+        }
+
+        XCTAssertFalse(layouts.isEmpty)
+        for layout in layouts {
+            XCTAssertFalse(layout.spaceIDs.isEmpty)
+            XCTAssertTrue(layout.spaceIDs.contains(layout.currentSpaceID))
+        }
+    }
 }
