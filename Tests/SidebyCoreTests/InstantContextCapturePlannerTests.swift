@@ -59,4 +59,13 @@ final class InstantContextCapturePlannerTests: XCTestCase {
             InstantCaptureDisplay(displayID: "x", spaceCount: 0, currentSpaceIndex: 0)
         ]))
     }
+
+    func testCurrentIndexBeyondCapIsNotSynchronized() {
+        let plan = InstantContextCapturePlanner.plan(for: [
+            InstantCaptureDisplay(displayID: "ext", spaceCount: 30, currentSpaceIndex: 20)
+        ])
+
+        XCTAssertEqual(plan?.currentContextID, "context-12")
+        XCTAssertEqual(plan?.isSynchronized, false)
+    }
 }

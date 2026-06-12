@@ -36,6 +36,9 @@ public struct InstantCapturePlan: Equatable, Sendable {
 public enum InstantContextCapturePlanner {
     public static let maxContexts = 12
 
+    /// Derives the context plan. The first display in `displays` is
+    /// authoritative for the current context, so callers must pass displays
+    /// in a stable, meaningful order (e.g. layout order).
     public static func plan(for displays: [InstantCaptureDisplay]) -> InstantCapturePlan? {
         guard !displays.isEmpty,
               displays.allSatisfy({ $0.spaceCount >= 1 })
@@ -62,6 +65,7 @@ public enum InstantContextCapturePlanner {
         let currentOrder = min(max(firstIndex + 1, 1), contextCount)
         let isSynchronized = displays
             .allSatisfy { $0.currentSpaceIndex == firstIndex }
+            && firstIndex < contextCount
 
         return InstantCapturePlan(
             contexts: contexts,
