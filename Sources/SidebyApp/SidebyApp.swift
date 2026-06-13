@@ -963,12 +963,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
-    /// Builds the context plan directly from the Space layout. Returns false
-    /// when the layout is unavailable so the caller can fall back to the
-    /// walk-based capture.
-    private func startInstantContextCapture() -> Bool {
+    /// Reads the live Space layout for the selected displays, in layout
+    /// order. Returns nil when the SLS reader is unavailable or any selected
+    /// display cannot be mapped.
+    private func selectedDisplaySpaces() -> [InstantCaptureDisplay]? {
         guard let layouts = spaceLayoutReader.readLayout(), !layouts.isEmpty else {
-            return false
+            return nil
         }
 
         let mapping = DisplayLayoutMapper.stableIDsByUUID(
@@ -982,20 +982,30 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             }
         }
 
-        var captureDisplays: [InstantCaptureDisplay] = []
+        var displays: [InstantCaptureDisplay] = []
         for display in displayLayout.displays where selectedDisplayIDs.contains(display.id) {
             guard let layout = layoutsByStableID[display.id],
                   let currentIndex = layout.spaceIDs.firstIndex(of: layout.currentSpaceID)
             else {
-                return false
+                return nil
             }
-            captureDisplays.append(
+            displays.append(
                 InstantCaptureDisplay(
                     displayID: display.id,
                     spaceCount: layout.spaceIDs.count,
                     currentSpaceIndex: currentIndex
                 )
             )
+        }
+        return displays
+    }
+
+    /// Builds the context plan directly from the Space layout. Returns false
+    /// when the layout is unavailable so the caller can fall back to the
+    /// walk-based capture.
+    private func startInstantContextCapture() -> Bool {
+        guard let captureDisplays = selectedDisplaySpaces(), !captureDisplays.isEmpty else {
+            return false
         }
 
         guard let instantPlan = InstantContextCapturePlanner.plan(for: captureDisplays) else {
@@ -1427,6 +1437,37 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
         if let ignoreUntil = ignoresExternalSpaceChangesUntil,
            Date() < ignoreUntil {
+            return
+        }
+
+        let plan = settings.contextPlan
+        if ExternalSpaceChangeContextPolicy.shouldTrackCurrentContext(
+            isSidebyEnabled: isEnabled,
+            plan: plan
+        ),
+            let displays = selectedDisplaySpaces() {
+            let indexes = Dictionary(
+                uniqueKeysWithValues: displays.map { ($0.displayID, $0.currentSpaceIndex) }
+            )
+            if let matchedID = ContextCurrentMatcher.currentContextID(
+                contexts: plan.contexts,
+                displayIndexes: indexes
+            ) {
+                if matchedID != plan.currentContextID || plan.syncState != .synchronized {
+                    updateContextPlan { plan in
+                        _ = plan.setCurrentContext(id: matchedID)
+                    }
+                    lastSwitchResult = strings.followingContext(
+                        settings.contextPlan.currentContext?.name ?? matchedID
+                    )
+                }
+            } else if plan.syncState == .synchronized {
+                updateContextPlan { plan in
+                    plan.markNeedsSync()
+                }
+                lastSwitchResult = strings.contextMatchingPaused
+            }
+            diagnostics = currentDiagnostics()
             return
         }
 
