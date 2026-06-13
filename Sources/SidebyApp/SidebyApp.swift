@@ -1036,16 +1036,13 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             var didAlignAll = true
 
             for move in moves {
+                let executor = HiddenCursorDisplaySpaceCommandExecutor(
+                    baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                    targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: [move.displayID])
+                )
                 var index = move.currentSpaceIndex
                 while index != targetIndex {
                     let command: SwitchCommand = index < targetIndex ? .next : .previous
-                    let targetProvider = CGDisplaySwitchTargetProvider(
-                        includedStableIDs: [move.displayID]
-                    )
-                    let executor = HiddenCursorDisplaySpaceCommandExecutor(
-                        baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
-                        targetProvider: targetProvider
-                    )
                     guard executor.execute(command),
                           let newIndex = acknowledger.waitForIndexChange(
                               of: move.displayID,
@@ -1618,7 +1615,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 updateContextPlan { plan in
                     plan.markNeedsSync()
                 }
-                lastSwitchResult = strings.contextMatchingPaused
+                lastSwitchResult = strings.contextNeedsAlignment
             }
             diagnostics = currentDiagnostics()
             return

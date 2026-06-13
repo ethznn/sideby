@@ -179,6 +179,10 @@ public struct SBSStrings: Sendable {
         text("Following \(name)", "\(name) 따라가는 중")
     }
 
+    public var contextNeedsAlignment: String {
+        text("Displays need alignment", "디스플레이 정렬이 필요합니다")
+    }
+
     public func contextOrder(_ order: Int) -> String {
         text("Context \(order)", "컨텍스트 \(order)")
     }
