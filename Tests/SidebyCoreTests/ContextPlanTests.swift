@@ -585,4 +585,29 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(plan.currentContext?.name, "Context 3")
         XCTAssertEqual(plan.syncState, .needsSync)
     }
+
+    func testShouldTrackCurrentContextRequiresEnabledAndPinned() {
+        var plan = ContextPlan.default
+
+        XCTAssertTrue(
+            ExternalSpaceChangeContextPolicy.shouldTrackCurrentContext(isSidebyEnabled: true, plan: plan)
+        )
+        XCTAssertFalse(
+            ExternalSpaceChangeContextPolicy.shouldTrackCurrentContext(isSidebyEnabled: false, plan: plan)
+        )
+
+        plan.setPinned(false)
+        XCTAssertFalse(
+            ExternalSpaceChangeContextPolicy.shouldTrackCurrentContext(isSidebyEnabled: true, plan: plan)
+        )
+    }
+
+    func testShouldTrackCurrentContextEvenWhenNeedsSync() {
+        var plan = ContextPlan.default
+        plan.markNeedsSync()
+
+        XCTAssertTrue(
+            ExternalSpaceChangeContextPolicy.shouldTrackCurrentContext(isSidebyEnabled: true, plan: plan)
+        )
+    }
 }
