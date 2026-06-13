@@ -589,6 +589,19 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(viewState.title, "2 displays connected")
         XCTAssertEqual(viewState.step, .displayCheck)
     }
+
+    func testAlignAndTrackingStringsLocalize() {
+        let korean = SBSStrings(language: .korean)
+        let english = SBSStrings(language: .english)
+
+        XCTAssertEqual(english.alignDisplays, "Align Displays")
+        XCTAssertEqual(korean.alignDisplays, "컨텍스트 맞추기")
+        XCTAssertEqual(korean.alignedToContext("Docs"), "Docs에 맞췄습니다")
+        XCTAssertEqual(english.alignedToContext("Docs"), "Aligned to Docs")
+        XCTAssertEqual(korean.alignFailed, "맞추지 못했습니다 — 컨텍스트를 다시 캡처해 주세요")
+        XCTAssertEqual(english.followingContext("Docs"), "Following Docs")
+        XCTAssertEqual(korean.localizedActionLabel("Align Displays"), "컨텍스트 맞추기")
+    }
 }
 
 private extension RuntimeState {

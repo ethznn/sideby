@@ -165,6 +165,20 @@ public struct SBSStrings: Sendable {
         )
     }
 
+    public var alignDisplays: String { text("Align Displays", "컨텍스트 맞추기") }
+
+    public func alignedToContext(_ name: String) -> String {
+        text("Aligned to \(name)", "\(name)에 맞췄습니다")
+    }
+
+    public var alignFailed: String {
+        text("Couldn't align — capture Contexts again", "맞추지 못했습니다 — 컨텍스트를 다시 캡처해 주세요")
+    }
+
+    public func followingContext(_ name: String) -> String {
+        text("Following \(name)", "\(name) 따라가는 중")
+    }
+
     public func contextOrder(_ order: Int) -> String {
         text("Context \(order)", "컨텍스트 \(order)")
     }
@@ -465,6 +479,8 @@ public struct SBSStrings: Sendable {
             text("Add Desktop", "데스크탑 추가")
         case "Open Accessibility Settings":
             accessibilitySettings
+        case "Align Displays":
+            alignDisplays
         case .some(let label):
             label
         case nil:
