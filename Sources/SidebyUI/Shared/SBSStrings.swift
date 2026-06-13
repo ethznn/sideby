@@ -175,6 +175,14 @@ public struct SBSStrings: Sendable {
         text("Couldn't align — capture Contexts again", "맞추지 못했습니다 — 컨텍스트를 다시 캡처해 주세요")
     }
 
+    public var alignFeedbackAlreadyAligned: String {
+        text("Aligned", "정렬됨")
+    }
+
+    public var alignFeedbackNotInContext: String {
+        text("Not in this Context", "이 Context에 없음")
+    }
+
     public func followingContext(_ name: String) -> String {
         text("Following \(name)", "\(name) 따라가는 중")
     }

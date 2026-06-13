@@ -487,44 +487,73 @@ private final class ProductContextHUDController {
     }
 
     func show(_ state: HUDPresentationState, displayIDs: Set<String>, displayLayout: DisplayLayout) {
-        show(state, screens: screens(for: displayIDs, displayLayout: displayLayout))
+        let screens = screens(for: displayIDs, displayLayout: displayLayout)
+        show(screenStates: screens.map { ($0, state) }, timing: state)
+    }
+
+    func show(
+        statesByDisplayID: [String: HUDPresentationState],
+        displayLayout: DisplayLayout,
+        timing: HUDPresentationState
+    ) {
+        let screenStates = displayLayout.displays.compactMap { display -> (NSScreen, HUDPresentationState)? in
+            guard let state = statesByDisplayID[display.id],
+                  let screen = screen(forDisplayID: display.id)
+            else {
+                return nil
+            }
+            return (screen, state)
+        }
+        show(screenStates: screenStates, timing: timing)
     }
 
     private func show(_ state: HUDPresentationState, screens requestedScreens: [NSScreen]) {
+        show(screenStates: requestedScreens.map { ($0, state) }, timing: state)
+    }
+
+    private func show(
+        screenStates requestedScreenStates: [(NSScreen, HUDPresentationState)],
+        timing: HUDPresentationState
+    ) {
         let generation = presentationGeneration.advance()
         hideWorkItem?.cancel()
 
-        let screens = requestedScreens.isEmpty
-            ? [NSScreen.main ?? NSScreen.screens.first].compactMap(\.self)
-            : requestedScreens
-        guard !screens.isEmpty else {
+        let screenStates = requestedScreenStates.isEmpty
+            ? [NSScreen.main ?? NSScreen.screens.first].compactMap(\.self).map { ($0, timing) }
+            : requestedScreenStates
+        guard !screenStates.isEmpty else {
             return
         }
 
-        while panels.count < screens.count {
+        while panels.count < screenStates.count {
             panels.append(makePanel())
         }
 
         var activePanels: [NSPanel] = []
         for (index, panel) in panels.enumerated() {
-            guard index < screens.count else {
+            guard index < screenStates.count else {
                 panel.orderOut(nil)
                 continue
             }
 
+            let (screen, state) = screenStates[index]
             panel.alphaValue = 1
             let hostingController = NSHostingController(rootView: HUDView(state: state))
             panel.contentViewController = hostingController
             applyContentSize(to: panel, hostingView: hostingController.view, state: state)
-            position(panel, on: screens[index])
+            position(panel, on: screen)
             panel.orderFrontRegardless()
             panel.displayIfNeeded()
-            position(panel, on: screens[index])
-            recenterAfterLayout(panel, on: screens[index])
+            position(panel, on: screen)
+            recenterAfterLayout(panel, on: screen)
             activePanels.append(panel)
         }
 
-        scheduleFadeOut(activePanels, state: state, generation: generation)
+        scheduleFadeOut(activePanels, state: timing, generation: generation)
+    }
+
+    private func screen(forDisplayID displayID: String) -> NSScreen? {
+        NSScreen.screens.first { Self.stableDisplayID(for: $0) == displayID }
     }
 
     private func makePanel() -> NSPanel {
@@ -972,17 +1001,22 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     func alignDisplaysToCurrentSpace() {
         guard !isSwitching, contextCaptureSession == nil else {
+            Self.contextCaptureLog.notice("align-debug abort isSwitching=\(self.isSwitching, privacy: .public) capturing=\(self.contextCaptureSession != nil, privacy: .public)")
             return
         }
         guard let displays = selectedDisplaySpaces(), !displays.isEmpty else {
+            Self.contextCaptureLog.notice("align-debug selectedDisplaySpaces=nil-or-empty selected=\(self.selectedDisplayIDs.count, privacy: .public)")
             lastSwitchResult = strings.alignFailed
             return
         }
+        Self.contextCaptureLog.notice("align-debug displays=\(displays.map { "\($0.displayID):count=\($0.spaceCount):idx=\($0.currentSpaceIndex)" }.joined(separator: ","), privacy: .public)")
 
         let referenceID = alignmentReferenceDisplayID() ?? displays[0].displayID
         let reference = displays.first { $0.displayID == referenceID } ?? displays[0]
         let targetOrder = reference.currentSpaceIndex + 1
+        Self.contextCaptureLog.notice("align-debug referenceID=\(referenceID, privacy: .public) resolved=\(reference.displayID, privacy: .public) targetOrder=\(targetOrder, privacy: .public) contextOrders=\(self.settings.contextPlan.contexts.map(\.order), privacy: .public)")
         guard let target = settings.contextPlan.contexts.first(where: { $0.order == targetOrder }) else {
+            Self.contextCaptureLog.notice("align-debug no-context-for-order=\(targetOrder, privacy: .public)")
             lastSwitchResult = strings.alignFailed
             return
         }
@@ -992,6 +1026,13 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 && target.displayIDs.contains(display.displayID)
                 && display.currentSpaceIndex != targetOrder - 1
         }
+        Self.contextCaptureLog.notice("align-debug target=\(target.id, privacy: .public) members=\(target.displayIDs, privacy: .public) moves=\(moves.map(\.displayID), privacy: .public)")
+
+        let alignFeedback = AlignFeedbackPolicy.feedback(
+            displays: displays,
+            referenceDisplayID: reference.displayID,
+            targetContext: target
+        )
 
         guard !moves.isEmpty else {
             updateContextPlan { plan in
@@ -1001,6 +1042,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 settings.contextPlan.currentContext?.name ?? target.name
             )
             diagnostics = currentDiagnostics()
+            showAlignFeedbackHUD(alignFeedback)
             return
         }
 
@@ -1074,6 +1116,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     self.lastSwitchResult = self.strings.alignedToContext(
                         self.settings.contextPlan.currentContext?.name ?? target.name
                     )
+                    self.showAlignFeedbackHUD(alignFeedback)
                 } else {
                     self.updateContextPlan { plan in
                         plan.markNeedsSync()
@@ -1086,6 +1129,43 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 )
             }
         }
+    }
+
+    private func showAlignFeedbackHUD(_ feedback: [AlignDisplayFeedback]) {
+        guard !feedback.isEmpty else {
+            return
+        }
+
+        let statesByDisplayID = Dictionary(
+            feedback.map { ($0.displayID, Self.alignFeedbackHUDState(text: alignFeedbackText(for: $0.reason))) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        ProductContextHUDController.shared.show(
+            statesByDisplayID: statesByDisplayID,
+            displayLayout: displayLayout,
+            timing: Self.alignFeedbackHUDTiming
+        )
+    }
+
+    private func alignFeedbackText(for reason: AlignFeedbackReason) -> String {
+        switch reason {
+        case .alreadyAligned:
+            strings.alignFeedbackAlreadyAligned
+        case .notInContext:
+            strings.alignFeedbackNotInContext
+        }
+    }
+
+    private static let alignFeedbackHUDTiming = alignFeedbackHUDState(text: "")
+
+    private static func alignFeedbackHUDState(text: String) -> HUDPresentationState {
+        HUDPresentationState(
+            text: text,
+            duration: 1.8,
+            fadeOutDuration: 0.3,
+            visualScale: 2.0,
+            backgroundOpacity: 0.66
+        )
     }
 
     /// Display hosting the Sideby window, falling back to the display under
