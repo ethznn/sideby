@@ -832,7 +832,14 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         if settings.contextPlan.isPinned,
            settings.contextPlan.syncState == .needsSync,
            let diagnostic = settings.contextPlan.navigation(for: .next).diagnostic {
-            values.append(diagnostic)
+            values.append(
+                DiagnosticState(
+                    severity: diagnostic.severity,
+                    title: diagnostic.title,
+                    message: diagnostic.message,
+                    actionLabel: "Align Displays"
+                )
+            )
         }
 
         return values
@@ -961,6 +968,152 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         updateContextPlan { plan in
             _ = plan.setCurrentContext(id: contextID)
         }
+    }
+
+    func alignDisplaysToCurrentSpace() {
+        guard !isSwitching, contextCaptureSession == nil else {
+            return
+        }
+        guard let displays = selectedDisplaySpaces(), !displays.isEmpty else {
+            lastSwitchResult = strings.alignFailed
+            return
+        }
+
+        let referenceID = alignmentReferenceDisplayID() ?? displays[0].displayID
+        let reference = displays.first { $0.displayID == referenceID } ?? displays[0]
+        let targetOrder = reference.currentSpaceIndex + 1
+        guard let target = settings.contextPlan.contexts.first(where: { $0.order == targetOrder }) else {
+            lastSwitchResult = strings.alignFailed
+            return
+        }
+
+        let moves = displays.filter { display in
+            display.displayID != reference.displayID
+                && target.displayIDs.contains(display.displayID)
+                && display.currentSpaceIndex != targetOrder - 1
+        }
+
+        guard !moves.isEmpty else {
+            updateContextPlan { plan in
+                _ = plan.setCurrentContext(id: target.id)
+            }
+            lastSwitchResult = strings.alignedToContext(
+                settings.contextPlan.currentContext?.name ?? target.name
+            )
+            diagnostics = currentDiagnostics()
+            return
+        }
+
+        isSwitching = true
+        ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(30)
+        switchSessionID += 1
+        let sessionID = switchSessionID
+        let reader = spaceLayoutReader
+        let mapping = DisplayLayoutMapper.stableIDsByUUID(
+            snapshots: displayObserver.currentSnapshots(),
+            uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
+        )
+        let targetIndex = targetOrder - 1
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            func readIndexes() -> [String: Int]? {
+                guard let layouts = reader.readLayout() else {
+                    return nil
+                }
+                var indexes: [String: Int] = [:]
+                for layout in layouts {
+                    guard let stableID = mapping[layout.displayUUID],
+                          let index = layout.spaceIDs.firstIndex(of: layout.currentSpaceID)
+                    else {
+                        continue
+                    }
+                    indexes[stableID] = index
+                }
+                return indexes
+            }
+
+            let acknowledger = SpaceLayoutStepAcknowledger()
+            var didAlignAll = true
+
+            for move in moves {
+                var index = move.currentSpaceIndex
+                while index != targetIndex {
+                    let command: SwitchCommand = index < targetIndex ? .next : .previous
+                    let targetProvider = CGDisplaySwitchTargetProvider(
+                        includedStableIDs: [move.displayID]
+                    )
+                    let executor = HiddenCursorDisplaySpaceCommandExecutor(
+                        baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                        targetProvider: targetProvider
+                    )
+                    guard executor.execute(command),
+                          let newIndex = acknowledger.waitForIndexChange(
+                              of: move.displayID,
+                              from: index,
+                              timeout: 1.0,
+                              readIndexes: readIndexes
+                          )
+                    else {
+                        didAlignAll = false
+                        break
+                    }
+                    index = newIndex
+                }
+                if !didAlignAll {
+                    break
+                }
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.switchSessionID == sessionID else {
+                    return
+                }
+                self.isSwitching = false
+                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
+                if didAlignAll {
+                    self.updateContextPlan { plan in
+                        _ = plan.setCurrentContext(id: target.id)
+                    }
+                    self.lastSwitchResult = self.strings.alignedToContext(
+                        self.settings.contextPlan.currentContext?.name ?? target.name
+                    )
+                } else {
+                    self.updateContextPlan { plan in
+                        plan.markNeedsSync()
+                    }
+                    self.lastSwitchResult = self.strings.alignFailed
+                }
+                self.diagnostics = self.currentDiagnostics()
+                Self.contextCaptureLog.notice(
+                    "align-displays target=\(target.id, privacy: .public) moved=\(moves.count, privacy: .public) success=\(didAlignAll, privacy: .public)"
+                )
+            }
+        }
+    }
+
+    /// Display hosting the Sideby window, falling back to the display under
+    /// the cursor. Used as the alignment reference ("the screen the button
+    /// was pressed on").
+    private func alignmentReferenceDisplayID() -> String? {
+        let snapshots = displayObserver.currentSnapshots()
+        func stableID(for screen: NSScreen?) -> String? {
+            guard
+                let number = screen?.deviceDescription[
+                    NSDeviceDescriptionKey("NSScreenNumber")
+                ] as? NSNumber,
+                let snapshot = snapshots.first(where: { $0.displayID == number.uint32Value })
+            else {
+                return nil
+            }
+            return DisplayLayoutMapper.stableID(for: snapshot)
+        }
+
+        if let windowScreen = NSApp.keyWindow?.screen, let id = stableID(for: windowScreen) {
+            return id
+        }
+        let mouseLocation = NSEvent.mouseLocation
+        let cursorScreen = NSScreen.screens.first { $0.frame.contains(mouseLocation) }
+        return stableID(for: cursorScreen)
     }
 
     /// Reads the live Space layout for the selected displays, in layout
@@ -3526,6 +3679,13 @@ private struct ContextCaptureControlsView: View {
                     .pointingHandCursor()
                 }
 
+                Button(strings.alignDisplays) {
+                    model.alignDisplaysToCurrentSpace()
+                }
+                .buttonStyle(.bordered)
+                .disabled(model.isSwitching || model.contextCaptureSession != nil)
+                .pointingHandCursor()
+
                 Spacer(minLength: 8)
 
                 Text(strings.contextsToCapture(SidebyAppModel.automaticContextCaptureLimit))
@@ -4122,6 +4282,14 @@ private struct DiagnosticsView: View {
                             Text(strings.localizedDiagnosticMessage(diagnostic.message))
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
+                            if diagnostic.actionLabel == "Align Displays" {
+                                Button(strings.alignDisplays) {
+                                    model.alignDisplaysToCurrentSpace()
+                                }
+                                .font(.caption)
+                                .buttonStyle(.bordered)
+                                .pointingHandCursor()
+                            }
                         }
                     }
                 }
