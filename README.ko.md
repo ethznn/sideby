@@ -16,22 +16,23 @@ Sideby는 Mission Control 대체제나 전체 윈도우 매니저가 아닙니�
 
 Sideby는 한 작업 컨텍스트를 여러 디스플레이에 나눠 정리해두고 싶은 생각에서 출발했습니다. 각 화면에는 같은 일의 서로 다른 조각이 놓여 있고, 컨텍스트를 바꿀 때는 그 화면 묶음이 디스플레이별로 따로 움직이는 대신 함께 이동하면 좋겠다고 봤습니다.
 
-Sideby의 목표는 멀티 디스플레이 환경을 하나의 작업공간처럼 묶고, 그 작업공간을 한 번의 의도적인 행동으로 옮기는 것입니다. 범위는 작게 유지하고, 공개 macOS API만 사용하며, 권한이나 Space 한계가 있을 때는 가능한 척하지 않고 명확한 진단으로 설명합니다.
+Sideby의 목표는 멀티 디스플레이 환경을 하나의 작업공간처럼 묶고, 그 작업공간을 한 번의 의도적인 행동으로 옮기는 것입니다. 범위는 작게 유지하고, 권한이나 Space 한계가 있을 때는 가능한 척하지 않고 명확한 진단으로 설명합니다.
 
 ## 현재 상태
 
-Sideby는 pre-1.0 소프트웨어입니다. 0.2.1은 Context V2 안정성에 집중합니다. 메뉴바 중심 설정, 디스플레이 membership을 가진 이름 있는 Context, 더 탄탄한 Context Capture, Context-aware switching, 온보딩, 진단, 로컬 번들 스크립트를 개발 중입니다.
+Sideby는 pre-1.0 소프트웨어입니다. 0.3.0은 live Context 안정성에 집중합니다. macOS가 현재 Space layout을 제공할 때 즉시 동작하는 Context Capture, 디스플레이 membership을 가진 이름 있는 Context, Context-aware switching, Align Displays, 온보딩, 진단, 로컬 번들 스크립트를 개발 중입니다.
 
-현재 릴리즈 전략은 App Sandbox off 직접 배포입니다. Sideby는 공개 macOS API만 사용해야 하며 private Mission Control 또는 Spaces API에 의존하지 않습니다.
+현재 릴리즈 전략은 App Sandbox off 직접 배포입니다. Context Capture와 Align Displays는 가능할 때 read-only SkyLight layout query를 사용하고, layout query를 사용할 수 없으면 Capture Contexts는 더 느린 공개 명령 기반 fallback을 사용합니다. 따라서 Sideby는 Mac App Store 배포를 목표로 하지 않습니다.
 
 ## 기능
 
 - 여러 디스플레이를 빠르게 제어하는 리사이즈 가능한 메뉴바 설정 팝오버
 - 하나 이상의 디스플레이를 묶는 이름 있는 Context
 - 각 Context에 속한 디스플레이를 확인하는 Context matrix
-- 현재 디스플레이/Space 배치에서 Context 묶음을 만드는 Capture Contexts 흐름
+- 현재 디스플레이/Space 배치에서 Context 묶음을 즉시 만드는 Capture Contexts 흐름. layout query를 사용할 수 없으면 walk-based fallback을 사용합니다.
 - 일반 이동 모드에서 함께 전환할 디스플레이를 고르는 Move Targets
 - 현재 Context에 속한 디스플레이를 전환하는 Move by Contexts
+- 기준 디스플레이의 현재 Space가 나타내는 Context에 선택 디스플레이를 맞추는 Align Displays. 이미 정렬됐거나 해당 Context에 속하지 않은 디스플레이에는 화면 피드백을 표시합니다.
 - 공개 macOS 키보드 명령 경로를 통한 Previous/Next Screen Switching
 - 기본 입력 습관: `Option + Shift + horizontal swipe`
 - 메뉴바 설정 팝오버에서 켤 수 있는 선택적 Previous/Next 키보드 단축키
@@ -50,7 +51,7 @@ Sideby는 pre-1.0 소프트웨어입니다. 0.2.1은 Context V2 안정성에 집
 - 요청한 Space 전환 명령을 보내기 위한 Screen Switching access
 - 현재 V1 명령 경로에서 필요할 경우 System Events Automation 권한
 
-Sideby는 V1 Screen Switching을 위해 Screen Recording 권한을 요청하지 않습니다.
+Sideby는 Screen Switching, Context Capture, Align Displays를 위해 Screen Recording 권한을 요청하지 않습니다.
 
 ## 빠른 시작
 
@@ -110,6 +111,7 @@ scripts/build_app_bundle.sh
 Sources/
   SidebyApp/       product app, menu bar, panels, onboarding
   SidebyDevApp/    local probes and diagnostics
+  SidebyDevSupport/ local probe helpers used by SidebyDevApp
   SidebyCore/      domain models, gesture logic, settings, diagnostics
   SidebySystem/    macOS API adapters
   SidebyUI/        reusable SwiftUI views and view models
@@ -132,7 +134,7 @@ Tests/
 
 Sideby는 Sideby가 켜져 있을 때 설정된 제스처를 감지하기 위해 Accessibility 권한을 사용합니다. 사용자가 행동한 뒤 요청된 Previous/Next Space 명령을 보내기 위해 Screen Switching access를 사용합니다.
 
-Sideby는 입력 내용, raw input event, 스크린샷, private Space ID, app bundle ID, window ID, 숨겨진 Mission Control 상태를 저장하지 않습니다. Display Spaces 라벨은 사용자가 직접 작성하며 로컬에 저장됩니다.
+Sideby는 macOS가 제공할 때 현재 디스플레이별 Space layout을 런타임에 읽지만, private Space ID나 숨겨진 Mission Control 상태를 저장하지 않습니다. Sideby는 입력 내용, raw input event, 스크린샷, app bundle ID, window ID를 저장하지 않습니다. Context 정의, 디스플레이 membership, 단축키 설정, 사용자가 작성한 라벨은 로컬에 저장됩니다.
 
 ## 문서
 

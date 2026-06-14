@@ -29,6 +29,7 @@ Please treat these areas as sensitive:
 - Event tap input handling.
 - Global shortcuts.
 - Synthetic input and Space switching.
+- Read-only Space layout queries.
 - Apple Events and System Events Automation.
 - App bundle signing, entitlements, and direct distribution packaging.
 - Local settings persistence.

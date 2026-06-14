@@ -7,7 +7,8 @@ APP_NAME="Sideby.app"
 EXECUTABLE_NAME="Sideby"
 APP_BUNDLE_ID="${SIDEBY_BUNDLE_ID:-io.github.ethznn.sideby}"
 BUILD_NUMBER="${SIDEBY_BUILD_NUMBER:-1}"
-VERSION="${SIDEBY_VERSION:-0.2.1}"
+VERSION="${SIDEBY_VERSION:-0.3.0}"
+BUILD_CONFIGURATION="${SIDEBY_BUILD_CONFIGURATION:-release}"
 # Protected product-bundle decision: keep sandbox off for the current direct
 # distribution baseline unless the user explicitly approves a release-strategy change.
 APP_SANDBOX="${SIDEBY_APP_SANDBOX:-0}"
@@ -23,8 +24,8 @@ cd "$ROOT_DIR"
 ENTITLEMENTS_FILE="$(mktemp "${TMPDIR:-/tmp}/sideby-entitlements.XXXXXX.plist")"
 trap 'rm -f "$ENTITLEMENTS_FILE"' EXIT
 
-swift build --product "$PRODUCT_NAME"
-BUILD_DIR="$(swift build --show-bin-path)"
+swift build -c "$BUILD_CONFIGURATION" --product "$PRODUCT_NAME"
+BUILD_DIR="$(swift build -c "$BUILD_CONFIGURATION" --show-bin-path)"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"

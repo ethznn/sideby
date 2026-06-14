@@ -3,6 +3,7 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 import SidebyCore
+import SidebySystem
 
 public struct AXFocusAnchorResult: Equatable, Sendable {
     public let point: CGPoint

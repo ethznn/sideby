@@ -16,22 +16,23 @@ Sideby does not replace Mission Control and is not a full window manager. It foc
 
 Sideby started from a simple way of organizing work: keep one context spread across multiple displays, with each screen holding a useful part of the same task. When the context changes, those screens should move together instead of being switched one display at a time.
 
-The goal is to make a multi-display setup feel like one workspace that can move as a set. Sideby keeps the scope small, uses public macOS APIs, and explains permission or Space limitations clearly instead of pretending that macOS exposes perfect control over every display.
+The goal is to make a multi-display setup feel like one workspace that can move as a set. Sideby keeps the scope small and explains permission or Space limitations clearly instead of pretending that macOS exposes perfect control over every display.
 
 ## Status
 
-Sideby is pre-1.0 software. Version 0.2.1 focuses on Context V2 reliability: a menu-bar-first settings surface, named Contexts with display membership, more resilient Context Capture, Context-aware switching, onboarding, diagnostics, and local bundle scripts.
+Sideby is pre-1.0 software. Version 0.3.0 focuses on live Context reliability: instant Context Capture when macOS exposes the current Space layout, named Contexts with display membership, Context-aware switching, Align Displays, onboarding, diagnostics, and local bundle scripts.
 
-The current release strategy is direct distribution with App Sandbox off. Sideby must continue to use public macOS APIs only; it does not depend on private Mission Control or Spaces APIs.
+The current release strategy is direct distribution with App Sandbox off. Context Capture and Align Displays use a read-only SkyLight layout query when it is available, with a slower public-command fallback for capture. This means Sideby is not targeting Mac App Store distribution.
 
 ## Features
 
 - Menu bar app with a resizable settings popover for quick control across multiple displays.
 - Named Contexts for workspaces that span one or more displays.
 - Context matrix for reviewing which displays belong to each Context.
-- Capture Contexts flow for building a Context set from the current display/Space arrangement.
+- Instant Capture Contexts flow for building a Context set from the current display/Space arrangement, with a walk-based fallback when the layout query is unavailable.
 - Move Targets for selecting which displays should switch together in general movement mode.
 - Move by Contexts for switching the displays that belong to the current Context.
+- Align Displays for bringing the selected displays back to the Context represented by the reference display's current Space, with on-display feedback when a display is already aligned or not part of that Context.
 - Previous/Next Screen Switching through public macOS keyboard-command paths.
 - Default input habit: `Option + Shift + horizontal swipe`.
 - Optional Previous/Next keyboard shortcuts from the menu bar settings popover.
@@ -50,7 +51,7 @@ The current release strategy is direct distribution with App Sandbox off. Sideby
 - Screen Switching access for posting the requested Space switch command.
 - System Events Automation permission when the current V1 command path needs it.
 
-Sideby does not request Screen Recording for V1 Screen Switching.
+Sideby does not request Screen Recording for Screen Switching, Context Capture, or Align Displays.
 
 ## Quick Start
 
@@ -110,6 +111,7 @@ The repository is split into small SwiftPM modules:
 Sources/
   SidebyApp/       product app, menu bar, panels, onboarding
   SidebyDevApp/    local probes and diagnostics
+  SidebyDevSupport/ local probe helpers used by SidebyDevApp
   SidebyCore/      domain models, gesture logic, settings, diagnostics
   SidebySystem/    macOS API adapters
   SidebyUI/        reusable SwiftUI views and view models
@@ -132,7 +134,7 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for setup notes and [docs/DECISIO
 
 Sideby uses Accessibility permission to detect the configured gesture while Sideby is on. It uses Screen Switching access to send the requested previous/next Space command after the user acts.
 
-Sideby does not store typed input, raw input events, screenshots, private Space IDs, app bundle IDs, window IDs, or hidden Mission Control state. Display Spaces labels are user-authored and stored locally.
+Sideby reads the current per-display Space layout at runtime when macOS makes it available, but it does not store private Space IDs or hidden Mission Control state. Sideby does not store typed input, raw input events, screenshots, app bundle IDs, or window IDs. Context definitions, display membership, shortcut settings, and user-authored labels are stored locally.
 
 ## Documentation
 

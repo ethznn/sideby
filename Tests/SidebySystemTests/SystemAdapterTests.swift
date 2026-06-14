@@ -2,6 +2,7 @@ import ApplicationServices
 import CoreGraphics
 import XCTest
 @testable import SidebyCore
+@testable import SidebyDevSupport
 @testable import SidebySystem
 
 final class SystemAdapterTests: XCTestCase {

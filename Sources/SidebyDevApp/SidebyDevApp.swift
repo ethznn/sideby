@@ -1,4 +1,5 @@
 import SidebyCore
+import SidebyDevSupport
 import SidebySystem
 import SidebyUI
 import AppKit

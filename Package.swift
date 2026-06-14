@@ -44,10 +44,18 @@ let package = Package(
                 "SidebySystem"
             ]
         ),
+        .target(
+            name: "SidebyDevSupport",
+            dependencies: [
+                "SidebyCore",
+                "SidebySystem"
+            ]
+        ),
         .executableTarget(
             name: "SidebyDevApp",
             dependencies: [
                 "SidebyCore",
+                "SidebyDevSupport",
                 "SidebySystem",
                 "SidebyUI"
             ]
@@ -68,6 +76,7 @@ let package = Package(
             name: "SidebySystemTests",
             dependencies: [
                 "SidebyCore",
+                "SidebyDevSupport",
                 "SidebySystem"
             ]
         ),

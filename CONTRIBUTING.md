@@ -34,11 +34,11 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the short development referen
 - Run `swift test` before submitting.
 - Include screenshots or recordings for visible UI changes when helpful.
 
-For permission flow, global input, synthetic input, Space switching, app signing, sandboxing, or distribution changes, open an issue first. Those areas have user trust and release implications.
+For permission flow, global input, synthetic input, Space switching, Space layout reading, app signing, sandboxing, or distribution changes, open an issue first. Those areas have user trust and release implications.
 
 ## Technical Boundaries
 
-Sideby intentionally avoids private Mission Control and Spaces APIs. The current technical boundaries are listed in [docs/DECISIONS.md](docs/DECISIONS.md).
+Sideby uses a small read-only SkyLight layout query for Context Capture, live Context matching, and Align Displays. Keep that private-API surface isolated and documented. The current technical boundaries are listed in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 These boundaries are meant to protect users and keep the project maintainable. They are not intended to prevent new product ideas.
 

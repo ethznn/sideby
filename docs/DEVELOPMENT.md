@@ -22,6 +22,8 @@ scripts/build_app_bundle.sh
 scripts/build_dev_app_bundle.sh
 ```
 
+`build_app_bundle.sh` defaults to a release build. Override with `SIDEBY_BUILD_CONFIGURATION=debug` when you need a faster local product build. `build_dev_app_bundle.sh` defaults to debug.
+
 Build the release DMG:
 
 ```bash
@@ -34,7 +36,7 @@ Open the package in Xcode:
 xed Package.swift
 ```
 
-Use `SidebyApp` for the product app and `SidebyDevApp` for local probes.
+Use `SidebyApp` for the product app and `SidebyDevApp` for local probes. Probe-only helpers live in `SidebyDevSupport` so the product app does not carry command-line experiment runners.
 
 ## Repository Shape
 
@@ -42,6 +44,7 @@ Use `SidebyApp` for the product app and `SidebyDevApp` for local probes.
 Sources/
   SidebyApp/       product app
   SidebyDevApp/    local development harness
+  SidebyDevSupport/ local probe helpers
   SidebyCore/      domain models and pure logic
   SidebySystem/    macOS system adapters
   SidebyUI/        reusable SwiftUI views

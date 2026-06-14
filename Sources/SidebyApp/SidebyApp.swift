@@ -13,11 +13,6 @@ struct SidebyApp: App {
     @AppStorage("sideby.v1.onboarding-complete") private var didCompleteOnboarding = false
 
     init() {
-        if ProductCommandLineRunner.runIfRequested() {
-            Thread.sleep(forTimeInterval: 0.2)
-            exit(0)
-        }
-
         if SingleInstanceGuard.activateExistingApplicationAndReturnShouldTerminate() {
             Thread.sleep(forTimeInterval: 0.1)
             exit(0)
@@ -154,276 +149,6 @@ private final class SidebyAppObserverTokens {
         }
         if let externalSpaceObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(externalSpaceObserver)
-        }
-    }
-}
-
-private enum ProductCommandLineRunner {
-    private static let probeLog = Logger(
-        subsystem: "dev.sideby.Sideby",
-        category: "ProductProbe"
-    )
-
-    static func runIfRequested(arguments: [String] = CommandLine.arguments) -> Bool {
-        guard let strategyName = argumentValue(after: "--probe-product-input-strategy", in: arguments),
-              let strategy = ProductInputProbeStrategy(rawValue: strategyName)
-        else {
-            return false
-        }
-
-        let count = argumentValue(after: "--count", in: arguments).flatMap(Int.init) ?? 1
-        runInputStrategyProbe(strategy: strategy, count: max(1, count))
-        return true
-    }
-
-    private static func runInputStrategyProbe(strategy: ProductInputProbeStrategy, count: Int) {
-        let timing = HiddenSwitchTimingConfiguration.optimizedCandidate
-        var nextConfirmed = 0
-        var previousConfirmed = 0
-        var totalElapsed: TimeInterval = 0
-        printAndLog("ProductInputStrategy[\(strategy.rawValue)]: start count=\(count)")
-
-        for index in 1...count {
-            let next = execute(strategy: strategy, command: .next, timing: timing)
-            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-            let previous = execute(strategy: strategy, command: .previous, timing: timing)
-            if next.isAckConfirmedSuccess {
-                nextConfirmed += 1
-            }
-            if previous.isAckConfirmedSuccess {
-                previousConfirmed += 1
-            }
-            totalElapsed += next.elapsedSeconds + previous.elapsedSeconds
-            printAndLog("ProductInputStrategyRun[\(strategy.rawValue)] \(index): \(next.summary) | \(previous.summary)")
-            RunLoop.current.run(until: Date().addingTimeInterval(0.35))
-        }
-
-        printAndLog(
-            "ProductInputStrategySummary[\(strategy.rawValue)]: nextConfirmed=\(nextConfirmed)/\(count), previousConfirmed=\(previousConfirmed)/\(count), avgRoundTripElapsed=\(String(format: "%.2f", totalElapsed / Double(count)))s"
-        )
-    }
-
-    private static func execute(
-        strategy: ProductInputProbeStrategy,
-        command: SwitchCommand,
-        timing: HiddenSwitchTimingConfiguration
-    ) -> AckingHiddenSwitchProbeResult {
-        releaseAllProbeModifiers()
-        applyHeldModifiers(for: strategy)
-        defer {
-            releaseAllProbeModifiers()
-        }
-
-        let targetProvider = CGDisplaySwitchTargetProvider()
-        let executor = HiddenCursorDisplaySpaceCommandExecutor(
-            baseExecutor: strategy.spaceCommandExecutor,
-            targetProvider: targetProvider,
-            hideSettleDelay: timing.hideSettleDelay,
-            focusDelay: timing.focusDelay,
-            switchDelay: timing.switchDelay,
-            transitionSettleDelay: timing.transitionSettleDelay,
-            restoreDelay: timing.restoreDelay
-        )
-        let runner = AckingHiddenSpaceCommandRunner(
-            executor: executor,
-            targetProvider: targetProvider,
-            activeSpaceObserver: NSWorkspaceActiveSpaceChangeObserver(),
-            windowSnapshotProvider: CGWindowListSnapshotProvider(),
-            timing: timing
-        )
-        return runner.executeWithDiagnostics(command)
-    }
-
-    private static func applyHeldModifiers(for strategy: ProductInputProbeStrategy) {
-        switch strategy {
-        case .button, .releaseSwipe, .releaseKeyboard, .suppressSwipe, .suppressKeyboard:
-            break
-        case .immediateSwipe, .privateSwipe, .privateSessionSwipe, .rewriteSwipe:
-            setModifiers(probeModifiers(for: AppSettings.defaultGestureModifiers), isDown: true)
-        case .immediateKeyboard, .privateKeyboard, .privateSessionKeyboard, .rewriteKeyboard:
-            setModifiers(probeModifiers(for: AppSettings.defaultShortcutModifiers), isDown: true)
-        case .controlSwipe:
-            setModifiers([.control], isDown: true)
-        }
-    }
-
-    private static func probeModifiers(for modifiers: ModifierFlags) -> [ProbeModifier] {
-        var probeModifiers: [ProbeModifier] = []
-        if modifiers.contains(.shift) {
-            probeModifiers.append(.shift)
-        }
-        if modifiers.contains(.option) {
-            probeModifiers.append(.option)
-        }
-        if modifiers.contains(.command) {
-            probeModifiers.append(.command)
-        }
-        if modifiers.contains(.control) {
-            probeModifiers.append(.control)
-        }
-        return probeModifiers
-    }
-
-    private static func releaseAllProbeModifiers() {
-        setModifiers([.shift, .option, .command, .control], isDown: false)
-    }
-
-    private static func setModifiers(_ modifiers: [ProbeModifier], isDown: Bool) {
-        guard !modifiers.isEmpty else {
-            return
-        }
-
-        let flags = combinedFlags(for: modifiers, isDown: isDown)
-        let source = CGEventSource(stateID: .hidSystemState)
-        for modifier in modifiers {
-            guard let event = CGEvent(
-                keyboardEventSource: source,
-                virtualKey: modifier.keyCode,
-                keyDown: isDown
-            ) else {
-                continue
-            }
-            event.flags = flags
-            event.post(tap: .cghidEventTap)
-        }
-        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-    }
-
-    private static func combinedFlags(for modifiers: [ProbeModifier], isDown: Bool) -> CGEventFlags {
-        guard isDown else {
-            return []
-        }
-
-        return modifiers.reduce(into: CGEventFlags()) { flags, modifier in
-            flags.insert(modifier.cgFlag)
-        }
-    }
-
-    @discardableResult
-    private static func runSystemEventsScript(_ source: String) -> Bool {
-        guard let script = NSAppleScript(source: source) else {
-            return false
-        }
-        var error: NSDictionary?
-        _ = script.executeAndReturnError(&error)
-        if let error {
-            printAndLog("ProductInputStrategyScriptError: \(error)")
-            return false
-        }
-        return true
-    }
-
-    private static func printAndLog(_ message: String) {
-        print(message)
-        NSLog("%@", message)
-        probeLog.notice("\(message, privacy: .public)")
-        let line = "\(Date()) \(message)\n"
-        guard let data = line.data(using: .utf8) else {
-            return
-        }
-        let urls = [
-            URL(fileURLWithPath: "/tmp/sideby-product-probe.log"),
-            FileManager.default.temporaryDirectory.appendingPathComponent("sideby-product-probe.log")
-        ]
-        for url in urls {
-            append(data, to: url)
-        }
-    }
-
-    private static func append(_ data: Data, to url: URL) {
-        if FileManager.default.fileExists(atPath: url.path),
-           let handle = try? FileHandle(forWritingTo: url) {
-            defer { try? handle.close() }
-            _ = try? handle.seekToEnd()
-            _ = try? handle.write(contentsOf: data)
-            return
-        }
-        try? data.write(to: url)
-    }
-
-    private static func argumentValue(after flag: String, in arguments: [String]) -> String? {
-        guard let index = arguments.firstIndex(of: flag) else {
-            return nil
-        }
-        let valueIndex = arguments.index(after: index)
-        guard valueIndex < arguments.endIndex else {
-            return nil
-        }
-        return arguments[valueIndex]
-    }
-}
-
-private enum ProductInputProbeStrategy: String {
-    case button
-    case immediateSwipe = "immediate-swipe"
-    case releaseSwipe = "release-swipe"
-    case suppressSwipe = "suppress-swipe"
-    case controlSwipe = "control-swipe"
-    case privateSwipe = "private-swipe"
-    case privateSessionSwipe = "private-session-swipe"
-    case rewriteSwipe = "rewrite-swipe"
-    case immediateKeyboard = "immediate-keyboard"
-    case releaseKeyboard = "release-keyboard"
-    case suppressKeyboard = "suppress-keyboard"
-    case privateKeyboard = "private-keyboard"
-    case privateSessionKeyboard = "private-session-keyboard"
-    case rewriteKeyboard = "rewrite-keyboard"
-
-    var spaceCommandExecutor: any SpaceCommandExecuting {
-        switch self {
-        case .button, .releaseSwipe, .releaseKeyboard, .suppressSwipe, .suppressKeyboard, .controlSwipe:
-            MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster())
-        case .immediateSwipe:
-            AppleScriptModifierNeutralizingSpaceCommandExecutor(modifiers: AppSettings.defaultGestureModifiers)
-        case .immediateKeyboard:
-            AppleScriptModifierNeutralizingSpaceCommandExecutor(modifiers: AppSettings.defaultShortcutModifiers)
-        case .privateSwipe, .privateKeyboard:
-            PrivateCGEventSpaceCommandExecutor()
-        case .privateSessionSwipe, .privateSessionKeyboard:
-            PrivateCGEventSpaceCommandExecutor(
-                poster: CGEventKeyEventPoster(
-                    tap: .cgSessionEventTap,
-                    sourceStateID: .privateState,
-                    sendsModifierFlagEvents: false
-                )
-            )
-        case .rewriteSwipe, .rewriteKeyboard:
-            EventTapModifierRewritingSpaceCommandExecutor(
-                baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster())
-            )
-        }
-    }
-}
-
-private enum ProbeModifier {
-    case shift
-    case option
-    case command
-    case control
-
-    var keyCode: CGKeyCode {
-        switch self {
-        case .shift:
-            56
-        case .option:
-            58
-        case .command:
-            55
-        case .control:
-            59
-        }
-    }
-
-    var cgFlag: CGEventFlags {
-        switch self {
-        case .shift:
-            .maskShift
-        case .option:
-            .maskAlternate
-        case .command:
-            .maskCommand
-        case .control:
-            .maskControl
         }
     }
 }
@@ -1001,22 +726,17 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     func alignDisplaysToCurrentSpace() {
         guard !isSwitching, contextCaptureSession == nil else {
-            Self.contextCaptureLog.notice("align-debug abort isSwitching=\(self.isSwitching, privacy: .public) capturing=\(self.contextCaptureSession != nil, privacy: .public)")
             return
         }
         guard let displays = selectedDisplaySpaces(), !displays.isEmpty else {
-            Self.contextCaptureLog.notice("align-debug selectedDisplaySpaces=nil-or-empty selected=\(self.selectedDisplayIDs.count, privacy: .public)")
             lastSwitchResult = strings.alignFailed
             return
         }
-        Self.contextCaptureLog.notice("align-debug displays=\(displays.map { "\($0.displayID):count=\($0.spaceCount):idx=\($0.currentSpaceIndex)" }.joined(separator: ","), privacy: .public)")
 
         let referenceID = alignmentReferenceDisplayID() ?? displays[0].displayID
         let reference = displays.first { $0.displayID == referenceID } ?? displays[0]
         let targetOrder = reference.currentSpaceIndex + 1
-        Self.contextCaptureLog.notice("align-debug referenceID=\(referenceID, privacy: .public) resolved=\(reference.displayID, privacy: .public) targetOrder=\(targetOrder, privacy: .public) contextOrders=\(self.settings.contextPlan.contexts.map(\.order), privacy: .public)")
         guard let target = settings.contextPlan.contexts.first(where: { $0.order == targetOrder }) else {
-            Self.contextCaptureLog.notice("align-debug no-context-for-order=\(targetOrder, privacy: .public)")
             lastSwitchResult = strings.alignFailed
             return
         }
@@ -1026,7 +746,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 && target.displayIDs.contains(display.displayID)
                 && display.currentSpaceIndex != targetOrder - 1
         }
-        Self.contextCaptureLog.notice("align-debug target=\(target.id, privacy: .public) members=\(target.displayIDs, privacy: .public) moves=\(moves.map(\.displayID), privacy: .public)")
 
         let alignFeedback = AlignFeedbackPolicy.feedback(
             displays: displays,

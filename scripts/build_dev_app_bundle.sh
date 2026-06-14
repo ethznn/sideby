@@ -5,6 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PRODUCT_NAME="SidebyDevApp"
 APP_NAME="SidebyDevApp.app"
 EXECUTABLE_NAME="SidebyDevApp"
+VERSION="${SIDEBY_VERSION:-0.3.0}"
+BUILD_NUMBER="${SIDEBY_BUILD_NUMBER:-1}"
+BUILD_CONFIGURATION="${SIDEBY_BUILD_CONFIGURATION:-debug}"
 APP_DIR="$ROOT_DIR/dist/$APP_NAME"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -14,8 +17,8 @@ cd "$ROOT_DIR"
 ENTITLEMENTS_FILE="$(mktemp "${TMPDIR:-/tmp}/sideby-dev-entitlements.XXXXXX.plist")"
 trap 'rm -f "$ENTITLEMENTS_FILE"' EXIT
 
-swift build --product "$PRODUCT_NAME"
-BUILD_DIR="$(swift build --show-bin-path)"
+swift build -c "$BUILD_CONFIGURATION" --product "$PRODUCT_NAME"
+BUILD_DIR="$(swift build -c "$BUILD_CONFIGURATION" --show-bin-path)"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR"
@@ -41,9 +44,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.2.1</string>
+  <string>$VERSION</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$BUILD_NUMBER</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>NSPrincipalClass</key>
