@@ -30,6 +30,40 @@ final class ContextCurrentMatcherTests: XCTestCase {
         )
     }
 
+    func testExplicitDisplaySpaceIndexesCanMatchNonContiguousContext() {
+        let contexts = [
+            ContextDefinition(
+                id: "context-1",
+                order: 1,
+                name: "C1",
+                displayIDs: ["builtin", "ext"],
+                displaySpaceIndexes: ["builtin": 0, "ext": 0]
+            ),
+            ContextDefinition(
+                id: "context-2",
+                order: 2,
+                name: "C2",
+                displayIDs: ["ext"],
+                displaySpaceIndexes: ["ext": 1]
+            ),
+            ContextDefinition(
+                id: "context-3",
+                order: 3,
+                name: "C3",
+                displayIDs: ["builtin", "ext"],
+                displaySpaceIndexes: ["builtin": 1, "ext": 2]
+            )
+        ]
+
+        XCTAssertEqual(
+            ContextCurrentMatcher.currentContextID(
+                contexts: contexts,
+                displayIndexes: ["builtin": 1, "ext": 2]
+            ),
+            "context-3"
+        )
+    }
+
     func testMismatchedCombinationReturnsNil() {
         XCTAssertNil(
             ContextCurrentMatcher.currentContextID(

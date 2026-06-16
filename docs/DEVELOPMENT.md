@@ -23,12 +23,23 @@ scripts/build_dev_app_bundle.sh
 ```
 
 `build_app_bundle.sh` defaults to a release build. Override with `SIDEBY_BUILD_CONFIGURATION=debug` when you need a faster local product build. `build_dev_app_bundle.sh` defaults to debug.
+The bundle scripts use a local Developer ID or Apple Development signing identity when one is available, and otherwise sign ad-hoc for local testing.
 
 Build the release DMG:
 
 ```bash
 scripts/build_release_dmg.sh
 ```
+
+The DMG script is included so release packaging stays reproducible. It packages the locally built app and signs the DMG only when a local signing identity is available.
+
+For a versioned release build, pass the version explicitly:
+
+```bash
+SIDEBY_VERSION=0.4.0 SIDEBY_BUILD_NUMBER=1 scripts/build_release_dmg.sh
+```
+
+Release notarization is maintainer-local: submit the generated DMG with Apple's `notarytool` using credentials stored in your local Keychain, then staple the ticket. Do not commit Apple ID credentials, App Store Connect keys, certificates, provisioning profiles, keychain profile names, or notarization output logs.
 
 Open the package in Xcode:
 

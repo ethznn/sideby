@@ -21,27 +21,37 @@ public struct ContextDefinition: Equatable, Codable, Identifiable, Sendable {
     public private(set) var order: Int
     public private(set) var name: String
     public private(set) var displayIDs: [String]
+    public private(set) var displaySpaceIndexes: [String: Int]
 
     private enum CodingKeys: String, CodingKey {
         case id
         case order
         case name
         case displayIDs
+        case displaySpaceIndexes
     }
 
     public init(
         id: String,
         order: Int,
         name: String,
-        displayIDs: [String] = []
+        displayIDs: [String] = [],
+        displaySpaceIndexes: [String: Int]? = nil
     ) {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedOrder = max(order, 1)
+        let normalizedSpaceIndexes = Self.normalizedDisplaySpaceIndexes(
+            displayIDs: displayIDs,
+            displaySpaceIndexes: displaySpaceIndexes,
+            defaultSpaceIndex: normalizedOrder - 1
+        )
         self.id = id
-        self.order = max(order, 1)
+        self.order = normalizedOrder
         self.name = trimmedName.isEmpty
-            ? "Context \(max(order, 1))"
+            ? "Context \(normalizedOrder)"
             : trimmedName
-        self.displayIDs = Self.normalizedDisplayIDs(displayIDs)
+        self.displayIDs = normalizedSpaceIndexes.keys.sorted()
+        self.displaySpaceIndexes = normalizedSpaceIndexes
     }
 
     public init(from decoder: Decoder) throws {
@@ -50,7 +60,8 @@ public struct ContextDefinition: Equatable, Codable, Identifiable, Sendable {
             id: try container.decode(String.self, forKey: .id),
             order: try container.decodeIfPresent(Int.self, forKey: .order) ?? 1,
             name: try container.decodeIfPresent(String.self, forKey: .name) ?? "",
-            displayIDs: try container.decodeIfPresent([String].self, forKey: .displayIDs) ?? []
+            displayIDs: try container.decodeIfPresent([String].self, forKey: .displayIDs) ?? [],
+            displaySpaceIndexes: try container.decodeIfPresent([String: Int].self, forKey: .displaySpaceIndexes)
         )
     }
 
@@ -60,6 +71,20 @@ public struct ContextDefinition: Equatable, Codable, Identifiable, Sendable {
         try container.encode(order, forKey: .order)
         try container.encode(name, forKey: .name)
         try container.encode(displayIDs, forKey: .displayIDs)
+        if !usesDefaultSpaceIndexes {
+            try container.encode(displaySpaceIndexes, forKey: .displaySpaceIndexes)
+        }
+    }
+
+    public func spaceIndex(for displayID: String) -> Int? {
+        displaySpaceIndexes[displayID]
+    }
+
+    public var usesDefaultSpaceIndexes: Bool {
+        displaySpaceIndexes == Self.defaultDisplaySpaceIndexes(
+            displayIDs: displayIDs,
+            defaultSpaceIndex: order - 1
+        )
     }
 
     private static func normalizedDisplayIDs(_ displayIDs: [String]) -> [String] {
@@ -69,6 +94,34 @@ public struct ContextDefinition: Equatable, Codable, Identifiable, Sendable {
             .filter { !$0.isEmpty }
             .sorted()
             .filter { seen.insert($0).inserted }
+    }
+
+    private static func defaultDisplaySpaceIndexes(
+        displayIDs: [String],
+        defaultSpaceIndex: Int
+    ) -> [String: Int] {
+        Dictionary(uniqueKeysWithValues: normalizedDisplayIDs(displayIDs).map { ($0, defaultSpaceIndex) })
+    }
+
+    private static func normalizedDisplaySpaceIndexes(
+        displayIDs: [String],
+        displaySpaceIndexes: [String: Int]?,
+        defaultSpaceIndex: Int
+    ) -> [String: Int] {
+        var indexes = defaultDisplaySpaceIndexes(
+            displayIDs: displayIDs,
+            defaultSpaceIndex: max(defaultSpaceIndex, 0)
+        )
+
+        for (rawDisplayID, rawIndex) in displaySpaceIndexes ?? [:] {
+            let displayID = rawDisplayID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !displayID.isEmpty, rawIndex >= 0 else {
+                continue
+            }
+            indexes[displayID] = rawIndex
+        }
+
+        return indexes
     }
 }
 
@@ -103,6 +156,25 @@ public struct ContextSwitchIntent: Equatable, Sendable {
         shouldExecute: Bool
     ) {
         self.command = command
+        self.targetContext = targetContext
+        self.targetDisplayIDs = targetDisplayIDs
+        self.diagnostic = diagnostic
+        self.shouldExecute = shouldExecute
+    }
+}
+
+public struct ContextActivationIntent: Equatable, Sendable {
+    public let targetContext: ContextDefinition?
+    public let targetDisplayIDs: [String]
+    public let diagnostic: DiagnosticState?
+    public let shouldExecute: Bool
+
+    public init(
+        targetContext: ContextDefinition?,
+        targetDisplayIDs: [String] = [],
+        diagnostic: DiagnosticState?,
+        shouldExecute: Bool
+    ) {
         self.targetContext = targetContext
         self.targetDisplayIDs = targetDisplayIDs
         self.diagnostic = diagnostic
@@ -182,7 +254,8 @@ public struct ContextPlan: Equatable, Codable, Sendable {
             id: context.id,
             order: context.order,
             name: name,
-            displayIDs: context.displayIDs
+            displayIDs: context.displayIDs,
+            displaySpaceIndexes: context.displaySpaceIndexes
         )
     }
 
@@ -214,6 +287,47 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         }
         currentContextID = id
         syncState = .synchronized
+        return true
+    }
+
+    @discardableResult
+    public mutating func moveDisplaySpace(
+        displayID: String,
+        spaceIndex: Int,
+        toContextID targetContextID: String
+    ) -> Bool {
+        guard spaceIndex >= 0,
+              let sourceIndex = contexts.firstIndex(where: { $0.spaceIndex(for: displayID) == spaceIndex }),
+              let targetIndex = contexts.firstIndex(where: { $0.id == targetContextID }),
+              sourceIndex != targetIndex
+        else {
+            return false
+        }
+
+        let affectsCurrentContext = contexts[sourceIndex].id == currentContextID
+            || contexts[targetIndex].id == currentContextID
+        var mappings = contexts.map(\.displaySpaceIndexes)
+        let targetSpaceIndex = mappings[targetIndex][displayID]
+
+        mappings[sourceIndex].removeValue(forKey: displayID)
+        if let targetSpaceIndex {
+            mappings[sourceIndex][displayID] = targetSpaceIndex
+        }
+        mappings[targetIndex][displayID] = spaceIndex
+
+        for index in contexts.indices {
+            let context = contexts[index]
+            contexts[index] = ContextDefinition(
+                id: context.id,
+                order: context.order,
+                name: context.name,
+                displayIDs: Array(mappings[index].keys),
+                displaySpaceIndexes: mappings[index]
+            )
+        }
+        if affectsCurrentContext {
+            syncState = .needsSync
+        }
         return true
     }
 
@@ -286,13 +400,7 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         }
 
         let navigation = navigation(for: command)
-        let targetDisplayIDs: [String]
-        switch command {
-        case .previous:
-            targetDisplayIDs = currentContext?.displayIDs ?? navigation.targetContext?.displayIDs ?? []
-        case .next:
-            targetDisplayIDs = currentContext?.displayIDs ?? navigation.targetContext?.displayIDs ?? []
-        }
+        let targetDisplayIDs = navigation.targetContext?.displayIDs ?? []
 
         return ContextSwitchIntent(
             command: command,
@@ -300,6 +408,28 @@ public struct ContextPlan: Equatable, Codable, Sendable {
             targetDisplayIDs: targetDisplayIDs,
             diagnostic: navigation.diagnostic,
             shouldExecute: navigation.isAllowed
+        )
+    }
+
+    public func activationIntent(forContextID contextID: String) -> ContextActivationIntent {
+        guard let targetContext = contexts.first(where: { $0.id == contextID }) else {
+            return ContextActivationIntent(
+                targetContext: nil,
+                diagnostic: DiagnosticState(
+                    severity: .info,
+                    title: "No current Context",
+                    message: "Choose an existing Context.",
+                    actionLabel: nil
+                ),
+                shouldExecute: false
+            )
+        }
+
+        return ContextActivationIntent(
+            targetContext: targetContext,
+            targetDisplayIDs: targetContext.displayIDs,
+            diagnostic: nil,
+            shouldExecute: true
         )
     }
 
@@ -377,7 +507,8 @@ public struct ContextPlan: Equatable, Codable, Sendable {
                 id: id,
                 order: offset + 1,
                 name: context.name,
-                displayIDs: context.displayIDs
+                displayIDs: context.displayIDs,
+                displaySpaceIndexes: context.displaySpaceIndexes
             )
         }
     }

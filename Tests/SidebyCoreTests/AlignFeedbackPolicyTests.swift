@@ -30,6 +30,23 @@ final class AlignFeedbackPolicyTests: XCTestCase {
         XCTAssertEqual(feedback, [AlignDisplayFeedback(displayID: "fa2440p", reason: .alreadyAligned)])
     }
 
+    func testFeedbackUsesExplicitDisplaySpaceIndex() {
+        let target = ContextDefinition(
+            id: "context-4",
+            order: 4,
+            name: "Four",
+            displayIDs: ["built-in", "fa2440p"],
+            displaySpaceIndexes: ["built-in": 3, "fa2440p": 2]
+        )
+        let feedback = AlignFeedbackPolicy.feedback(
+            displays: [display("built-in", index: 3), display("fa2440p", index: 2)],
+            referenceDisplayID: "built-in",
+            targetContext: target
+        )
+
+        XCTAssertEqual(feedback, [AlignDisplayFeedback(displayID: "fa2440p", reason: .alreadyAligned)])
+    }
+
     func testMemberNeedingMoveProducesNoFeedback() {
         let target = ContextDefinition(id: "context-2", order: 2, name: "Two", displayIDs: ["built-in", "fa2440p"])
         let feedback = AlignFeedbackPolicy.feedback(

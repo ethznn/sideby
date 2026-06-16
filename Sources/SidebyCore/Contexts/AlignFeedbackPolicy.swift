@@ -23,7 +23,6 @@ public enum AlignFeedbackPolicy: Sendable {
         referenceDisplayID: String,
         targetContext: ContextDefinition
     ) -> [AlignDisplayFeedback] {
-        let targetIndex = targetContext.order - 1
         let members = Set(targetContext.displayIDs)
 
         return displays.compactMap { display in
@@ -32,6 +31,10 @@ public enum AlignFeedbackPolicy: Sendable {
             }
 
             guard members.contains(display.displayID) else {
+                return AlignDisplayFeedback(displayID: display.displayID, reason: .notInContext)
+            }
+
+            guard let targetIndex = targetContext.spaceIndex(for: display.displayID) else {
                 return AlignDisplayFeedback(displayID: display.displayID, reason: .notInContext)
             }
 

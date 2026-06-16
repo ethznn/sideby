@@ -454,6 +454,104 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(decoded.contexts.map(\.displayIDs), [["built-in", "external-lg"], ["built-in"]])
     }
 
+    func testContextDisplaySpaceIndexesPersistWhenNonDefault() throws {
+        let plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-4",
+                    order: 4,
+                    name: "Review",
+                    displayIDs: ["built-in", "external-lg"],
+                    displaySpaceIndexes: ["built-in": 2, "external-lg": 3]
+                )
+            ],
+            currentContextID: "context-4"
+        )
+
+        let data = try JSONEncoder().encode(plan)
+        let json = String(decoding: data, as: UTF8.self)
+        let decoded = try JSONDecoder().decode(ContextPlan.self, from: data)
+
+        XCTAssertTrue(json.contains("displaySpaceIndexes"))
+        XCTAssertEqual(decoded.contexts[0].displayIDs, ["built-in", "external-lg"])
+        XCTAssertEqual(decoded.contexts[0].displaySpaceIndexes, ["built-in": 2, "external-lg": 3])
+    }
+
+    func testMovingDisplaySpaceToEmptyNonCurrentContextCreatesGapAtSource() {
+        var plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "One",
+                    displayIDs: ["built-in", "external-lg"],
+                    displaySpaceIndexes: ["built-in": 0, "external-lg": 0]
+                ),
+                ContextDefinition(
+                    id: "context-2",
+                    order: 2,
+                    name: "Two",
+                    displayIDs: ["external-lg"],
+                    displaySpaceIndexes: ["external-lg": 1]
+                ),
+                ContextDefinition(
+                    id: "context-3",
+                    order: 3,
+                    name: "Three",
+                    displayIDs: ["built-in", "external-lg"],
+                    displaySpaceIndexes: ["built-in": 1, "external-lg": 2]
+                )
+            ],
+            currentContextID: "context-1"
+        )
+
+        XCTAssertTrue(plan.moveDisplaySpace(displayID: "built-in", spaceIndex: 1, toContextID: "context-2"))
+
+        XCTAssertNil(plan.contexts[2].spaceIndex(for: "built-in"))
+        XCTAssertEqual(plan.contexts[1].spaceIndex(for: "built-in"), 1)
+        XCTAssertEqual(plan.contexts.map(\.displayIDs), [
+            ["built-in", "external-lg"],
+            ["built-in", "external-lg"],
+            ["external-lg"]
+        ])
+        XCTAssertEqual(plan.syncState, .synchronized)
+    }
+
+    func testMovingDisplaySpaceToOccupiedContextSwapsIndexes() {
+        var plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "One",
+                    displayIDs: ["built-in"],
+                    displaySpaceIndexes: ["built-in": 0]
+                ),
+                ContextDefinition(
+                    id: "context-2",
+                    order: 2,
+                    name: "Two",
+                    displayIDs: ["built-in"],
+                    displaySpaceIndexes: ["built-in": 1]
+                )
+            ],
+            currentContextID: "context-1"
+        )
+
+        XCTAssertTrue(plan.moveDisplaySpace(displayID: "built-in", spaceIndex: 0, toContextID: "context-2"))
+
+        XCTAssertEqual(plan.contexts[0].spaceIndex(for: "built-in"), 1)
+        XCTAssertEqual(plan.contexts[1].spaceIndex(for: "built-in"), 0)
+        XCTAssertEqual(plan.syncState, .needsSync)
+    }
+
+    func testMovingMissingDisplaySpaceReturnsFalse() {
+        var plan = ContextPlan.default
+
+        XCTAssertFalse(plan.moveDisplaySpace(displayID: "missing", spaceIndex: 0, toContextID: "context-2"))
+        XCTAssertEqual(plan, .default)
+    }
+
     func testPinnedSwitchIntentBlocksAtContextEdges() {
         var plan = ContextPlan.default
 
@@ -479,7 +577,7 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertNil(intent.diagnostic)
     }
 
-    func testPinnedNextSwitchIntentUsesCurrentContextDisplayMembership() {
+    func testPinnedNextSwitchIntentUsesTargetContextDisplayMembership() {
         let plan = ContextPlan(
             contexts: [
                 ContextDefinition(
@@ -502,10 +600,10 @@ final class ContextPlanTests: XCTestCase {
 
         XCTAssertTrue(intent.shouldExecute)
         XCTAssertEqual(intent.targetContext?.id, "context-2")
-        XCTAssertEqual(intent.targetDisplayIDs, ["built-in", "external-lg"])
+        XCTAssertEqual(intent.targetDisplayIDs, ["built-in"])
     }
 
-    func testPinnedPreviousSwitchIntentUsesCurrentContextDisplayMembership() {
+    func testPinnedPreviousSwitchIntentUsesTargetContextDisplayMembership() {
         let plan = ContextPlan(
             contexts: [
                 ContextDefinition(
@@ -528,7 +626,65 @@ final class ContextPlanTests: XCTestCase {
 
         XCTAssertTrue(intent.shouldExecute)
         XCTAssertEqual(intent.targetContext?.id, "context-1")
+        XCTAssertEqual(intent.targetDisplayIDs, ["built-in", "external-lg"])
+    }
+
+    func testContextActivationIntentCanTargetNonAdjacentContext() {
+        let plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "Code",
+                    displayIDs: ["built-in", "external-lg"]
+                ),
+                ContextDefinition(
+                    id: "context-2",
+                    order: 2,
+                    name: "Review",
+                    displayIDs: ["built-in"]
+                ),
+                ContextDefinition(
+                    id: "context-3",
+                    order: 3,
+                    name: "Docs",
+                    displayIDs: ["external-lg"]
+                )
+            ],
+            currentContextID: "context-1"
+        )
+
+        let intent = plan.activationIntent(forContextID: "context-3")
+
+        XCTAssertTrue(intent.shouldExecute)
+        XCTAssertEqual(intent.targetContext?.id, "context-3")
+        XCTAssertEqual(intent.targetDisplayIDs, ["external-lg"])
+        XCTAssertNil(intent.diagnostic)
+    }
+
+    func testContextActivationIntentWorksWhenPlanNeedsSync() {
+        var plan = ContextPlan(
+            contexts: [
+                ContextDefinition(id: "context-1", order: 1, name: "Code", displayIDs: ["built-in"]),
+                ContextDefinition(id: "context-2", order: 2, name: "Review", displayIDs: ["built-in"])
+            ],
+            currentContextID: "context-1"
+        )
+        plan.markNeedsSync()
+
+        let intent = plan.activationIntent(forContextID: "context-2")
+
+        XCTAssertTrue(intent.shouldExecute)
+        XCTAssertEqual(intent.targetContext?.id, "context-2")
         XCTAssertEqual(intent.targetDisplayIDs, ["built-in"])
+    }
+
+    func testContextActivationIntentRejectsMissingContext() {
+        let intent = ContextPlan.default.activationIntent(forContextID: "missing")
+
+        XCTAssertFalse(intent.shouldExecute)
+        XCTAssertNil(intent.targetContext)
+        XCTAssertEqual(intent.targetDisplayIDs, [])
     }
 
     func testSuccessfulUnpinnedSwitchMarksNeedsSyncWithoutChangingCurrentContext() {

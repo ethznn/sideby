@@ -404,6 +404,41 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(matrix.rows[1].cells.map(\.isIncluded), [true, false])
     }
 
+    func testContextMatrixCellsExposeMappedSpaceIndex() {
+        let displays = RuntimeState.dualDisplay.displayLayout.displays
+        let plan = ContextPlan(
+            contexts: [
+                ContextDefinition(
+                    id: "context-1",
+                    order: 1,
+                    name: "Shared",
+                    displayIDs: ["built-in", "external-lg"],
+                    displaySpaceIndexes: ["built-in": 0, "external-lg": 0]
+                ),
+                ContextDefinition(
+                    id: "context-2",
+                    order: 2,
+                    name: "External",
+                    displayIDs: ["external-lg"],
+                    displaySpaceIndexes: ["external-lg": 1]
+                ),
+                ContextDefinition(
+                    id: "context-3",
+                    order: 3,
+                    name: "Mixed",
+                    displayIDs: ["built-in", "external-lg"],
+                    displaySpaceIndexes: ["built-in": 1, "external-lg": 2]
+                )
+            ],
+            currentContextID: "context-1"
+        )
+
+        let matrix = ContextMatrixModel.matrix(plan: plan, displays: displays)
+
+        XCTAssertEqual(matrix.rows[0].cells.map(\.spaceIndex), [0, nil, 1])
+        XCTAssertEqual(matrix.rows[1].cells.map(\.spaceIndex), [0, 1, 2])
+    }
+
     func testContextCaptureStatusDisplayShowsAligningCapturingAndCompleted() {
         let strings = SBSStrings(language: .english)
 

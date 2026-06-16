@@ -90,6 +90,7 @@ public struct SBSStrings: Sendable {
     public var currentContext: String { text("Current Context", "현재 컨텍스트") }
     public var addContext: String { text("Add Context", "컨텍스트 추가") }
     public var setCurrent: String { text("Set Current", "현재 위치로 맞춤") }
+    public var goToContext: String { text("Go", "이동") }
     public var deleteContext: String { text("Delete", "삭제") }
     public var contextLabelPlaceholder: String { text("Context name", "컨텍스트 이름") }
     public var scanCurrentDisplays: String { text("Scan Current Displays", "현재 디스플레이 스캔") }
@@ -109,8 +110,8 @@ public struct SBSStrings: Sendable {
     public var contextMatchingPaused: String { text("Context matching paused", "컨텍스트 맞춤 일시 정지") }
     public var contextPlannerHelp: String {
         text(
-            "Each Context is the shared Space position across selected displays. Sideby stores one name per Context.",
-            "각 컨텍스트는 선택한 디스플레이들이 함께 있는 같은 순번의 Space입니다. Sideby는 컨텍스트마다 이름 하나만 저장합니다."
+            "Each Context is the captured Space position for its member displays. A display can be absent from a Context.",
+            "각 컨텍스트는 포함된 디스플레이의 캡처된 Space 위치입니다. 디스플레이는 특정 컨텍스트에 없을 수 있습니다."
         )
     }
     public var aligningToFirstSpace: String { text("Finding first Space", "첫 번째 Space 찾는 중") }
@@ -193,6 +194,10 @@ public struct SBSStrings: Sendable {
 
     public func contextOrder(_ order: Int) -> String {
         text("Context \(order)", "컨텍스트 \(order)")
+    }
+
+    public func spaceNumber(_ number: Int) -> String {
+        text("Space \(number)", "Space \(number)")
     }
 
     public func contextCaptureFailed(_ reason: String) -> String {

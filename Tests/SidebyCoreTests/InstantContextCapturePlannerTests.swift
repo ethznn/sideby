@@ -15,6 +15,27 @@ final class InstantContextCapturePlannerTests: XCTestCase {
         XCTAssertEqual(plan?.captureLimit, 5)
     }
 
+    func testAsymmetricCurrentIndexesCanLeaveMiddleContextEmptyForDisplay() {
+        let plan = InstantContextCapturePlanner.plan(for: [
+            InstantCaptureDisplay(displayID: "ext", spaceCount: 4, currentSpaceIndex: 3),
+            InstantCaptureDisplay(displayID: "builtin", spaceCount: 3, currentSpaceIndex: 2)
+        ])
+
+        XCTAssertEqual(plan?.contexts.count, 4)
+        XCTAssertEqual(plan?.currentContextID, "context-4")
+        XCTAssertEqual(plan?.isSynchronized, true)
+        XCTAssertEqual(plan?.contexts.map(\.displayIDs), [
+            ["builtin", "ext"],
+            ["builtin", "ext"],
+            ["ext"],
+            ["builtin", "ext"]
+        ])
+        XCTAssertEqual(plan?.contexts[0].displaySpaceIndexes, ["builtin": 0, "ext": 0])
+        XCTAssertEqual(plan?.contexts[1].displaySpaceIndexes, ["builtin": 1, "ext": 1])
+        XCTAssertEqual(plan?.contexts[2].displaySpaceIndexes, ["ext": 2])
+        XCTAssertEqual(plan?.contexts[3].displaySpaceIndexes, ["builtin": 2, "ext": 3])
+    }
+
     func testAgreedCurrentIndexIsSynchronizedCurrentContext() {
         let plan = InstantContextCapturePlanner.plan(for: [
             InstantCaptureDisplay(displayID: "ext", spaceCount: 5, currentSpaceIndex: 2),
@@ -25,14 +46,16 @@ final class InstantContextCapturePlannerTests: XCTestCase {
         XCTAssertEqual(plan?.isSynchronized, true)
     }
 
-    func testDisagreeingCurrentIndexesAreNotSynchronized() {
+    func testDisagreeingCurrentIndexesAlignToHighestVisibleContext() {
         let plan = InstantContextCapturePlanner.plan(for: [
             InstantCaptureDisplay(displayID: "ext", spaceCount: 5, currentSpaceIndex: 4),
             InstantCaptureDisplay(displayID: "builtin", spaceCount: 3, currentSpaceIndex: 1)
         ])
 
         XCTAssertEqual(plan?.currentContextID, "context-5")
-        XCTAssertEqual(plan?.isSynchronized, false)
+        XCTAssertEqual(plan?.isSynchronized, true)
+        XCTAssertEqual(plan?.contexts[1].displayIDs, ["ext"])
+        XCTAssertEqual(plan?.contexts[4].displaySpaceIndexes, ["builtin": 1, "ext": 4])
     }
 
     func testContextCountIsCappedAtTwelve() {

@@ -74,12 +74,14 @@ public struct ContextMatrixCell: Equatable, Identifiable, Sendable {
     public let contextID: String
     public let displayID: String
     public let isIncluded: Bool
+    public let spaceIndex: Int?
 
-    public init(contextID: String, displayID: String, isIncluded: Bool) {
+    public init(contextID: String, displayID: String, isIncluded: Bool, spaceIndex: Int? = nil) {
         self.id = "\(displayID)-\(contextID)"
         self.contextID = contextID
         self.displayID = displayID
         self.isIncluded = isIncluded
+        self.spaceIndex = isIncluded ? spaceIndex : nil
     }
 }
 
@@ -123,10 +125,12 @@ public enum ContextMatrixModel {
                 displayID: display.id,
                 displayName: display.name,
                 cells: contexts.map { context in
-                    ContextMatrixCell(
+                    let spaceIndex = context.spaceIndex(for: display.id)
+                    return ContextMatrixCell(
                         contextID: context.id,
                         displayID: display.id,
-                        isIncluded: context.displayIDs.contains(display.id)
+                        isIncluded: spaceIndex != nil,
+                        spaceIndex: spaceIndex
                     )
                 }
             )

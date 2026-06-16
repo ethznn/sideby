@@ -6,6 +6,7 @@ import SidebyCore
 import SidebySystem
 import SidebyUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct SidebyApp: App {
@@ -724,6 +725,192 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
+    func activateContext(contextID: String) {
+        let intent = settings.contextPlan.activationIntent(forContextID: contextID)
+        guard intent.shouldExecute, let targetContext = intent.targetContext else {
+            if let diagnostic = intent.diagnostic {
+                diagnostics = [diagnostic]
+                lastSwitchResult = strings.localizedDiagnosticTitle(diagnostic.title)
+            }
+            return
+        }
+        guard contextCaptureSession == nil, !isSwitching else {
+            return
+        }
+        guard hasPostEventAccess(command: .next, label: "context") else {
+            return
+        }
+
+        performContextActivation(targetContext: targetContext)
+    }
+
+    func moveDisplaySpace(displayID: String, spaceIndex: Int, toContextID: String) {
+        updateContextPlan { plan in
+            _ = plan.moveDisplaySpace(
+                displayID: displayID,
+                spaceIndex: spaceIndex,
+                toContextID: toContextID
+            )
+        }
+    }
+
+    private func performContextActivation(targetContext: ContextDefinition) {
+        let decision = ModePolicy().decision(
+            for: settings.mode,
+            inputMethod: .shortcut,
+            runtimeState: runtimeState
+        )
+        let modeDiagnostics = DiagnosticRule.evaluate(decision: decision)
+        guard decision.isAllowed else {
+            diagnostics = modeDiagnostics
+            if let diagnostic = modeDiagnostics.first(where: { $0.severity == .blocker }) ?? modeDiagnostics.first {
+                lastSwitchResult = strings.localizedDiagnosticTitle(diagnostic.title)
+            }
+            return
+        }
+
+        guard let displays = selectedDisplaySpaces(), !displays.isEmpty else {
+            updateContextPlan { plan in
+                plan.markNeedsSync()
+            }
+            diagnostics = currentDiagnostics()
+            lastSwitchResult = strings.alignFailed
+            return
+        }
+
+        let targetMemberDisplayIDs = Set(displays.compactMap { display in
+            targetContext.spaceIndex(for: display.displayID) == nil ? nil : display.displayID
+        })
+        guard !targetMemberDisplayIDs.isEmpty else {
+            diagnostics = [
+                DiagnosticState(
+                    severity: .blocker,
+                    title: strings.noMoveTargetsTitle,
+                    message: strings.noMoveTargetsMessage,
+                    actionLabel: nil
+                )
+            ]
+            lastSwitchResult = strings.noMoveTargetsReason
+            return
+        }
+
+        let moves = ContextDisplayMovePlanner.moves(
+            displays: displays,
+            targetContext: targetContext
+        )
+        guard !moves.isEmpty else {
+            diagnostics = modeDiagnostics
+            updateContextPlan { plan in
+                _ = plan.setCurrentContext(id: targetContext.id)
+            }
+            lastSwitchResult = strings.alignedToContext(
+                settings.contextPlan.currentContext?.name ?? targetContext.name
+            )
+            ProductContextHUDController.shared.show(
+                HUDPresenter().stateForContextSwitch(contextName: targetContext.name),
+                displayIDs: targetMemberDisplayIDs,
+                displayLayout: displayLayout
+            )
+            return
+        }
+
+        ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(30)
+        isSwitching = true
+        switchSessionID += 1
+        let sessionID = switchSessionID
+        let reader = spaceLayoutReader
+        let mapping = DisplayLayoutMapper.stableIDsByUUID(
+            snapshots: displayObserver.currentSnapshots(),
+            uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
+        )
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            func readIndexes() -> [String: Int]? {
+                guard let layouts = reader.readLayout() else {
+                    return nil
+                }
+                var indexes: [String: Int] = [:]
+                for layout in layouts {
+                    guard let stableID = mapping[layout.displayUUID],
+                          let index = layout.spaceIDs.firstIndex(of: layout.currentSpaceID)
+                    else {
+                        continue
+                    }
+                    indexes[stableID] = index
+                }
+                return indexes
+            }
+
+            let acknowledger = SpaceLayoutStepAcknowledger()
+            var didMoveAll = true
+
+            for move in moves {
+                let executor = HiddenCursorDisplaySpaceCommandExecutor(
+                    baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                    targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: [move.displayID])
+                )
+                var index = move.currentIndex
+                while index != move.targetIndex {
+                    let step: SwitchCommand = index < move.targetIndex ? .next : .previous
+                    guard executor.execute(step),
+                          let newIndex = acknowledger.waitForIndexChange(
+                              of: move.displayID,
+                              from: index,
+                              timeout: 1.0,
+                              readIndexes: readIndexes
+                          )
+                    else {
+                        didMoveAll = false
+                        break
+                    }
+                    index = newIndex
+                }
+                if !didMoveAll {
+                    break
+                }
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.switchSessionID == sessionID else {
+                    return
+                }
+                self.isSwitching = false
+                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
+
+                if didMoveAll {
+                    self.diagnostics = modeDiagnostics
+                    self.updateContextPlan { plan in
+                        _ = plan.setCurrentContext(id: targetContext.id)
+                    }
+                    self.lastSwitchResult = self.strings.alignedToContext(
+                        self.settings.contextPlan.currentContext?.name ?? targetContext.name
+                    )
+                    ProductContextHUDController.shared.show(
+                        HUDPresenter().stateForContextSwitch(contextName: targetContext.name),
+                        displayIDs: targetMemberDisplayIDs,
+                        displayLayout: self.displayLayout
+                    )
+                } else {
+                    self.updateContextPlan { plan in
+                        plan.markNeedsSync()
+                    }
+                    self.diagnostics = modeDiagnostics + [
+                        DiagnosticState(
+                            severity: .warning,
+                            title: self.strings.spaceCommandNotAcceptedTitle,
+                            message: self.strings.spaceCommandNotAcceptedMessage,
+                            actionLabel: nil
+                        )
+                    ]
+                    self.lastSwitchResult = self.strings.alignFailed
+                }
+                Self.contextCaptureLog.notice(
+                    "context-activate target=\(targetContext.id, privacy: .public) moved=\(moves.count, privacy: .public) success=\(didMoveAll, privacy: .public)"
+                )
+            }
+        }
+    }
+
     func alignDisplaysToCurrentSpace() {
         guard !isSwitching, contextCaptureSession == nil else {
             return
@@ -735,16 +922,22 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
         let referenceID = alignmentReferenceDisplayID() ?? displays[0].displayID
         let reference = displays.first { $0.displayID == referenceID } ?? displays[0]
-        let targetOrder = reference.currentSpaceIndex + 1
-        guard let target = settings.contextPlan.contexts.first(where: { $0.order == targetOrder }) else {
+        guard let target = settings.contextPlan.contexts
+            .sorted(by: { $0.order < $1.order })
+            .first(where: { $0.spaceIndex(for: reference.displayID) == reference.currentSpaceIndex })
+        else {
             lastSwitchResult = strings.alignFailed
             return
         }
 
-        let moves = displays.filter { display in
-            display.displayID != reference.displayID
-                && target.displayIDs.contains(display.displayID)
-                && display.currentSpaceIndex != targetOrder - 1
+        let moves = displays.compactMap { display -> (display: InstantCaptureDisplay, targetIndex: Int)? in
+            guard display.displayID != reference.displayID,
+                  let targetIndex = target.spaceIndex(for: display.displayID),
+                  display.currentSpaceIndex != targetIndex
+            else {
+                return nil
+            }
+            return (display, targetIndex)
         }
 
         let alignFeedback = AlignFeedbackPolicy.feedback(
@@ -774,7 +967,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             snapshots: displayObserver.currentSnapshots(),
             uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
         )
-        let targetIndex = targetOrder - 1
 
         DispatchQueue.global(qos: .userInitiated).async {
             func readIndexes() -> [String: Int]? {
@@ -799,14 +991,14 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             for move in moves {
                 let executor = HiddenCursorDisplaySpaceCommandExecutor(
                     baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
-                    targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: [move.displayID])
+                    targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: [move.display.displayID])
                 )
-                var index = move.currentSpaceIndex
-                while index != targetIndex {
-                    let command: SwitchCommand = index < targetIndex ? .next : .previous
+                var index = move.display.currentSpaceIndex
+                while index != move.targetIndex {
+                    let command: SwitchCommand = index < move.targetIndex ? .next : .previous
                     guard executor.execute(command),
                           let newIndex = acknowledger.waitForIndexChange(
-                              of: move.displayID,
+                              of: move.display.displayID,
                               from: index,
                               timeout: 1.0,
                               readIndexes: readIndexes
@@ -1906,6 +2098,21 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
+        if settings.contextPlan.isPinned,
+           let targetContext = intent.targetContext,
+           settings.contextPlan.contexts.contains(where: { !$0.usesDefaultSpaceIndexes }) {
+            performIndexedContextSwitch(
+                command,
+                targetContext: targetContext,
+                label: label,
+                inputMethod: inputMethod,
+                intent: intent,
+                resumeInputAfterCompletion: shouldResumeInput,
+                completion: completion
+            )
+            return
+        }
+
         let targetDisplayIDs = targetDisplayIDs(for: intent)
         guard !targetDisplayIDs.isEmpty else {
             diagnostics = [
@@ -2013,6 +2220,212 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 )
             ]
             lastSwitchResult = strings.blockedSwitch(label: label, command: command, reason: strings.systemEventsFailedReason)
+        }
+    }
+
+    private func performIndexedContextSwitch(
+        _ command: SwitchCommand,
+        targetContext: ContextDefinition,
+        label: String,
+        inputMethod: InputMethod,
+        intent: ContextSwitchIntent,
+        resumeInputAfterCompletion shouldResumeInput: Bool?,
+        completion: (@MainActor @Sendable (Bool) -> Void)?
+    ) {
+        let decision = ModePolicy().decision(
+            for: settings.mode,
+            inputMethod: inputMethod,
+            runtimeState: runtimeState
+        )
+        let modeDiagnostics = DiagnosticRule.evaluate(decision: decision)
+        guard decision.isAllowed else {
+            diagnostics = modeDiagnostics
+            if let diagnostic = modeDiagnostics.first(where: { $0.severity == .blocker }) ?? modeDiagnostics.first {
+                lastSwitchResult = strings.blockedSwitch(
+                    label: label,
+                    command: command,
+                    reason: strings.localizedDiagnosticTitle(diagnostic.title)
+                )
+            }
+            if let shouldResumeInput {
+                finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
+            }
+            completion?(false)
+            return
+        }
+
+        guard let displays = selectedDisplaySpaces(), !displays.isEmpty else {
+            updateContextPlan { plan in
+                plan.markNeedsSync()
+            }
+            diagnostics = currentDiagnostics()
+            lastSwitchResult = strings.alignFailed
+            if let shouldResumeInput {
+                finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
+            }
+            completion?(false)
+            return
+        }
+
+        let targetMemberDisplayIDs = Set(displays.compactMap { display in
+            targetContext.spaceIndex(for: display.displayID) == nil ? nil : display.displayID
+        })
+        guard !targetMemberDisplayIDs.isEmpty else {
+            diagnostics = [
+                DiagnosticState(
+                    severity: .blocker,
+                    title: strings.noMoveTargetsTitle,
+                    message: strings.noMoveTargetsMessage,
+                    actionLabel: nil
+                )
+            ]
+            lastSwitchResult = strings.blockedSwitch(label: label, command: command, reason: strings.noMoveTargetsReason)
+            if let shouldResumeInput {
+                finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
+            }
+            completion?(false)
+            return
+        }
+
+        let moves = displays.compactMap { display -> (display: InstantCaptureDisplay, targetIndex: Int)? in
+            guard let targetIndex = targetContext.spaceIndex(for: display.displayID),
+                  display.currentSpaceIndex != targetIndex
+            else {
+                return nil
+            }
+            return (display, targetIndex)
+        }
+
+        guard !moves.isEmpty else {
+            diagnostics = modeDiagnostics
+            updateContextPlan { plan in
+                _ = plan.setCurrentContext(id: targetContext.id)
+            }
+            lastSwitchResult = strings.postedSwitch(label: label, command: command)
+            if let presentation = contextHUDPolicy.presentation(
+                for: intent,
+                didExecute: true,
+                executedDisplayIDs: targetMemberDisplayIDs
+            ) {
+                ProductContextHUDController.shared.show(
+                    presentation.state,
+                    displayIDs: presentation.displayIDs,
+                    displayLayout: displayLayout
+                )
+            }
+            if let shouldResumeInput {
+                finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
+            }
+            completion?(true)
+            return
+        }
+
+        ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(30)
+        isSwitching = true
+        switchSessionID += 1
+        let sessionID = switchSessionID
+        let reader = spaceLayoutReader
+        let mapping = DisplayLayoutMapper.stableIDsByUUID(
+            snapshots: displayObserver.currentSnapshots(),
+            uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
+        )
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            func readIndexes() -> [String: Int]? {
+                guard let layouts = reader.readLayout() else {
+                    return nil
+                }
+                var indexes: [String: Int] = [:]
+                for layout in layouts {
+                    guard let stableID = mapping[layout.displayUUID],
+                          let index = layout.spaceIDs.firstIndex(of: layout.currentSpaceID)
+                    else {
+                        continue
+                    }
+                    indexes[stableID] = index
+                }
+                return indexes
+            }
+
+            let acknowledger = SpaceLayoutStepAcknowledger()
+            var didMoveAll = true
+
+            for move in moves {
+                let executor = HiddenCursorDisplaySpaceCommandExecutor(
+                    baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                    targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: [move.display.displayID])
+                )
+                var index = move.display.currentSpaceIndex
+                while index != move.targetIndex {
+                    let step: SwitchCommand = index < move.targetIndex ? .next : .previous
+                    guard executor.execute(step),
+                          let newIndex = acknowledger.waitForIndexChange(
+                              of: move.display.displayID,
+                              from: index,
+                              timeout: 1.0,
+                              readIndexes: readIndexes
+                          )
+                    else {
+                        didMoveAll = false
+                        break
+                    }
+                    index = newIndex
+                }
+                if !didMoveAll {
+                    break
+                }
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.switchSessionID == sessionID else {
+                    return
+                }
+                self.isSwitching = false
+                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
+
+                if didMoveAll {
+                    self.diagnostics = modeDiagnostics
+                    self.updateContextPlan { plan in
+                        _ = plan.setCurrentContext(id: targetContext.id)
+                    }
+                    self.lastSwitchResult = self.strings.postedSwitch(label: label, command: command)
+                    if let presentation = self.contextHUDPolicy.presentation(
+                        for: intent,
+                        didExecute: true,
+                        executedDisplayIDs: targetMemberDisplayIDs
+                    ) {
+                        ProductContextHUDController.shared.show(
+                            presentation.state,
+                            displayIDs: presentation.displayIDs,
+                            displayLayout: self.displayLayout
+                        )
+                    }
+                } else {
+                    self.updateContextPlan { plan in
+                        plan.markNeedsSync()
+                    }
+                    self.diagnostics = modeDiagnostics + [
+                        DiagnosticState(
+                            severity: .warning,
+                            title: self.strings.spaceCommandNotAcceptedTitle,
+                            message: self.strings.spaceCommandNotAcceptedMessage,
+                            actionLabel: nil
+                        )
+                    ]
+                    self.lastSwitchResult = self.strings.blockedSwitch(
+                        label: label,
+                        command: command,
+                        reason: self.strings.systemEventsFailedReason
+                    )
+                }
+                Self.contextCaptureLog.notice(
+                    "context-switch-indexed target=\(targetContext.id, privacy: .public) moved=\(moves.count, privacy: .public) success=\(didMoveAll, privacy: .public)"
+                )
+                if let shouldResumeInput {
+                    self.finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
+                }
+                completion?(didMoveAll)
+            }
         }
     }
 
@@ -3630,8 +4043,8 @@ private struct ContextsView: View {
             )
             .textFieldStyle(.roundedBorder)
 
-            Button(model.strings.setCurrent) {
-                model.setCurrentContext(contextID: column.id)
+            Button(model.strings.goToContext) {
+                model.activateContext(contextID: column.id)
             }
             .font(.caption2)
             .buttonStyle(.borderless)
@@ -3641,15 +4054,41 @@ private struct ContextsView: View {
         .frame(width: contextColumnWidth, height: headerHeight, alignment: .topLeading)
     }
 
+    @ViewBuilder
     private func membershipCell(_ cell: ContextMatrixCell) -> some View {
+        if let spaceIndex = cell.spaceIndex {
+            membershipCellContent(cell)
+                .onDrag {
+                    NSItemProvider(
+                        object: ContextMatrixSpaceDragPayload(
+                            displayID: cell.displayID,
+                            spaceIndex: spaceIndex
+                        ).rawValue as NSString
+                    )
+                }
+                .onDrop(of: [UTType.plainText], isTargeted: nil) { providers in
+                    handleSpaceDrop(providers: providers, target: cell)
+                }
+        } else {
+            membershipCellContent(cell)
+                .onDrop(of: [UTType.plainText], isTargeted: nil) { providers in
+                    handleSpaceDrop(providers: providers, target: cell)
+                }
+        }
+    }
+
+    private func membershipCellContent(_ cell: ContextMatrixCell) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(cell.isIncluded ? Color.accentColor.opacity(0.10) : Color(nsColor: .controlBackgroundColor))
 
-            if cell.isIncluded {
-                Circle()
-                    .fill(Color.accentColor)
-                    .frame(width: 8, height: 8)
+            if let spaceIndex = cell.spaceIndex {
+                Text(model.strings.spaceNumber(spaceIndex + 1))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .padding(.horizontal, 6)
             } else {
                 Text("-")
                     .font(.caption2)
@@ -3657,7 +4096,70 @@ private struct ContextsView: View {
             }
         }
         .frame(width: contextColumnWidth, height: rowHeight)
-        .accessibilityLabel(cell.isIncluded ? "Included" : "Not included")
+        .accessibilityLabel(cell.spaceIndex.map { model.strings.spaceNumber($0 + 1) } ?? "Not included")
+    }
+
+    private func handleSpaceDrop(providers: [NSItemProvider], target: ContextMatrixCell) -> Bool {
+        guard let provider = providers.first(where: {
+            $0.hasItemConformingToTypeIdentifier(UTType.plainText.identifier)
+        }) else {
+            return false
+        }
+
+        provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, _ in
+            let rawValue: String?
+            if let text = item as? String {
+                rawValue = text
+            } else if let text = item as? NSString {
+                rawValue = text as String
+            } else if let data = item as? Data {
+                rawValue = String(data: data, encoding: .utf8)
+            } else {
+                rawValue = nil
+            }
+
+            guard let rawValue,
+                  let payload = ContextMatrixSpaceDragPayload(rawValue: rawValue),
+                  payload.displayID == target.displayID
+            else {
+                return
+            }
+
+            DispatchQueue.main.async {
+                model.moveDisplaySpace(
+                    displayID: payload.displayID,
+                    spaceIndex: payload.spaceIndex,
+                    toContextID: target.contextID
+                )
+            }
+        }
+        return true
+    }
+}
+
+private struct ContextMatrixSpaceDragPayload: Equatable {
+    let displayID: String
+    let spaceIndex: Int
+
+    var rawValue: String {
+        "\(displayID)|\(spaceIndex)"
+    }
+
+    init(displayID: String, spaceIndex: Int) {
+        self.displayID = displayID
+        self.spaceIndex = spaceIndex
+    }
+
+    init?(rawValue: String) {
+        let parts = rawValue.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2,
+              let spaceIndex = Int(parts[1]),
+              spaceIndex >= 0
+        else {
+            return nil
+        }
+        self.displayID = parts[0]
+        self.spaceIndex = spaceIndex
     }
 }
 

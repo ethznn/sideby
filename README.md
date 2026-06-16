@@ -20,7 +20,7 @@ The goal is to make a multi-display setup feel like one workspace that can move 
 
 ## Status
 
-Sideby is pre-1.0 software. Version 0.3.0 focuses on live Context reliability: instant Context Capture when macOS exposes the current Space layout, named Contexts with display membership, Context-aware switching, Align Displays, onboarding, diagnostics, and local bundle scripts.
+Sideby is pre-1.0 software. Version 0.4.0 focuses on more flexible Context mapping: instant Context Capture can preserve per-display Space positions, a display can be absent from a Context in the middle of the captured set, Contexts can be opened directly from the matrix, and Move by Contexts / Align Displays use captured per-display indexes instead of assuming every display uses the same Space order.
 
 The current release strategy is direct distribution with App Sandbox off. Context Capture and Align Displays use a read-only SkyLight layout query when it is available, with a slower public-command fallback for capture. This means Sideby is not targeting Mac App Store distribution.
 
@@ -28,10 +28,13 @@ The current release strategy is direct distribution with App Sandbox off. Contex
 
 - Menu bar app with a resizable settings popover for quick control across multiple displays.
 - Named Contexts for workspaces that span one or more displays.
-- Context matrix for reviewing which displays belong to each Context.
+- Context matrix for reviewing which displays belong to each Context, including each display's captured Space number.
 - Instant Capture Contexts flow for building a Context set from the current display/Space arrangement, with a walk-based fallback when the layout query is unavailable.
+- Context Capture can preserve gaps when displays have different current Space positions, so display membership does not need to be contiguous from Context 1.
 - Move Targets for selecting which displays should switch together in general movement mode.
-- Move by Contexts for switching the displays that belong to the current Context.
+- Move by Contexts for switching displays to the next or previous captured Context using per-display target Space indexes.
+- Direct Context activation from the matrix for jumping to a named Context.
+- Drag display Space positions in the Context matrix to adjust captured membership.
 - Align Displays for bringing the selected displays back to the Context represented by the reference display's current Space, with on-display feedback when a display is already aligned or not part of that Context.
 - Previous/Next Screen Switching through public macOS keyboard-command paths.
 - Default input habit: `Option + Shift + horizontal swipe`.
@@ -134,7 +137,7 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for setup notes and [docs/DECISIO
 
 Sideby uses Accessibility permission to detect the configured gesture while Sideby is on. It uses Screen Switching access to send the requested previous/next Space command after the user acts.
 
-Sideby reads the current per-display Space layout at runtime when macOS makes it available, but it does not store private Space IDs or hidden Mission Control state. Sideby does not store typed input, raw input events, screenshots, app bundle IDs, or window IDs. Context definitions, display membership, shortcut settings, and user-authored labels are stored locally.
+Sideby reads the current per-display Space layout at runtime when macOS makes it available, but it does not store private Space IDs or hidden Mission Control state. Sideby does not store typed input, raw input events, screenshots, app bundle IDs, or window IDs. Context definitions, display membership, captured per-display Space indexes, shortcut settings, and user-authored labels are stored locally.
 
 ## Documentation
 
