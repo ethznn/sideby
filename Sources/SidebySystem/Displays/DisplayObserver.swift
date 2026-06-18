@@ -71,6 +71,34 @@ public enum DisplayLayoutMapper {
         return mapping
     }
 
+    public static func instantCaptureDisplays(
+        selectedDisplayIDs: Set<String>,
+        displayLayout: DisplayLayout,
+        layouts: [DisplaySpaceLayout],
+        stableIDsByUUID: [String: String]
+    ) -> [InstantCaptureDisplay] {
+        let layoutsByStableID: [String: DisplaySpaceLayout] = layouts.reduce(into: [:]) {
+            result, layout in
+            if let stableID = stableIDsByUUID[layout.displayUUID] {
+                result[stableID] = layout
+            }
+        }
+
+        return displayLayout.displays.compactMap { display in
+            guard selectedDisplayIDs.contains(display.id),
+                  let layout = layoutsByStableID[display.id],
+                  let currentIndex = layout.spaceIDs.firstIndex(of: layout.currentSpaceID)
+            else {
+                return nil
+            }
+            return InstantCaptureDisplay(
+                displayID: display.id,
+                spaceCount: layout.spaceIDs.count,
+                currentSpaceIndex: currentIndex
+            )
+        }
+    }
+
     public static func displayUUID(for displayID: CGDirectDisplayID) -> String? {
         guard let cfUUID = CGDisplayCreateUUIDFromDisplayID(displayID)?.takeRetainedValue() else {
             return nil

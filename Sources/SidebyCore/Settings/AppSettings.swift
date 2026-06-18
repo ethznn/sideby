@@ -23,7 +23,7 @@ public enum AppLanguage: String, CaseIterable, Codable, Identifiable, Sendable {
 }
 
 public struct AppSettings: Equatable, Codable, Sendable {
-    public static let currentVersion = 13
+    public static let currentVersion = 14
     public static let defaultGestureModifiers: ModifierFlags = [.option, .shift]
     public static let defaultShortcutModifiers: ModifierFlags = [.option, .shift]
 
@@ -39,6 +39,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
     public var launchAtLogin: Bool
     public var contextPlan: ContextPlan
     public var displaySpacePlan: DisplaySpacePlan
+    public var displayRowOrder: [String]
 
     public init(
         version: Int,
@@ -52,7 +53,8 @@ public struct AppSettings: Equatable, Codable, Sendable {
         horizontalThreshold: Double,
         launchAtLogin: Bool,
         contextPlan: ContextPlan,
-        displaySpacePlan: DisplaySpacePlan
+        displaySpacePlan: DisplaySpacePlan,
+        displayRowOrder: [String] = []
     ) {
         self.version = version
         self.mode = mode
@@ -66,6 +68,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         self.launchAtLogin = launchAtLogin
         self.contextPlan = contextPlan
         self.displaySpacePlan = displaySpacePlan
+        self.displayRowOrder = displayRowOrder
     }
 
     public static let `default` = AppSettings(
@@ -80,7 +83,8 @@ public struct AppSettings: Equatable, Codable, Sendable {
         horizontalThreshold: 80,
         launchAtLogin: false,
         contextPlan: .default,
-        displaySpacePlan: .default
+        displaySpacePlan: .default,
+        displayRowOrder: []
     )
 
     private enum CodingKeys: String, CodingKey {
@@ -96,6 +100,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         case launchAtLogin
         case contextPlan
         case displaySpacePlan
+        case displayRowOrder
     }
 
     public init(from decoder: Decoder) throws {
@@ -118,6 +123,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         self.launchAtLogin = try container.decode(Bool.self, forKey: .launchAtLogin)
         self.contextPlan = try container.decodeIfPresent(ContextPlan.self, forKey: .contextPlan) ?? .default
         self.displaySpacePlan = try container.decodeIfPresent(DisplaySpacePlan.self, forKey: .displaySpacePlan) ?? .default
+        self.displayRowOrder = try container.decodeIfPresent([String].self, forKey: .displayRowOrder) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -133,6 +139,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         try container.encode(horizontalThreshold, forKey: .horizontalThreshold)
         try container.encode(launchAtLogin, forKey: .launchAtLogin)
         try container.encode(contextPlan, forKey: .contextPlan)
+        try container.encode(displayRowOrder, forKey: .displayRowOrder)
     }
 }
 

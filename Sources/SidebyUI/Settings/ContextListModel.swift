@@ -110,7 +110,11 @@ public struct ContextMatrix: Equatable, Sendable {
 }
 
 public enum ContextMatrixModel {
-    public static func matrix(plan: ContextPlan, displays: [DisplayInfo]) -> ContextMatrix {
+    public static func matrix(
+        plan: ContextPlan,
+        displays: [DisplayInfo],
+        displayRowOrder: [String] = []
+    ) -> ContextMatrix {
         let contexts = plan.contexts.sorted { $0.order < $1.order }
         let columns = contexts.map { context in
             return ContextMatrixColumn(
@@ -120,7 +124,7 @@ public enum ContextMatrixModel {
                 state: columnState(for: context, plan: plan)
             )
         }
-        let rows = displays.map { display in
+        let rows = orderedDisplays(displays, displayRowOrder: displayRowOrder).map { display in
             ContextMatrixRow(
                 displayID: display.id,
                 displayName: display.name,
@@ -137,6 +141,68 @@ public enum ContextMatrixModel {
         }
 
         return ContextMatrix(columns: columns, rows: rows)
+    }
+
+    public static func displayRowOrder(
+        moving displayID: String,
+        to targetDisplayID: String,
+        visibleDisplayIDs: [String],
+        currentOrder: [String]
+    ) -> [String] {
+        var visibleOrder = orderedDisplayIDs(
+            visibleDisplayIDs: visibleDisplayIDs,
+            displayRowOrder: currentOrder
+        )
+        guard let sourceIndex = visibleOrder.firstIndex(of: displayID),
+              let targetIndex = visibleOrder.firstIndex(of: targetDisplayID),
+              sourceIndex != targetIndex
+        else {
+            return normalizedDisplayRowOrder(
+                visibleDisplayIDs: visibleDisplayIDs,
+                currentOrder: currentOrder
+            )
+        }
+
+        let moved = visibleOrder.remove(at: sourceIndex)
+        visibleOrder.insert(moved, at: targetIndex)
+
+        let visibleSet = Set(visibleDisplayIDs)
+        let hiddenOrder = currentOrder.filter { !visibleSet.contains($0) }
+        return visibleOrder + hiddenOrder
+    }
+
+    private static func orderedDisplays(
+        _ displays: [DisplayInfo],
+        displayRowOrder: [String]
+    ) -> [DisplayInfo] {
+        let displaysByID = Dictionary(uniqueKeysWithValues: displays.map { ($0.id, $0) })
+        return orderedDisplayIDs(
+            visibleDisplayIDs: displays.map(\.id),
+            displayRowOrder: displayRowOrder
+        ).compactMap { displaysByID[$0] }
+    }
+
+    private static func normalizedDisplayRowOrder(
+        visibleDisplayIDs: [String],
+        currentOrder: [String]
+    ) -> [String] {
+        orderedDisplayIDs(
+            visibleDisplayIDs: visibleDisplayIDs,
+            displayRowOrder: currentOrder
+        ) + currentOrder.filter { !Set(visibleDisplayIDs).contains($0) }
+    }
+
+    private static func orderedDisplayIDs(
+        visibleDisplayIDs: [String],
+        displayRowOrder: [String]
+    ) -> [String] {
+        var seen = Set<String>()
+        let visibleSet = Set(visibleDisplayIDs)
+        let saved = displayRowOrder
+            .filter { visibleSet.contains($0) }
+            .filter { seen.insert($0).inserted }
+        let appended = visibleDisplayIDs.filter { seen.insert($0).inserted }
+        return saved + appended
     }
 
     private static func columnState(for context: ContextDefinition, plan: ContextPlan) -> ContextRowState {

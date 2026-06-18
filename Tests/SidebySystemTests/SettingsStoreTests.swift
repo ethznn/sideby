@@ -18,10 +18,22 @@ final class SettingsStoreTests: XCTestCase {
         settings.mode = .shortcut
         settings.launchAtLogin = true
         settings.language = .korean
+        settings.displayRowOrder = ["external-lg", "built-in"]
 
         store.save(settings)
 
         XCTAssertEqual(store.load(), settings)
+    }
+
+    func testDecodingSettingsWithoutDisplayRowOrderUsesEmptyOrder() throws {
+        let data = try JSONEncoder().encode(AppSettings.default)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "displayRowOrder")
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: legacyData)
+
+        XCTAssertEqual(decoded.displayRowOrder, [])
     }
 
     func testEncodingCurrentSettingsOmitsLegacyDisplaySpacePlan() throws {

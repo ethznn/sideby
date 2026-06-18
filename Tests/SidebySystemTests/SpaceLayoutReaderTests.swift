@@ -58,6 +58,34 @@ final class SpaceLayoutReaderTests: XCTestCase {
         XCTAssertNil(DisplaySpaceLayout.displays(fromManagedDisplaySpaces: emptySpaces))
     }
 
+    func testParsingSkipsMalformedMirrorEntryAfterValidLayout() {
+        let payload: [[String: Any]] = [
+            [
+                "Display Identifier": "MAC-DISPLAY",
+                "Current Space": ["ManagedSpaceID": NSNumber(value: 2)],
+                "Spaces": [
+                    ["ManagedSpaceID": NSNumber(value: 1)],
+                    ["ManagedSpaceID": NSNumber(value: 2)]
+                ]
+            ],
+            [
+                "Display Identifier": "MIRRORED-IPAD",
+                "Current Space": ["ManagedSpaceID": NSNumber(value: 10)],
+                "Spaces": [[String: Any]]()
+            ]
+        ]
+
+        let layouts = DisplaySpaceLayout.displays(fromManagedDisplaySpaces: payload)
+
+        XCTAssertEqual(layouts, [
+            DisplaySpaceLayout(
+                displayUUID: "MAC-DISPLAY",
+                spaceIDs: [1, 2],
+                currentSpaceID: 2
+            )
+        ])
+    }
+
     func testParsingFailsOnNegativeSpaceID() {
         let payload: [[String: Any]] = [
             [
@@ -70,7 +98,7 @@ final class SpaceLayoutReaderTests: XCTestCase {
         XCTAssertNil(DisplaySpaceLayout.displays(fromManagedDisplaySpaces: payload))
     }
 
-    func testParsingFailsWhenLaterEntryIsMalformedAfterValidEntry() {
+    func testParsingKeepsValidLayoutWhenLaterEntryIsMalformed() {
         let payload: [[String: Any]] = [
             [
                 "Display Identifier": "A",
@@ -80,7 +108,10 @@ final class SpaceLayoutReaderTests: XCTestCase {
             ["Display Identifier": "B"]
         ]
 
-        XCTAssertNil(DisplaySpaceLayout.displays(fromManagedDisplaySpaces: payload))
+        XCTAssertEqual(
+            DisplaySpaceLayout.displays(fromManagedDisplaySpaces: payload),
+            [DisplaySpaceLayout(displayUUID: "A", spaceIDs: [1], currentSpaceID: 1)]
+        )
     }
 
     func testSLSReaderReturnsCoherentLayoutOrNil() {

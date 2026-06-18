@@ -754,6 +754,21 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
+    func moveContextDisplayRow(displayID: String, to targetDisplayID: String) {
+        let nextOrder = ContextMatrixModel.displayRowOrder(
+            moving: displayID,
+            to: targetDisplayID,
+            visibleDisplayIDs: displayLayout.displays.map(\.id),
+            currentOrder: settings.displayRowOrder
+        )
+        guard nextOrder != settings.displayRowOrder else {
+            return
+        }
+
+        settings.displayRowOrder = nextOrder
+        settingsStore.save(settings)
+    }
+
     private func performContextActivation(targetContext: ContextDefinition) {
         let decision = ModePolicy().decision(
             for: settings.mode,
@@ -1104,9 +1119,9 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         return stableID(for: cursorScreen)
     }
 
-    /// Reads the live Space layout for the selected displays, in layout
-    /// order. Returns nil when the SLS reader is unavailable or any selected
-    /// display cannot be mapped.
+    /// Reads the live Space layout for selected displays that expose
+    /// independent Spaces, in layout order. Mirrored displays can be present
+    /// as screens without independent Space layout, so they are skipped.
     private func selectedDisplaySpaces() -> [InstantCaptureDisplay]? {
         guard let layouts = spaceLayoutReader.readLayout(), !layouts.isEmpty else {
             return nil
@@ -1116,29 +1131,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             snapshots: displayObserver.currentSnapshots(),
             uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
         )
-        let layoutsByStableID: [String: DisplaySpaceLayout] = layouts.reduce(into: [:]) {
-            result, layout in
-            if let stableID = mapping[layout.displayUUID] {
-                result[stableID] = layout
-            }
-        }
-
-        var displays: [InstantCaptureDisplay] = []
-        for display in displayLayout.displays where selectedDisplayIDs.contains(display.id) {
-            guard let layout = layoutsByStableID[display.id],
-                  let currentIndex = layout.spaceIDs.firstIndex(of: layout.currentSpaceID)
-            else {
-                return nil
-            }
-            displays.append(
-                InstantCaptureDisplay(
-                    displayID: display.id,
-                    spaceCount: layout.spaceIDs.count,
-                    currentSpaceIndex: currentIndex
-                )
-            )
-        }
-        return displays
+        return DisplayLayoutMapper.instantCaptureDisplays(
+            selectedDisplayIDs: selectedDisplayIDs,
+            displayLayout: displayLayout,
+            layouts: layouts,
+            stableIDsByUUID: mapping
+        )
     }
 
     /// Builds the context plan directly from the Space layout. Returns false
@@ -1156,16 +1154,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         let currentOrder = instantPlan.contexts
             .first { $0.id == instantPlan.currentContextID }?.order ?? 1
         let currentName = suggestedContextName(order: currentOrder)
-        let contexts = instantPlan.contexts.map { context in
-            context.id == instantPlan.currentContextID
-                ? ContextDefinition(
-                    id: context.id,
-                    order: context.order,
-                    name: currentName,
-                    displayIDs: context.displayIDs
-                )
-                : context
-        }
+        let contexts = instantPlan.contextsRenamingCurrentContext(to: currentName)
 
         updateContextPlan { plan in
             plan.replaceContexts(
@@ -3939,7 +3928,8 @@ private struct ContextsView: View {
         let strings = model.strings
         let matrix = ContextMatrixModel.matrix(
             plan: model.settings.contextPlan,
-            displays: model.displayLayout.displays
+            displays: model.displayLayout.displays,
+            displayRowOrder: model.settings.displayRowOrder
         )
 
         if wrapsInGroupBox {
@@ -4000,6 +3990,16 @@ private struct ContextsView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(width: displayColumnWidth, height: rowHeight, alignment: .leading)
+                    .onDrag {
+                        NSItemProvider(
+                            object: ContextMatrixDisplayRowDragPayload(
+                                displayID: row.displayID
+                            ).rawValue as NSString
+                        )
+                    }
+                    .onDrop(of: [UTType.plainText], isTargeted: nil) { providers in
+                        handleDisplayRowDrop(providers: providers, targetDisplayID: row.displayID)
+                    }
             }
         }
     }
@@ -4135,6 +4135,42 @@ private struct ContextsView: View {
         }
         return true
     }
+
+    private func handleDisplayRowDrop(providers: [NSItemProvider], targetDisplayID: String) -> Bool {
+        guard let provider = providers.first(where: {
+            $0.hasItemConformingToTypeIdentifier(UTType.plainText.identifier)
+        }) else {
+            return false
+        }
+
+        provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, _ in
+            let rawValue: String?
+            if let text = item as? String {
+                rawValue = text
+            } else if let text = item as? NSString {
+                rawValue = text as String
+            } else if let data = item as? Data {
+                rawValue = String(data: data, encoding: .utf8)
+            } else {
+                rawValue = nil
+            }
+
+            guard let rawValue,
+                  let payload = ContextMatrixDisplayRowDragPayload(rawValue: rawValue),
+                  payload.displayID != targetDisplayID
+            else {
+                return
+            }
+
+            DispatchQueue.main.async {
+                model.moveContextDisplayRow(
+                    displayID: payload.displayID,
+                    to: targetDisplayID
+                )
+            }
+        }
+        return true
+    }
 }
 
 private struct ContextMatrixSpaceDragPayload: Equatable {
@@ -4160,6 +4196,31 @@ private struct ContextMatrixSpaceDragPayload: Equatable {
         }
         self.displayID = parts[0]
         self.spaceIndex = spaceIndex
+    }
+}
+
+private struct ContextMatrixDisplayRowDragPayload: Equatable {
+    private static let prefix = "display-row"
+
+    let displayID: String
+
+    var rawValue: String {
+        "\(Self.prefix)|\(displayID)"
+    }
+
+    init(displayID: String) {
+        self.displayID = displayID
+    }
+
+    init?(rawValue: String) {
+        let parts = rawValue.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2,
+              parts[0] == Self.prefix,
+              !parts[1].isEmpty
+        else {
+            return nil
+        }
+        self.displayID = parts[1]
     }
 }
 

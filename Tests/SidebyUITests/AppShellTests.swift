@@ -404,6 +404,42 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(matrix.rows[1].cells.map(\.isIncluded), [true, false])
     }
 
+    func testContextMatrixUsesSavedDisplayRowOrderAndAppendsNewDisplays() {
+        let displays = [
+            DisplayInfo(id: "built-in", name: "Built-in Display", isPrimary: true, isBuiltin: true),
+            DisplayInfo(id: "external-lg", name: "LG Display", isPrimary: false, isBuiltin: false),
+            DisplayInfo(id: "ipad", name: "iPad", isPrimary: false, isBuiltin: false)
+        ]
+
+        let matrix = ContextMatrixModel.matrix(
+            plan: .default,
+            displays: displays,
+            displayRowOrder: ["external-lg", "built-in", "missing"]
+        )
+
+        XCTAssertEqual(matrix.rows.map(\.displayID), ["external-lg", "built-in", "ipad"])
+    }
+
+    func testContextMatrixDisplayRowOrderMovesDownAfterTargetAndUpBeforeTarget() {
+        let visibleDisplayIDs = ["built-in", "external-lg", "ipad"]
+
+        let movedDown = ContextMatrixModel.displayRowOrder(
+            moving: "built-in",
+            to: "ipad",
+            visibleDisplayIDs: visibleDisplayIDs,
+            currentOrder: ["external-lg", "built-in", "missing"]
+        )
+        let movedUp = ContextMatrixModel.displayRowOrder(
+            moving: "ipad",
+            to: "external-lg",
+            visibleDisplayIDs: visibleDisplayIDs,
+            currentOrder: movedDown
+        )
+
+        XCTAssertEqual(movedDown, ["external-lg", "ipad", "built-in", "missing"])
+        XCTAssertEqual(movedUp, ["ipad", "external-lg", "built-in", "missing"])
+    }
+
     func testContextMatrixCellsExposeMappedSpaceIndex() {
         let displays = RuntimeState.dualDisplay.displayLayout.displays
         let plan = ContextPlan(

@@ -31,6 +31,12 @@ public struct InstantCapturePlan: Equatable, Sendable {
         self.captureLimit = captureLimit
         self.isSynchronized = isSynchronized
     }
+
+    public func contextsRenamingCurrentContext(to name: String) -> [ContextDefinition] {
+        contexts.map { context in
+            context.id == currentContextID ? context.renamed(name) : context
+        }
+    }
 }
 
 public enum InstantContextCapturePlanner {

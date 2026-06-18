@@ -80,6 +80,16 @@ public struct ContextDefinition: Equatable, Codable, Identifiable, Sendable {
         displaySpaceIndexes[displayID]
     }
 
+    public func renamed(_ name: String) -> ContextDefinition {
+        ContextDefinition(
+            id: id,
+            order: order,
+            name: name,
+            displayIDs: displayIDs,
+            displaySpaceIndexes: displaySpaceIndexes
+        )
+    }
+
     public var usesDefaultSpaceIndexes: Bool {
         displaySpaceIndexes == Self.defaultDisplaySpaceIndexes(
             displayIDs: displayIDs,

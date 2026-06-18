@@ -12,39 +12,41 @@ public struct DisplaySpaceLayout: Equatable, Sendable {
         self.currentSpaceID = currentSpaceID
     }
 
-    /// Parses the bridged payload of SLSCopyManagedDisplaySpaces. Returns nil
-    /// if any entry is malformed — never a partial layout.
+    /// Parses the bridged payload of SLSCopyManagedDisplaySpaces. Some
+    /// mirrored displays can appear without independent Spaces; those entries
+    /// are ignored so valid display layouts remain usable.
     public static func displays(
         fromManagedDisplaySpaces payload: [[String: Any]]
     ) -> [DisplaySpaceLayout]? {
-        var layouts: [DisplaySpaceLayout] = []
-        for entry in payload {
-            guard
-                let uuid = entry["Display Identifier"] as? String,
-                let current = entry["Current Space"] as? [String: Any],
-                let currentID = (current["ManagedSpaceID"] as? NSNumber).flatMap(UInt64.init(exactly:)),
-                let spaces = entry["Spaces"] as? [[String: Any]],
-                !spaces.isEmpty
-            else {
-                return nil
-            }
+        let layouts = payload.compactMap(Self.display(fromManagedDisplaySpaceEntry:))
+        return layouts.isEmpty ? nil : layouts
+    }
 
-            var spaceIDs: [UInt64] = []
-            for space in spaces {
-                guard let id = (space["ManagedSpaceID"] as? NSNumber).flatMap(UInt64.init(exactly:)) else {
-                    return nil
-                }
-                spaceIDs.append(id)
-            }
-            layouts.append(
-                DisplaySpaceLayout(
-                    displayUUID: uuid,
-                    spaceIDs: spaceIDs,
-                    currentSpaceID: currentID
-                )
-            )
+    private static func display(fromManagedDisplaySpaceEntry entry: [String: Any]) -> DisplaySpaceLayout? {
+        guard
+            let uuid = entry["Display Identifier"] as? String,
+            let current = entry["Current Space"] as? [String: Any],
+            let currentID = (current["ManagedSpaceID"] as? NSNumber).flatMap(UInt64.init(exactly:)),
+            let spaces = entry["Spaces"] as? [[String: Any]],
+            !spaces.isEmpty
+        else {
+            return nil
         }
-        return layouts
+
+        let spaceIDs = spaces.compactMap { space in
+            (space["ManagedSpaceID"] as? NSNumber).flatMap(UInt64.init(exactly:))
+        }
+        guard spaceIDs.count == spaces.count,
+              spaceIDs.contains(currentID)
+        else {
+            return nil
+        }
+
+        return DisplaySpaceLayout(
+            displayUUID: uuid,
+            spaceIDs: spaceIDs,
+            currentSpaceID: currentID
+        )
     }
 }
 

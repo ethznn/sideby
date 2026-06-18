@@ -20,7 +20,7 @@ Sideby의 목표는 멀티 디스플레이 환경을 하나의 작업공간처�
 
 ## 현재 상태
 
-Sideby는 pre-1.0 소프트웨어입니다. 0.4.0은 더 유연한 Context 매핑에 집중합니다. 즉시 Context Capture는 디스플레이별 Space 위치를 보존할 수 있고, 캡처된 Context 묶음 중간에서 특정 디스플레이가 빠질 수 있습니다. Context matrix에서 특정 Context로 바로 이동할 수 있으며, Move by Contexts와 Align Displays는 모든 디스플레이가 같은 Space 순서를 쓴다고 가정하지 않고 캡처된 디스플레이별 index를 사용합니다.
+Sideby는 pre-1.0 소프트웨어입니다. 0.4.0은 더 유연한 Context 매핑에 집중합니다. 즉시 Context Capture는 디스플레이별 Space 위치를 보존할 수 있고, 캡처된 Context 묶음 중간에서 특정 디스플레이가 빠질 수 있습니다. Context matrix에서 특정 Context로 바로 이동하고 디스플레이 행 순서를 바꿀 수 있으며, Move by Contexts와 Align Displays는 모든 디스플레이가 같은 Space 순서를 쓴다고 가정하지 않고 캡처된 디스플레이별 index를 사용합니다.
 
 현재 릴리즈 전략은 App Sandbox off 직접 배포입니다. Context Capture와 Align Displays는 가능할 때 read-only SkyLight layout query를 사용하고, layout query를 사용할 수 없으면 Capture Contexts는 더 느린 공개 명령 기반 fallback을 사용합니다. 따라서 Sideby는 Mac App Store 배포를 목표로 하지 않습니다.
 
@@ -28,13 +28,14 @@ Sideby는 pre-1.0 소프트웨어입니다. 0.4.0은 더 유연한 Context 매�
 
 - 여러 디스플레이를 빠르게 제어하는 리사이즈 가능한 메뉴바 설정 팝오버
 - 하나 이상의 디스플레이를 묶는 이름 있는 Context
-- 각 Context에 속한 디스플레이와 캡처된 Space 번호를 확인하는 Context matrix
+- 각 Context에 속한 디스플레이, 캡처된 Space 번호, 사용자가 정한 디스플레이 행 순서를 확인하는 Context matrix
 - 현재 디스플레이/Space 배치에서 Context 묶음을 즉시 만드는 Capture Contexts 흐름. layout query를 사용할 수 없으면 walk-based fallback을 사용합니다.
 - 디스플레이별 현재 Space 위치가 다를 때 중간 Context의 빈칸을 보존하는 Context Capture
+- 다른 선택 디스플레이를 캡처할 수 있으면 미러링 디스플레이나 독립 Space layout이 없는 디스플레이를 건너뛰는 Context Capture
 - 일반 이동 모드에서 함께 전환할 디스플레이를 고르는 Move Targets
 - 디스플레이별 목표 Space index를 사용해 이전/다음 Context로 전환하는 Move by Contexts
 - Context matrix에서 이름 있는 Context로 바로 이동하는 기능
-- Context matrix에서 디스플레이 Space 위치를 드래그해 캡처된 membership을 조정하는 기능
+- Context matrix에서 디스플레이 Space 위치를 드래그해 캡처된 membership을 조정하고, 디스플레이 행을 드래그해 matrix 순서를 바꾸는 기능
 - 기준 디스플레이의 현재 Space가 나타내는 Context에 선택 디스플레이를 맞추는 Align Displays. 이미 정렬됐거나 해당 Context에 속하지 않은 디스플레이에는 화면 피드백을 표시합니다.
 - 공개 macOS 키보드 명령 경로를 통한 Previous/Next Screen Switching
 - 기본 입력 습관: `Option + Shift + horizontal swipe`
@@ -137,7 +138,7 @@ Tests/
 
 Sideby는 Sideby가 켜져 있을 때 설정된 제스처를 감지하기 위해 Accessibility 권한을 사용합니다. 사용자가 행동한 뒤 요청된 Previous/Next Space 명령을 보내기 위해 Screen Switching access를 사용합니다.
 
-Sideby는 macOS가 제공할 때 현재 디스플레이별 Space layout을 런타임에 읽지만, private Space ID나 숨겨진 Mission Control 상태를 저장하지 않습니다. Sideby는 입력 내용, raw input event, 스크린샷, app bundle ID, window ID를 저장하지 않습니다. Context 정의, 디스플레이 membership, 캡처된 디스플레이별 Space index, 단축키 설정, 사용자가 작성한 라벨은 로컬에 저장됩니다.
+Sideby는 macOS가 제공할 때 현재 디스플레이별 Space layout을 런타임에 읽지만, private Space ID나 숨겨진 Mission Control 상태를 저장하지 않습니다. Sideby는 입력 내용, raw input event, 스크린샷, app bundle ID, window ID를 저장하지 않습니다. Context 정의, 디스플레이 membership, 캡처된 디스플레이별 Space index, 디스플레이 행 순서, 단축키 설정, 사용자가 작성한 라벨은 로컬에 저장됩니다.
 
 ## 문서
 

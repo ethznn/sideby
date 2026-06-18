@@ -36,6 +36,19 @@ final class InstantContextCapturePlannerTests: XCTestCase {
         XCTAssertEqual(plan?.contexts[3].displaySpaceIndexes, ["builtin": 2, "ext": 3])
     }
 
+    func testRenamingCurrentContextPreservesCapturedSpaceIndexes() throws {
+        let plan = try XCTUnwrap(InstantContextCapturePlanner.plan(for: [
+            InstantCaptureDisplay(displayID: "ext", spaceCount: 4, currentSpaceIndex: 3),
+            InstantCaptureDisplay(displayID: "builtin", spaceCount: 3, currentSpaceIndex: 2)
+        ]))
+
+        let contexts = plan.contextsRenamingCurrentContext(to: "Codex / Finder")
+
+        XCTAssertEqual(contexts[3].name, "Codex / Finder")
+        XCTAssertEqual(contexts[3].displaySpaceIndexes, ["builtin": 2, "ext": 3])
+        XCTAssertEqual(contexts.compactMap { $0.spaceIndex(for: "builtin") }, [0, 1, 2])
+    }
+
     func testAgreedCurrentIndexIsSynchronizedCurrentContext() {
         let plan = InstantContextCapturePlanner.plan(for: [
             InstantCaptureDisplay(displayID: "ext", spaceCount: 5, currentSpaceIndex: 2),

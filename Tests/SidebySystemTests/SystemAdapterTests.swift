@@ -1014,6 +1014,33 @@ final class SystemAdapterTests: XCTestCase {
         XCTAssertEqual(mapping, ["UUID-EXT": "23598-9216-0-2"])
     }
 
+    func testCaptureDisplayMappingSkipsSelectedDisplaysWithoutSpaceLayout() {
+        let displayLayout = DisplayLayout(displays: [
+            DisplayInfo(id: "built-in", name: "Built-in", isPrimary: true, isBuiltin: true),
+            DisplayInfo(id: "mirrored-ipad", name: "iPad", isPrimary: false, isBuiltin: false),
+            DisplayInfo(id: "external-lg", name: "LG", isPrimary: false, isBuiltin: false)
+        ])
+        let layouts = [
+            DisplaySpaceLayout(displayUUID: "UUID-BUILTIN", spaceIDs: [10, 11], currentSpaceID: 11),
+            DisplaySpaceLayout(displayUUID: "UUID-EXTERNAL", spaceIDs: [20, 21, 22], currentSpaceID: 20)
+        ]
+
+        let displays = DisplayLayoutMapper.instantCaptureDisplays(
+            selectedDisplayIDs: ["built-in", "mirrored-ipad", "external-lg"],
+            displayLayout: displayLayout,
+            layouts: layouts,
+            stableIDsByUUID: [
+                "UUID-BUILTIN": "built-in",
+                "UUID-EXTERNAL": "external-lg"
+            ]
+        )
+
+        XCTAssertEqual(displays, [
+            InstantCaptureDisplay(displayID: "built-in", spaceCount: 2, currentSpaceIndex: 1),
+            InstantCaptureDisplay(displayID: "external-lg", spaceCount: 3, currentSpaceIndex: 0)
+        ])
+    }
+
     func testGlobalEventTapSuppressesConfiguredModifierFlagChanges() {
         XCTAssertTrue(
             GlobalEventTapInputSource.shouldSuppressModifierFlagChange(
