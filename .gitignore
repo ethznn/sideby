@@ -22,3 +22,6 @@ dist/
 
 # Logs
 *.log
+
+# Local brainstorming artifacts
+.superpowers/
