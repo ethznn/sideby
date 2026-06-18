@@ -1,4 +1,5 @@
 import Foundation
+import SidebyCore
 
 public enum FloatingMenuContextSectionItem: Equatable, Sendable {
     case captureControls
@@ -54,7 +55,11 @@ public enum FloatingMenuContextMatrixLayout: Sendable {
     }
 
     public static func contextColumnWidth(isCompact: Bool) -> CGFloat {
-        isCompact ? 170 * 2 / 3 : 220
+        isCompact ? 156 : 220
+    }
+
+    public static func nameLineLimit(isCompact: Bool) -> Int {
+        2
     }
 
     public static func statusTitle(
@@ -153,6 +158,157 @@ public struct FloatingMenuSectionExpansion: Equatable, Sendable {
 
     public mutating func toggle(_ section: FloatingMenuCollapsibleSection) {
         set(section, isExpanded: !isExpanded(section))
+    }
+}
+
+public struct FloatingMenuDisplayLayoutInput: Equatable, Sendable {
+    public let displayID: String
+    public let frame: DisplayFrame
+
+    public init(displayID: String, frame: DisplayFrame) {
+        self.displayID = displayID
+        self.frame = frame
+    }
+}
+
+public struct FloatingMenuDisplayPlacement: Equatable, Sendable {
+    public let displayID: String
+    public let frame: CGRect
+
+    public init(displayID: String, frame: CGRect) {
+        self.displayID = displayID
+        self.frame = frame
+    }
+}
+
+public enum FloatingMenuDisplayArrangementLayout: Sendable {
+    public static let stageHeight: CGFloat = 220
+    public static let padding: CGFloat = 24
+    public static let minimumDisplaySize = CGSize(width: 72, height: 46)
+
+    public static func placements(
+        for displays: [FloatingMenuDisplayLayoutInput],
+        in size: CGSize,
+        padding: CGFloat = Self.padding,
+        minimumDisplaySize: CGSize = Self.minimumDisplaySize
+    ) -> [FloatingMenuDisplayPlacement] {
+        guard !displays.isEmpty else {
+            return []
+        }
+
+        let minX = displays.map(\.frame.x).min() ?? 0
+        let minY = displays.map(\.frame.y).min() ?? 0
+        let maxX = displays.map { $0.frame.x + $0.frame.width }.max() ?? 1
+        let maxY = displays.map { $0.frame.y + $0.frame.height }.max() ?? 1
+        let unionWidth = max(maxX - minX, 1)
+        let unionHeight = max(maxY - minY, 1)
+        let availableWidth = max(size.width - padding * 2, 1)
+        let availableHeight = max(size.height - padding * 2, 1)
+        let arrangementScale = min(
+            availableWidth / CGFloat(unionWidth),
+            availableHeight / CGFloat(unionHeight)
+        )
+
+        let rawPlacements = displays.map { display in
+            let frame = display.frame
+            let scaledFrame = CGRect(
+                x: CGFloat(frame.x - minX) * arrangementScale,
+                y: CGFloat(frame.y - minY) * arrangementScale,
+                width: CGFloat(frame.width) * arrangementScale,
+                height: CGFloat(frame.height) * arrangementScale
+            )
+            let fittedFrame = frameWithReadableMinimum(
+                scaledFrame,
+                minimumSize: minimumDisplaySize
+            )
+            return FloatingMenuDisplayPlacement(displayID: display.displayID, frame: fittedFrame)
+        }
+
+        let scaledPlacements = compressSpacing(
+            rawPlacements,
+            maxSize: CGSize(width: availableWidth, height: availableHeight)
+        )
+        let scaledUnion = scaledPlacements.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+        let offset = CGPoint(
+            x: (size.width - scaledUnion.width) / 2 - scaledUnion.minX,
+            y: (size.height - scaledUnion.height) / 2 - scaledUnion.minY
+        )
+
+        return scaledPlacements.map { placement in
+            FloatingMenuDisplayPlacement(
+                displayID: placement.displayID,
+                frame: placement.frame.offsetBy(dx: offset.x, dy: offset.y)
+            )
+        }
+    }
+
+    private static func frameWithReadableMinimum(
+        _ frame: CGRect,
+        minimumSize: CGSize
+    ) -> CGRect {
+        let width = max(frame.width, minimumSize.width)
+        let height = max(frame.height, minimumSize.height)
+        return CGRect(
+            x: frame.midX - width / 2,
+            y: frame.midY - height / 2,
+            width: width,
+            height: height
+        )
+    }
+
+    private static func compressSpacing(
+        _ placements: [FloatingMenuDisplayPlacement],
+        maxSize: CGSize
+    ) -> [FloatingMenuDisplayPlacement] {
+        let union = placements.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+        let widestDisplay = placements.map(\.frame.width).max() ?? 0
+        let tallestDisplay = placements.map(\.frame.height).max() ?? 0
+        let xScale = spacingScale(
+            currentSpan: union.width,
+            largestItemSpan: widestDisplay,
+            maxSpan: maxSize.width
+        )
+        let yScale = spacingScale(
+            currentSpan: union.height,
+            largestItemSpan: tallestDisplay,
+            maxSpan: maxSize.height
+        )
+
+        return placements.map { placement in
+            let frame = placement.frame
+            let center = CGPoint(
+                x: union.center.x + (frame.midX - union.center.x) * xScale,
+                y: union.center.y + (frame.midY - union.center.y) * yScale
+            )
+            return FloatingMenuDisplayPlacement(
+                displayID: placement.displayID,
+                frame: CGRect(
+                    x: center.x - frame.width / 2,
+                    y: center.y - frame.height / 2,
+                    width: frame.width,
+                    height: frame.height
+                )
+            )
+        }
+    }
+
+    private static func spacingScale(
+        currentSpan: CGFloat,
+        largestItemSpan: CGFloat,
+        maxSpan: CGFloat
+    ) -> CGFloat {
+        guard currentSpan > maxSpan else {
+            return 1
+        }
+
+        let movableSpan = max(currentSpan - largestItemSpan, 1)
+        return max(0, min(1, (maxSpan - largestItemSpan) / movableSpan))
+    }
+}
+
+private extension CGRect {
+    var center: CGPoint {
+        CGPoint(x: midX, y: midY)
     }
 }
 

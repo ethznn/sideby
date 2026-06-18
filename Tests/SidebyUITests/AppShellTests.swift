@@ -65,11 +65,76 @@ final class AppShellTests: XCTestCase {
         )
     }
 
-    func testCompactContextMatrixUsesTwoThirdsContextColumnWidth() {
+    func testDisplayArrangementLayoutFitsSideBySideDisplaysInsideStage() {
+        let placements = FloatingMenuDisplayArrangementLayout.placements(
+            for: [
+                FloatingMenuDisplayLayoutInput(
+                    displayID: "built-in",
+                    frame: DisplayFrame(x: 0, y: 0, width: 1728, height: 1117)
+                ),
+                FloatingMenuDisplayLayoutInput(
+                    displayID: "external",
+                    frame: DisplayFrame(x: 1728, y: -80, width: 2560, height: 1440)
+                )
+            ],
+            in: CGSize(width: 660, height: FloatingMenuDisplayArrangementLayout.stageHeight)
+        )
+
+        XCTAssertEqual(placements.map(\.displayID), ["built-in", "external"])
+        XCTAssertTrue(placements.allSatisfy { $0.frame.minX >= 0 })
+        XCTAssertTrue(placements.allSatisfy { $0.frame.minY >= 0 })
+        XCTAssertTrue(placements.allSatisfy { $0.frame.maxX <= 660 })
+        XCTAssertTrue(placements.allSatisfy { $0.frame.maxY <= FloatingMenuDisplayArrangementLayout.stageHeight })
+        XCTAssertGreaterThan(placements[1].frame.width, placements[0].frame.width)
+    }
+
+    func testDisplayArrangementLayoutCentersStackedDisplays() {
+        let placements = FloatingMenuDisplayArrangementLayout.placements(
+            for: [
+                FloatingMenuDisplayLayoutInput(
+                    displayID: "top",
+                    frame: DisplayFrame(x: 0, y: 0, width: 1920, height: 1080)
+                ),
+                FloatingMenuDisplayLayoutInput(
+                    displayID: "bottom",
+                    frame: DisplayFrame(x: 240, y: 1080, width: 1440, height: 900)
+                )
+            ],
+            in: CGSize(width: 520, height: FloatingMenuDisplayArrangementLayout.stageHeight)
+        )
+
+        let union = placements.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+
+        XCTAssertEqual(placements.count, 2)
+        XCTAssertEqual(union.midX, 260, accuracy: 1.0)
+        XCTAssertTrue(placements.allSatisfy { $0.frame.maxY <= FloatingMenuDisplayArrangementLayout.stageHeight })
+    }
+
+    func testDisplayArrangementLayoutPreservesMinimumReadableDisplaySize() {
+        let placements = FloatingMenuDisplayArrangementLayout.placements(
+            for: [
+                FloatingMenuDisplayLayoutInput(
+                    displayID: "tiny",
+                    frame: DisplayFrame(x: 0, y: 0, width: 300, height: 200)
+                ),
+                FloatingMenuDisplayLayoutInput(
+                    displayID: "wide",
+                    frame: DisplayFrame(x: 1200, y: 0, width: 6000, height: 1440)
+                )
+            ],
+            in: CGSize(width: 520, height: FloatingMenuDisplayArrangementLayout.stageHeight)
+        )
+
+        let tiny = placements.first { $0.displayID == "tiny" }!
+
+        XCTAssertGreaterThanOrEqual(tiny.frame.width, FloatingMenuDisplayArrangementLayout.minimumDisplaySize.width)
+        XCTAssertGreaterThanOrEqual(tiny.frame.height, FloatingMenuDisplayArrangementLayout.minimumDisplaySize.height)
+    }
+
+    func testCompactContextMatrixUsesReadableContextColumnWidth() {
         XCTAssertEqual(
             FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: true),
-            170 * 2 / 3,
-            accuracy: 0.001
+            156
         )
         XCTAssertEqual(
             FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: false),
@@ -95,7 +160,11 @@ final class AppShellTests: XCTestCase {
         XCTAssertNil(
             FloatingMenuContextMatrixLayout.statusTitle(for: .normal, isCompact: true, strings: strings)
         )
-        XCTAssertEqual(FloatingMenuContextMatrixLayout.headerLineLimit, 1)
+    }
+
+    func testContextMatrixHeaderNameLineLimitAllowsReadableNames() {
+        XCTAssertEqual(FloatingMenuContextMatrixLayout.nameLineLimit(isCompact: true), 2)
+        XCTAssertEqual(FloatingMenuContextMatrixLayout.nameLineLimit(isCompact: false), 2)
     }
 
     func testFloatingMenuInteractiveControlsUsePointingHandCursor() {

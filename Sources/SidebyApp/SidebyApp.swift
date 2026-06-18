@@ -3921,7 +3921,7 @@ private struct ContextsView: View {
         FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: isCompact)
     }
 
-    private var headerHeight: CGFloat { isCompact ? 74 : 82 }
+    private var headerHeight: CGFloat { isCompact ? 92 : 98 }
     private var rowHeight: CGFloat { isCompact ? 32 : 36 }
 
     var body: some View {
@@ -4005,28 +4005,30 @@ private struct ContextsView: View {
     }
 
     private func contextHeader(_ column: ContextMatrixColumn) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text(model.strings.contextOrder(column.order))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .lineLimit(FloatingMenuContextMatrixLayout.headerLineLimit)
+                    .lineLimit(1)
                     .truncationMode(.tail)
                     .layoutPriority(1)
 
-                Spacer(minLength: 4)
-
                 if let statusTitle = FloatingMenuContextMatrixLayout.statusTitle(
                     for: column.state,
-                    isCompact: isCompact,
+                    isCompact: true,
                     strings: model.strings
                 ) {
                     Text(statusTitle)
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(column.state == .needsSync ? .orange : .secondary)
-                        .lineLimit(FloatingMenuContextMatrixLayout.headerLineLimit)
-                        .truncationMode(.tail)
-                        .minimumScaleFactor(0.8)
+                        .foregroundStyle(column.state == .needsSync ? .orange : Color.accentColor)
+                        .lineLimit(1)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(column.state == .needsSync ? Color.orange.opacity(0.14) : Color.accentColor.opacity(0.14))
+                        )
                 }
             }
 
@@ -4042,11 +4044,14 @@ private struct ContextsView: View {
                 )
             )
             .textFieldStyle(.roundedBorder)
+            .font(.caption.weight(.semibold))
+            .lineLimit(FloatingMenuContextMatrixLayout.nameLineLimit(isCompact: isCompact))
+            .help(column.name)
 
             Button(model.strings.goToContext) {
                 model.activateContext(contextID: column.id)
             }
-            .font(.caption2)
+            .font(.caption2.weight(.semibold))
             .buttonStyle(.borderless)
             .lineLimit(1)
             .pointingHandCursor()
@@ -4293,7 +4298,7 @@ private struct DisplayArrangementView: View {
                 GeometryReader { proxy in
                     arrangedDisplays(in: proxy.size)
                 }
-                .frame(height: 238)
+                .frame(height: FloatingMenuDisplayArrangementLayout.stageHeight)
             } else {
                 HStack(alignment: .bottom, spacing: 18) {
                     ForEach(displays, id: \.id) { display in
@@ -4303,49 +4308,36 @@ private struct DisplayArrangementView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 18)
                 .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
     }
 
     private func arrangedDisplays(in size: CGSize) -> some View {
-        let frames = displays.compactMap(\.frame)
-        let minX = frames.map(\.x).min() ?? 0
-        let minY = frames.map(\.y).min() ?? 0
-        let maxX = frames.map { $0.x + $0.width }.max() ?? 1
-        let maxY = frames.map { $0.y + $0.height }.max() ?? 1
-        let unionWidth = max(maxX - minX, 1)
-        let unionHeight = max(maxY - minY, 1)
-        let padding: CGFloat = 26
-        let availableWidth = max(size.width - padding * 2, 1)
-        let availableHeight = max(size.height - padding * 2, 1)
-        let scale = min(
-            availableWidth / CGFloat(unionWidth),
-            availableHeight / CGFloat(unionHeight)
+        let displaysByID = Dictionary(uniqueKeysWithValues: displays.map { ($0.id, $0) })
+        let placements = FloatingMenuDisplayArrangementLayout.placements(
+            for: displays.compactMap { display in
+                guard let frame = display.frame else {
+                    return nil
+                }
+                return FloatingMenuDisplayLayoutInput(displayID: display.id, frame: frame)
+            },
+            in: size
         )
-        let contentWidth = CGFloat(unionWidth) * scale
-        let contentHeight = CGFloat(unionHeight) * scale
-        let offsetX = (size.width - contentWidth) / 2
-        let offsetY = (size.height - contentHeight) / 2
 
         return ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
 
-            ForEach(displays, id: \.id) { display in
-                if let frame = display.frame {
-                    let displayWidth = max(CGFloat(frame.width) * scale, 72)
-                    let displayHeight = max(CGFloat(frame.height) * scale, 46)
-                    let x = offsetX + CGFloat(frame.x - minX) * scale
-                    let y = offsetY + CGFloat(frame.y - minY) * scale
-
+            ForEach(placements, id: \.displayID) { placement in
+                if let display = displaysByID[placement.displayID] {
                     displayButton(
                         for: display,
-                        size: CGSize(width: displayWidth, height: displayHeight)
+                        size: placement.frame.size
                     )
                     .position(
-                        x: x + displayWidth / 2,
-                        y: y + displayHeight / 2
+                        x: placement.frame.midX,
+                        y: placement.frame.midY
                     )
                 }
             }
@@ -4418,15 +4410,15 @@ private struct DisplayThumbnail: View {
                 .stroke(isSelected ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: isSelected ? 2.5 : 1)
         }
         .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
-                .padding(-5)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                .padding(-4)
         }
         .shadow(
-            color: isSelected ? Color.accentColor.opacity(0.24) : .black.opacity(0.18),
-            radius: isSelected ? 7 : 4,
+            color: isSelected ? Color.accentColor.opacity(0.18) : .black.opacity(0.14),
+            radius: isSelected ? 5 : 3,
             x: 0,
-            y: isSelected ? 3 : 2
+            y: isSelected ? 2 : 1
         )
         .overlay(alignment: .bottom) {
             if !display.isBuiltin {
