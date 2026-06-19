@@ -13,7 +13,7 @@ final class AppShellTests: XCTestCase {
     }
 
     func testFloatingMenuLayoutUsesResizableDefaults() {
-        XCTAssertEqual(FloatingMenuPanelLayout.defaultSize.width, 720)
+        XCTAssertEqual(FloatingMenuPanelLayout.defaultSize.width, 520)
         XCTAssertEqual(FloatingMenuPanelLayout.defaultSize.height, 640)
         XCTAssertEqual(FloatingMenuPanelLayout.minimumSize.width, 520)
         XCTAssertEqual(FloatingMenuPanelLayout.minimumSize.height, 420)
@@ -134,12 +134,43 @@ final class AppShellTests: XCTestCase {
     func testCompactContextMatrixUsesReadableContextColumnWidth() {
         XCTAssertEqual(
             FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: true),
-            156
+            72
         )
         XCTAssertEqual(
             FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: false),
             220
         )
+    }
+
+    func testCompactContextMatrixUsesNarrowScrollableDisplayColumn() {
+        XCTAssertEqual(
+            FloatingMenuContextMatrixLayout.displayColumnWidth(isCompact: true),
+            72
+        )
+        XCTAssertEqual(
+            FloatingMenuContextMatrixLayout.displayColumnWidth(isCompact: false),
+            170
+        )
+    }
+
+    func testContextMatrixDisplayColumnResizeIsClampedToUsefulRange() {
+        XCTAssertEqual(
+            FloatingMenuContextMatrixLayout.clampedDisplayColumnWidth(40, isCompact: true),
+            72
+        )
+        XCTAssertEqual(
+            FloatingMenuContextMatrixLayout.clampedDisplayColumnWidth(140, isCompact: true),
+            140
+        )
+        XCTAssertEqual(
+            FloatingMenuContextMatrixLayout.clampedDisplayColumnWidth(260, isCompact: true),
+            180
+        )
+    }
+
+    func testCompactContextMatrixUsesShortHeaderAfterMovingGoIntoTitleRow() {
+        XCTAssertEqual(FloatingMenuContextMatrixLayout.headerHeight(isCompact: true), 68)
+        XCTAssertEqual(FloatingMenuContextMatrixLayout.headerHeight(isCompact: false), 82)
     }
 
     func testCompactContextMatrixUsesShortSingleLineStatusLabels() {
@@ -224,6 +255,20 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(
             FloatingMenuContextSectionContent.defaultItems,
             [.captureControls, .matrix]
+        )
+    }
+
+    func testFloatingMenuPinsStatusAndSwitchControlsAboveScrollableContent() {
+        XCTAssertEqual(
+            FloatingMenuPinnedHeaderContent.defaultItems,
+            [.statusHeader, .switchControls]
+        )
+    }
+
+    func testFloatingMenuSwitchSectionOmitsLastSwitchStatus() {
+        XCTAssertEqual(
+            FloatingMenuSwitchSectionContent.pinnedItems,
+            [.navigationControls]
         )
     }
 

@@ -20,15 +20,15 @@ The goal is to make a multi-display setup feel like one workspace that can move 
 
 ## Status
 
-Sideby is pre-1.0 software. Version 0.4.0 focuses on more flexible Context mapping: instant Context Capture can preserve per-display Space positions, a display can be absent from a Context in the middle of the captured set, Contexts can be opened directly from the matrix, display rows can be reordered, and Move by Contexts / Align Displays use captured per-display indexes instead of assuming every display uses the same Space order.
+Sideby is pre-1.0 software. Version 0.5.0 focuses on making the menu bar workflow easier to scan and adjust: the floating menu now opens at a compact 520-point width, keeps the Sideby toggle and Previous/Next controls fixed above the scrolling content, removes the noisy last-switch status row, and makes the Context matrix denser while preserving readable display names and draggable Space membership.
 
 The current release strategy is direct distribution with App Sandbox off. Context Capture and Align Displays use a read-only SkyLight layout query when it is available, with a slower public-command fallback for capture. This means Sideby is not targeting Mac App Store distribution.
 
 ## Features
 
-- Menu bar app with a resizable settings popover for quick control across multiple displays.
+- Menu bar app with a resizable settings popover for quick control across multiple displays, including pinned Sideby/Switch controls above the scrolling setup content.
 - Named Contexts for workspaces that span one or more displays.
-- Context matrix for reviewing which displays belong to each Context, including each display's captured Space number and user-defined display row order.
+- Compact Context matrix for reviewing which displays belong to each Context, including each display's captured Space number, user-defined display row order, draggable Space membership, and resizable display-name column.
 - Instant Capture Contexts flow for building a Context set from the current display/Space arrangement, with a walk-based fallback when the layout query is unavailable.
 - Context Capture can preserve gaps when displays have different current Space positions, so display membership does not need to be contiguous from Context 1.
 - Context Capture skips mirrored displays or displays without an independent Space layout when other selected displays can still be captured.

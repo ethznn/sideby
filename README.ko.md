@@ -20,15 +20,15 @@ Sideby의 목표는 멀티 디스플레이 환경을 하나의 작업공간처�
 
 ## 현재 상태
 
-Sideby는 pre-1.0 소프트웨어입니다. 0.4.0은 더 유연한 Context 매핑에 집중합니다. 즉시 Context Capture는 디스플레이별 Space 위치를 보존할 수 있고, 캡처된 Context 묶음 중간에서 특정 디스플레이가 빠질 수 있습니다. Context matrix에서 특정 Context로 바로 이동하고 디스플레이 행 순서를 바꿀 수 있으며, Move by Contexts와 Align Displays는 모든 디스플레이가 같은 Space 순서를 쓴다고 가정하지 않고 캡처된 디스플레이별 index를 사용합니다.
+Sideby는 pre-1.0 소프트웨어입니다. 0.5.0은 메뉴바 워크플로를 더 쉽게 훑고 조정할 수 있게 만드는 데 집중합니다. floating menu는 이제 520pt의 컴팩트한 너비로 열리고, Sideby 토글과 Previous/Next 컨트롤은 스크롤 콘텐츠 위에 고정됩니다. 불필요하게 시선을 끌던 last-switch 상태 행은 제거했고, Context matrix는 더 촘촘하게 보이면서도 디스플레이 이름 가독성과 Space membership 드래그 조정을 유지합니다.
 
 현재 릴리즈 전략은 App Sandbox off 직접 배포입니다. Context Capture와 Align Displays는 가능할 때 read-only SkyLight layout query를 사용하고, layout query를 사용할 수 없으면 Capture Contexts는 더 느린 공개 명령 기반 fallback을 사용합니다. 따라서 Sideby는 Mac App Store 배포를 목표로 하지 않습니다.
 
 ## 기능
 
-- 여러 디스플레이를 빠르게 제어하는 리사이즈 가능한 메뉴바 설정 팝오버
+- 스크롤되는 설정 콘텐츠 위에 고정된 Sideby/Switch 컨트롤을 포함해 여러 디스플레이를 빠르게 제어하는 리사이즈 가능한 메뉴바 설정 팝오버
 - 하나 이상의 디스플레이를 묶는 이름 있는 Context
-- 각 Context에 속한 디스플레이, 캡처된 Space 번호, 사용자가 정한 디스플레이 행 순서를 확인하는 Context matrix
+- 각 Context에 속한 디스플레이, 캡처된 Space 번호, 사용자가 정한 디스플레이 행 순서, 드래그 가능한 Space membership, 조절 가능한 디스플레이 이름 열을 확인하는 컴팩트 Context matrix
 - 현재 디스플레이/Space 배치에서 Context 묶음을 즉시 만드는 Capture Contexts 흐름. layout query를 사용할 수 없으면 walk-based fallback을 사용합니다.
 - 디스플레이별 현재 Space 위치가 다를 때 중간 Context의 빈칸을 보존하는 Context Capture
 - 다른 선택 디스플레이를 캡처할 수 있으면 미러링 디스플레이나 독립 Space layout이 없는 디스플레이를 건너뛰는 Context Capture

@@ -13,6 +13,36 @@ public enum FloatingMenuContextSectionContent: Sendable {
     ]
 }
 
+public enum FloatingMenuPinnedHeaderItem: Equatable, Hashable, Sendable {
+    case statusHeader
+    case switchControls
+}
+
+public enum FloatingMenuPinnedHeaderContent: Sendable {
+    public static let defaultItems: [FloatingMenuPinnedHeaderItem] = [
+        .statusHeader,
+        .switchControls
+    ]
+}
+
+public enum FloatingMenuSwitchSectionItem: Equatable, Hashable, Sendable {
+    case navigationControls
+    case targetSummary
+    case hint
+}
+
+public enum FloatingMenuSwitchSectionContent: Sendable {
+    public static let defaultItems: [FloatingMenuSwitchSectionItem] = [
+        .navigationControls,
+        .targetSummary,
+        .hint
+    ]
+
+    public static let pinnedItems: [FloatingMenuSwitchSectionItem] = [
+        .navigationControls
+    ]
+}
+
 public enum FloatingMenuContextCaptureAvailability: Sendable {
     public static func canStart(
         displayCount: Int,
@@ -51,11 +81,29 @@ public enum FloatingMenuContextMatrixLayout: Sendable {
     public static let headerLineLimit = 1
 
     public static func displayColumnWidth(isCompact: Bool) -> CGFloat {
-        isCompact ? 132 : 170
+        isCompact ? 72 : 170
     }
 
     public static func contextColumnWidth(isCompact: Bool) -> CGFloat {
-        isCompact ? 156 : 220
+        isCompact ? 72 : 220
+    }
+
+    public static func headerHeight(isCompact: Bool) -> CGFloat {
+        isCompact ? 68 : 82
+    }
+
+    public static func displayColumnMaximumWidth(isCompact: Bool) -> CGFloat {
+        isCompact ? 180 : 260
+    }
+
+    public static func clampedDisplayColumnWidth(
+        _ width: CGFloat,
+        isCompact: Bool
+    ) -> CGFloat {
+        min(
+            max(width, displayColumnWidth(isCompact: isCompact)),
+            displayColumnMaximumWidth(isCompact: isCompact)
+        )
     }
 
     public static func nameLineLimit(isCompact: Bool) -> Int {
@@ -313,7 +361,7 @@ private extension CGRect {
 }
 
 public enum FloatingMenuPanelLayout {
-    public static let defaultSize = NSSize(width: 720, height: 640)
+    public static let defaultSize = NSSize(width: 520, height: 640)
     public static let minimumSize = NSSize(width: 520, height: 420)
     public static let screenPadding: CGFloat = 24
 

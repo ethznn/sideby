@@ -3130,18 +3130,15 @@ private struct ProductMenuPanelActions {
 
 private struct ProductMenuContentView: View {
     @ObservedObject var model: SidebyAppModel
-    let onSwitchQueued: (SwitchCommand) -> Void
     let actions: ProductMenuPanelActions
     @State private var expansion = FloatingMenuSectionExpansion.default
 
     init(
         model: SidebyAppModel,
-        onSwitchQueued: @escaping (SwitchCommand) -> Void,
         actions: ProductMenuPanelActions,
         initialExpansion: FloatingMenuSectionExpansion = .default
     ) {
         self.model = model
-        self.onSwitchQueued = onSwitchQueued
         self.actions = actions
         self._expansion = State(initialValue: initialExpansion)
     }
@@ -3150,17 +3147,6 @@ private struct ProductMenuContentView: View {
         let strings = model.strings
 
         VStack(alignment: .leading, spacing: 8) {
-            MenuBarStatusHeader(model: model)
-
-            GroupBox(strings.switchSection) {
-                ScreenSwitchingControls(
-                    model: model,
-                    showsTargetSummary: false,
-                    showsHint: false,
-                    onSwitchQueued: onSwitchQueued
-                )
-            }
-
             MoveTargetsView(
                 model: model,
                 showsSummary: true,
@@ -3703,15 +3689,28 @@ private struct ProductFloatingMenuPanelView: View {
     let initialExpansion: FloatingMenuSectionExpansion
 
     var body: some View {
-        ScrollView(.vertical) {
-            ProductMenuContentView(
+        VStack(alignment: .leading, spacing: 0) {
+            ProductPinnedMenuControlsView(
                 model: model,
-                onSwitchQueued: onSwitchQueued,
-                actions: actions,
-                initialExpansion: initialExpansion
+                onSwitchQueued: onSwitchQueued
             )
-            .padding()
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .zIndex(1)
+
+            ScrollView(.vertical) {
+                ProductMenuContentView(
+                    model: model,
+                    actions: actions,
+                    initialExpansion: initialExpansion
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .frame(
             minWidth: FloatingMenuPanelLayout.minimumSize.width,
@@ -3721,6 +3720,42 @@ private struct ProductFloatingMenuPanelView: View {
             alignment: .topLeading
         )
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+private struct ProductPinnedMenuControlsView: View {
+    @ObservedObject var model: SidebyAppModel
+    let onSwitchQueued: (SwitchCommand) -> Void
+
+    var body: some View {
+        let strings = model.strings
+
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(FloatingMenuPinnedHeaderContent.defaultItems, id: \.self) { item in
+                pinnedItemView(item, strings: strings)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pinnedItemView(
+        _ item: FloatingMenuPinnedHeaderItem,
+        strings: SBSStrings
+    ) -> some View {
+        switch item {
+        case .statusHeader:
+            MenuBarStatusHeader(model: model)
+        case .switchControls:
+            GroupBox(strings.switchSection) {
+                ScreenSwitchingControls(
+                    model: model,
+                    visibleItems: FloatingMenuSwitchSectionContent.pinnedItems,
+                    showsTargetSummary: false,
+                    showsHint: false,
+                    onSwitchQueued: onSwitchQueued
+                )
+            }
+        }
     }
 }
 
@@ -3912,16 +3947,31 @@ private struct ContextsView: View {
     var wrapsInGroupBox = true
     var showsHelp = true
     var isCompact = false
+    @State private var displayColumnWidthOverride: CGFloat?
+    @State private var displayColumnResizeStartWidth: CGFloat?
+
+    private var defaultDisplayColumnWidth: CGFloat {
+        FloatingMenuContextMatrixLayout.displayColumnWidth(isCompact: isCompact)
+    }
 
     private var displayColumnWidth: CGFloat {
-        FloatingMenuContextMatrixLayout.displayColumnWidth(isCompact: isCompact)
+        FloatingMenuContextMatrixLayout.clampedDisplayColumnWidth(
+            displayColumnWidthOverride ?? defaultDisplayColumnWidth,
+            isCompact: isCompact
+        )
     }
 
     private var contextColumnWidth: CGFloat {
         FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: isCompact)
     }
 
-    private var headerHeight: CGFloat { isCompact ? 92 : 98 }
+    private var usesDenseContextColumns: Bool {
+        isCompact && contextColumnWidth <= 72
+    }
+
+    private var headerHeight: CGFloat {
+        FloatingMenuContextMatrixLayout.headerHeight(isCompact: isCompact)
+    }
     private var rowHeight: CGFloat { isCompact ? 32 : 36 }
 
     var body: some View {
@@ -3952,6 +4002,10 @@ private struct ContextsView: View {
 
             HStack(alignment: .top, spacing: 8) {
                 displayColumn(rows: matrix.rows)
+                    .overlay(alignment: .trailing) {
+                        displayColumnResizeHandle(rowCount: matrix.rows.count)
+                            .offset(x: 5)
+                    }
 
                 ScrollView(.horizontal) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -3977,6 +4031,39 @@ private struct ContextsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func displayColumnResizeHandle(rowCount: Int) -> some View {
+        let rowGaps = max(rowCount - 1, 0)
+        let height = headerHeight
+            + CGFloat(rowCount) * rowHeight
+            + CGFloat(rowGaps) * 8
+
+        return ZStack {
+            Capsule(style: .continuous)
+                .fill(Color.secondary.opacity(0.28))
+                .frame(width: 3, height: max(height, rowHeight))
+        }
+        .frame(width: 10, height: max(height, rowHeight))
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    if displayColumnResizeStartWidth == nil {
+                        displayColumnResizeStartWidth = displayColumnWidth
+                    }
+                    let startWidth = displayColumnResizeStartWidth ?? displayColumnWidth
+                    displayColumnWidthOverride = FloatingMenuContextMatrixLayout.clampedDisplayColumnWidth(
+                        startWidth + value.translation.width,
+                        isCompact: isCompact
+                    )
+                }
+                .onEnded { _ in
+                    displayColumnResizeStartWidth = nil
+                }
+        )
+        .help("Drag to resize display names")
+        .pointingHandCursor()
+    }
+
     private func displayColumn(rows: [ContextMatrixRow]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(model.strings.displays)
@@ -3985,11 +4072,7 @@ private struct ContextsView: View {
                 .frame(width: displayColumnWidth, height: headerHeight, alignment: .bottomLeading)
 
             ForEach(rows) { row in
-                Text(row.displayName)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(width: displayColumnWidth, height: rowHeight, alignment: .leading)
+                displayNameCell(row)
                     .onDrag {
                         NSItemProvider(
                             object: ContextMatrixDisplayRowDragPayload(
@@ -4004,32 +4087,53 @@ private struct ContextsView: View {
         }
     }
 
+    private func displayNameCell(_ row: ContextMatrixRow) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            Text(row.displayName)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(height: rowHeight, alignment: .center)
+                .padding(.trailing, 10)
+        }
+        .frame(width: displayColumnWidth, height: rowHeight, alignment: .leading)
+        .clipped()
+        .help(row.displayName)
+    }
+
     private func contextHeader(_ column: ContextMatrixColumn) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text(model.strings.contextOrder(column.order))
+            HStack(spacing: usesDenseContextColumns ? 4 : 6) {
+                Text(usesDenseContextColumns ? "C\(column.order)" : model.strings.contextOrder(column.order))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .layoutPriority(1)
 
-                if let statusTitle = FloatingMenuContextMatrixLayout.statusTitle(
-                    for: column.state,
-                    isCompact: true,
-                    strings: model.strings
-                ) {
-                    Text(statusTitle)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(column.state == .needsSync ? .orange : Color.accentColor)
-                        .lineLimit(1)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .fill(column.state == .needsSync ? Color.orange.opacity(0.14) : Color.accentColor.opacity(0.14))
-                        )
+                if let statusTitle = contextStatusTitle(for: column) {
+                    if usesDenseContextColumns {
+                        Circle()
+                            .fill(contextStatusColor(for: column.state))
+                            .frame(width: 6, height: 6)
+                            .help(statusTitle)
+                    } else {
+                        Text(statusTitle)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(contextStatusColor(for: column.state))
+                            .lineLimit(1)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .fill(contextStatusColor(for: column.state).opacity(0.14))
+                            )
+                    }
                 }
+
+                Spacer(minLength: 2)
+
+                goToContextButton(column)
             }
 
             TextField(
@@ -4044,19 +4148,48 @@ private struct ContextsView: View {
                 )
             )
             .textFieldStyle(.roundedBorder)
-            .font(.caption.weight(.semibold))
-            .lineLimit(FloatingMenuContextMatrixLayout.nameLineLimit(isCompact: isCompact))
+            .font(usesDenseContextColumns ? .system(size: 10, weight: .semibold) : .caption.weight(.semibold))
+            .lineLimit(usesDenseContextColumns ? 1 : FloatingMenuContextMatrixLayout.nameLineLimit(isCompact: isCompact))
             .help(column.name)
-
-            Button(model.strings.goToContext) {
-                model.activateContext(contextID: column.id)
-            }
-            .font(.caption2.weight(.semibold))
-            .buttonStyle(.borderless)
-            .lineLimit(1)
-            .pointingHandCursor()
         }
         .frame(width: contextColumnWidth, height: headerHeight, alignment: .topLeading)
+    }
+
+    private func goToContextButton(_ column: ContextMatrixColumn) -> some View {
+        Button {
+            model.activateContext(contextID: column.id)
+        } label: {
+            Text(model.strings.goToContext)
+                .font(.system(size: usesDenseContextColumns ? 9 : 10, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .lineLimit(1)
+                .padding(.horizontal, usesDenseContextColumns ? 5 : 7)
+                .frame(height: usesDenseContextColumns ? 16 : 20)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(Color.accentColor.opacity(0.55), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(model.strings.goToContext)
+        .accessibilityLabel(model.strings.goToContext)
+        .pointingHandCursor()
+    }
+
+    private func contextStatusTitle(for column: ContextMatrixColumn) -> String? {
+        FloatingMenuContextMatrixLayout.statusTitle(
+            for: column.state,
+            isCompact: true,
+            strings: model.strings
+        )
+    }
+
+    private func contextStatusColor(for state: ContextRowState) -> Color {
+        state == .needsSync ? .orange : Color.accentColor
     }
 
     @ViewBuilder
@@ -4089,11 +4222,11 @@ private struct ContextsView: View {
 
             if let spaceIndex = cell.spaceIndex {
                 Text(model.strings.spaceNumber(spaceIndex + 1))
-                    .font(.caption2.weight(.semibold))
+                    .font(usesDenseContextColumns ? .system(size: 9, weight: .semibold) : .caption2.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .padding(.horizontal, 6)
+                    .minimumScaleFactor(usesDenseContextColumns ? 0.55 : 0.72)
+                    .padding(.horizontal, usesDenseContextColumns ? 2 : 6)
             } else {
                 Text("-")
                     .font(.caption2)
@@ -4558,6 +4691,7 @@ private struct PrivacyPermissionsView: View {
 
 private struct ScreenSwitchingControls: View {
     @ObservedObject var model: SidebyAppModel
+    var visibleItems = FloatingMenuSwitchSectionContent.defaultItems
     var showsTargetSummary = true
     var showsHint = true
     var onSwitchQueued: (SwitchCommand) -> Void = { _ in }
@@ -4566,47 +4700,47 @@ private struct ScreenSwitchingControls: View {
         let strings = model.strings
 
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Button("<- \(strings.previous)") {
-                    if model.switchContext(.previous) {
-                        onSwitchQueued(.previous)
-                    }
-                }
-                .disabled(!model.isEnabled || model.isSwitching || model.contextCaptureSession != nil)
-                .pointingHandCursor(model.isEnabled && !model.isSwitching && model.contextCaptureSession == nil)
-
-                Button("\(strings.next) ->") {
-                    if model.switchContext(.next) {
-                        onSwitchQueued(.next)
-                    }
-                }
-                .disabled(!model.isEnabled || model.isSwitching || model.contextCaptureSession != nil)
-                .pointingHandCursor(model.isEnabled && !model.isSwitching && model.contextCaptureSession == nil)
+            if visibleItems.contains(.navigationControls) {
+                navigationControls(strings: strings)
             }
 
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
-                if showsTargetSummary {
+            if visibleItems.contains(.targetSummary), showsTargetSummary {
+                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
                     GridRow {
                         Text(strings.targets)
                         Text(model.selectedDisplaySummary)
                             .foregroundStyle(.secondary)
                     }
                 }
-                GridRow {
-                    Text(strings.lastSwitch)
-                    Text(model.lastSwitchResult)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
             }
 
-            if showsHint {
+            if visibleItems.contains(.hint), showsHint {
                 Text(model.isEnabled ? strings.testButtonsUseActivePath : strings.turnOnForTestButtons)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func navigationControls(strings: SBSStrings) -> some View {
+        HStack {
+            Button("<- \(strings.previous)") {
+                if model.switchContext(.previous) {
+                    onSwitchQueued(.previous)
+                }
+            }
+            .disabled(!model.isEnabled || model.isSwitching || model.contextCaptureSession != nil)
+            .pointingHandCursor(model.isEnabled && !model.isSwitching && model.contextCaptureSession == nil)
+
+            Button("\(strings.next) ->") {
+                if model.switchContext(.next) {
+                    onSwitchQueued(.next)
+                }
+            }
+            .disabled(!model.isEnabled || model.isSwitching || model.contextCaptureSession != nil)
+            .pointingHandCursor(model.isEnabled && !model.isSwitching && model.contextCaptureSession == nil)
+        }
     }
 }
 

@@ -36,7 +36,7 @@ The DMG script is included so release packaging stays reproducible. It packages 
 For a versioned release build, pass the version explicitly:
 
 ```bash
-SIDEBY_VERSION=0.4.0 SIDEBY_BUILD_NUMBER=1 scripts/build_release_dmg.sh
+SIDEBY_VERSION=0.5.0 SIDEBY_BUILD_NUMBER=1 scripts/build_release_dmg.sh
 ```
 
 Release notarization is maintainer-local: submit the generated DMG with Apple's `notarytool` using credentials stored in your local Keychain, then staple the ticket. Do not commit Apple ID credentials, App Store Connect keys, certificates, provisioning profiles, keychain profile names, or notarization output logs.
