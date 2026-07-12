@@ -1,5 +1,6 @@
 import Foundation
 import SidebyCore
+import SwiftUI
 
 public enum FloatingMenuContextSectionItem: Equatable, Sendable {
     case captureControls
@@ -53,6 +54,24 @@ public enum FloatingMenuContextCaptureAvailability: Sendable {
     }
 }
 
+public enum FloatingMenuContextMatrixAxis: Equatable, Sendable {
+    case contexts
+    case displays
+}
+
+public enum FloatingMenuContextMatrixAxisHeaderContent: Sendable {
+    public static let topTrailing: FloatingMenuContextMatrixAxis = .contexts
+    public static let bottomLeading: FloatingMenuContextMatrixAxis = .displays
+}
+
+public struct FloatingMenuContextMatrixHeaderHeightPreferenceKey: PreferenceKey {
+    public static let defaultValue: CGFloat = 0
+
+    public static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 public enum FloatingMenuPanelPresentationTrigger: Equatable, Sendable {
     case menuBarIcon
     case onboardingCompletion
@@ -86,10 +105,6 @@ public enum FloatingMenuContextMatrixLayout: Sendable {
 
     public static func contextColumnWidth(isCompact: Bool) -> CGFloat {
         isCompact ? 72 : 220
-    }
-
-    public static func headerHeight(isCompact: Bool) -> CGFloat {
-        isCompact ? 68 : 82
     }
 
     public static func displayColumnMaximumWidth(isCompact: Bool) -> CGFloat {

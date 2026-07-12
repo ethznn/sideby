@@ -153,6 +153,11 @@ final class AppShellTests: XCTestCase {
         )
     }
 
+    func testContextMatrixAxisHeaderPlacesContextsAcrossAndDisplaysDown() {
+        XCTAssertEqual(FloatingMenuContextMatrixAxisHeaderContent.topTrailing, .contexts)
+        XCTAssertEqual(FloatingMenuContextMatrixAxisHeaderContent.bottomLeading, .displays)
+    }
+
     func testContextMatrixDisplayColumnResizeIsClampedToUsefulRange() {
         XCTAssertEqual(
             FloatingMenuContextMatrixLayout.clampedDisplayColumnWidth(40, isCompact: true),
@@ -168,9 +173,14 @@ final class AppShellTests: XCTestCase {
         )
     }
 
-    func testCompactContextMatrixUsesShortHeaderAfterMovingGoIntoTitleRow() {
-        XCTAssertEqual(FloatingMenuContextMatrixLayout.headerHeight(isCompact: true), 68)
-        XCTAssertEqual(FloatingMenuContextMatrixLayout.headerHeight(isCompact: false), 82)
+    func testContextMatrixHeaderHeightPreferenceKeepsTallestHeader() {
+        var height = FloatingMenuContextMatrixHeaderHeightPreferenceKey.defaultValue
+
+        FloatingMenuContextMatrixHeaderHeightPreferenceKey.reduce(value: &height) { 44 }
+        FloatingMenuContextMatrixHeaderHeightPreferenceKey.reduce(value: &height) { 52 }
+        FloatingMenuContextMatrixHeaderHeightPreferenceKey.reduce(value: &height) { 48 }
+
+        XCTAssertEqual(height, 52)
     }
 
     func testCompactContextMatrixUsesShortSingleLineStatusLabels() {

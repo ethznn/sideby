@@ -7,7 +7,7 @@ APP_NAME="Sideby.app"
 EXECUTABLE_NAME="Sideby"
 APP_BUNDLE_ID="${SIDEBY_BUNDLE_ID:-io.github.ethznn.sideby}"
 BUILD_NUMBER="${SIDEBY_BUILD_NUMBER:-1}"
-VERSION="${SIDEBY_VERSION:-0.5.0}"
+VERSION="${SIDEBY_VERSION:-0.6.0}"
 BUILD_CONFIGURATION="${SIDEBY_BUILD_CONFIGURATION:-release}"
 # Protected product-bundle decision: keep sandbox off for the current direct
 # distribution baseline unless the user explicitly approves a release-strategy change.
@@ -68,6 +68,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <string>public.app-category.productivity</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
+  <key>LSUIElement</key>
+  <true/>
   <key>LSMultipleInstancesProhibited</key>
   <true/>
   <key>NSPrincipalClass</key>

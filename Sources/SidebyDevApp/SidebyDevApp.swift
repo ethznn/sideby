@@ -13,6 +13,8 @@ struct SidebyDevApp: App {
     @StateObject private var model = DevAppModel()
 
     init() {
+        MenuBarOnlyApplicationPresentation.apply()
+
         if DevCommandLineRunner.runIfRequested() {
             Thread.sleep(forTimeInterval: 0.5)
             exit(0)

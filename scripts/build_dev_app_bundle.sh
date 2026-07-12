@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PRODUCT_NAME="SidebyDevApp"
 APP_NAME="SidebyDevApp.app"
 EXECUTABLE_NAME="SidebyDevApp"
-VERSION="${SIDEBY_VERSION:-0.5.0}"
+VERSION="${SIDEBY_VERSION:-0.6.0}"
 BUILD_NUMBER="${SIDEBY_BUILD_NUMBER:-1}"
 BUILD_CONFIGURATION="${SIDEBY_BUILD_CONFIGURATION:-debug}"
 APP_DIR="$ROOT_DIR/dist/$APP_NAME"
@@ -49,6 +49,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <string>$BUILD_NUMBER</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
+  <key>LSUIElement</key>
+  <true/>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
   <key>NSAppleEventsUsageDescription</key>

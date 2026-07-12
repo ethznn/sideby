@@ -14,6 +14,8 @@ struct SidebyApp: App {
     @AppStorage("sideby.v1.onboarding-complete") private var didCompleteOnboarding = false
 
     init() {
+        MenuBarOnlyApplicationPresentation.apply()
+
         if SingleInstanceGuard.activateExistingApplicationAndReturnShouldTerminate() {
             Thread.sleep(forTimeInterval: 0.1)
             exit(0)
@@ -713,6 +715,14 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
+    var canActivateContext: Bool {
+        ContextActivationAvailability.canActivate(
+            isSidebyEnabled: isEnabled,
+            isSwitching: isSwitching,
+            isCapturing: contextCaptureSession != nil
+        )
+    }
+
     func setContextPinning(_ isPinned: Bool) {
         updateContextPlan { plan in
             plan.setPinned(isPinned)
@@ -726,15 +736,28 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     func activateContext(contextID: String) {
+        guard isEnabled else {
+            diagnostics = [
+                DiagnosticState(
+                    severity: .warning,
+                    title: strings.sidebyOffTitle,
+                    message: strings.sidebyOffMessage,
+                    actionLabel: nil
+                )
+            ]
+            lastSwitchResult = strings.sidebyOffReason
+            return
+        }
+        guard canActivateContext else {
+            return
+        }
+
         let intent = settings.contextPlan.activationIntent(forContextID: contextID)
         guard intent.shouldExecute, let targetContext = intent.targetContext else {
             if let diagnostic = intent.diagnostic {
                 diagnostics = [diagnostic]
                 lastSwitchResult = strings.localizedDiagnosticTitle(diagnostic.title)
             }
-            return
-        }
-        guard contextCaptureSession == nil, !isSwitching else {
             return
         }
         guard hasPostEventAccess(command: .next, label: "context") else {
@@ -3949,6 +3972,7 @@ private struct ContextsView: View {
     var isCompact = false
     @State private var displayColumnWidthOverride: CGFloat?
     @State private var displayColumnResizeStartWidth: CGFloat?
+    @State private var contextHeaderHeight: CGFloat = 0
 
     private var defaultDisplayColumnWidth: CGFloat {
         FloatingMenuContextMatrixLayout.displayColumnWidth(isCompact: isCompact)
@@ -3969,9 +3993,6 @@ private struct ContextsView: View {
         isCompact && contextColumnWidth <= 72
     }
 
-    private var headerHeight: CGFloat {
-        FloatingMenuContextMatrixLayout.headerHeight(isCompact: isCompact)
-    }
     private var rowHeight: CGFloat { isCompact ? 32 : 36 }
 
     var body: some View {
@@ -4027,13 +4048,19 @@ private struct ContextsView: View {
                     .padding(.bottom, 2)
                 }
             }
+            .onPreferenceChange(FloatingMenuContextMatrixHeaderHeightPreferenceKey.self) { height in
+                guard abs(contextHeaderHeight - height) > 0.5 else {
+                    return
+                }
+                contextHeaderHeight = height
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func displayColumnResizeHandle(rowCount: Int) -> some View {
         let rowGaps = max(rowCount - 1, 0)
-        let height = headerHeight
+        let height = contextHeaderHeight
             + CGFloat(rowCount) * rowHeight
             + CGFloat(rowGaps) * 8
 
@@ -4066,10 +4093,7 @@ private struct ContextsView: View {
 
     private func displayColumn(rows: [ContextMatrixRow]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(model.strings.displays)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: displayColumnWidth, height: headerHeight, alignment: .bottomLeading)
+            matrixAxisHeader(strings: model.strings)
 
             ForEach(rows) { row in
                 displayNameCell(row)
@@ -4084,6 +4108,34 @@ private struct ContextsView: View {
                         handleDisplayRowDrop(providers: providers, targetDisplayID: row.displayID)
                     }
             }
+        }
+    }
+
+    private func matrixAxisHeader(strings: SBSStrings) -> some View {
+        ZStack {
+            Text("\(axisLabel(FloatingMenuContextMatrixAxisHeaderContent.topTrailing, strings: strings)) →")
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+
+            Text("\(axisLabel(FloatingMenuContextMatrixAxisHeaderContent.bottomLeading, strings: strings)) ↓")
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        }
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .frame(
+            width: displayColumnWidth,
+            height: contextHeaderHeight > 0 ? contextHeaderHeight : nil
+        )
+    }
+
+    private func axisLabel(
+        _ axis: FloatingMenuContextMatrixAxis,
+        strings: SBSStrings
+    ) -> String {
+        switch axis {
+        case .contexts:
+            strings.contextPlanner
+        case .displays:
+            strings.displays
         }
     }
 
@@ -4152,7 +4204,15 @@ private struct ContextsView: View {
             .lineLimit(usesDenseContextColumns ? 1 : FloatingMenuContextMatrixLayout.nameLineLimit(isCompact: isCompact))
             .help(column.name)
         }
-        .frame(width: contextColumnWidth, height: headerHeight, alignment: .topLeading)
+        .frame(width: contextColumnWidth, alignment: .topLeading)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: FloatingMenuContextMatrixHeaderHeightPreferenceKey.self,
+                    value: proxy.size.height
+                )
+            }
+        }
     }
 
     private func goToContextButton(_ column: ContextMatrixColumn) -> some View {
@@ -4177,7 +4237,8 @@ private struct ContextsView: View {
         .buttonStyle(.plain)
         .help(model.strings.goToContext)
         .accessibilityLabel(model.strings.goToContext)
-        .pointingHandCursor()
+        .disabled(!model.canActivateContext)
+        .pointingHandCursor(model.canActivateContext)
     }
 
     private func contextStatusTitle(for column: ContextMatrixColumn) -> String? {
