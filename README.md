@@ -8,7 +8,7 @@ Sideby does not replace Mission Control and is not a full window manager. It foc
 
 ## Preview
 
-<img src="./docs/images/sideby-context-capture.png" width="720" alt="Sideby Context Capture showing captured Contexts across two displays" />
+<img src="./docs/images/sideby-context-capture.png" width="720" alt="Sideby 0.6.0 menu showing pinned controls and a compact Context matrix" />
 
 <img src="./docs/images/sideby-swipe-onboarding.png" width="400" alt="Sideby onboarding showing Option Shift swipe gesture" />
 
@@ -20,21 +20,21 @@ The goal is to make a multi-display setup feel like one workspace that can move 
 
 ## Status
 
-Sideby is pre-1.0 software. Version 0.5.0 focuses on making the menu bar workflow easier to scan and adjust: the floating menu now opens at a compact 520-point width, keeps the Sideby toggle and Previous/Next controls fixed above the scrolling content, removes the noisy last-switch status row, and makes the Context matrix denser while preserving readable display names and draggable Space membership.
+Sideby is pre-1.0 software. Version 0.6.0 keeps the app in the menu bar without a Dock icon and makes the master Sideby toggle authoritative for direct Context moves. The Context matrix now labels its horizontal and vertical axes and sizes its header to its content, so the first Space row starts closer to the Context controls without losing alignment.
 
 The current release strategy is direct distribution with App Sandbox off. Context Capture and Align Displays use a read-only SkyLight layout query when it is available, with a slower public-command fallback for capture. This means Sideby is not targeting Mac App Store distribution.
 
 ## Features
 
-- Menu bar app with a resizable settings popover for quick control across multiple displays, including pinned Sideby/Switch controls above the scrolling setup content.
+- Menu bar-only app with a resizable settings popover for quick control across multiple displays, including pinned Sideby/Switch controls above the scrolling setup content; Sideby does not remain in the Dock.
 - Named Contexts for workspaces that span one or more displays.
-- Compact Context matrix for reviewing which displays belong to each Context, including each display's captured Space number, user-defined display row order, draggable Space membership, and resizable display-name column.
+- Compact Context matrix for reviewing which displays belong to each Context, including directional Context/Display axes, naturally sized headers, each display's captured Space number, user-defined display row order, draggable Space membership, and a resizable display-name column.
 - Instant Capture Contexts flow for building a Context set from the current display/Space arrangement, with a walk-based fallback when the layout query is unavailable.
 - Context Capture can preserve gaps when displays have different current Space positions, so display membership does not need to be contiguous from Context 1.
 - Context Capture skips mirrored displays or displays without an independent Space layout when other selected displays can still be captured.
 - Move Targets for selecting which displays should switch together in general movement mode.
 - Move by Contexts for switching displays to the next or previous captured Context using per-display target Space indexes.
-- Direct Context activation from the matrix for jumping to a named Context.
+- Direct Context activation from the matrix for jumping to a named Context; activation is unavailable while Sideby is off, switching, or capturing.
 - Drag display Space positions in the Context matrix to adjust captured membership, and drag display rows to reorder the matrix.
 - Align Displays for bringing the selected displays back to the Context represented by the reference display's current Space, with on-display feedback when a display is already aligned or not part of that Context.
 - Previous/Next Screen Switching through public macOS keyboard-command paths.
@@ -68,6 +68,8 @@ swift test
 scripts/build_app_bundle.sh
 open "dist/Sideby.app"
 ```
+
+Sideby stays in the menu bar and does not show a Dock icon. Use the Sideby menu bar item to reopen the controls.
 
 After opening the app, grant the requested Accessibility and Screen Switching permissions in macOS system settings (`macOS 시스템 설정`). If you rebuild the bundle and macOS still reports a permission as denied, remove the old Sideby entry from `macOS 시스템 설정` and add the rebuilt app again.
 

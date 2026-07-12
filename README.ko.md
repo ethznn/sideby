@@ -8,7 +8,7 @@ Sideby는 Mission Control 대체제나 전체 윈도우 매니저가 아닙니�
 
 ## 미리 보기
 
-<img src="./docs/images/sideby-context-capture.png" width="720" alt="두 디스플레이에 걸쳐 캡처된 Sideby Context Capture 화면" />
+<img src="./docs/images/sideby-context-capture.png" width="720" alt="고정 컨트롤과 컴팩트 Context matrix를 보여주는 Sideby 0.6.0 메뉴" />
 
 <img src="./docs/images/sideby-swipe-onboarding.png" width="400" alt="Option Shift 스와이프 제스처를 보여주는 Sideby 온보딩" />
 
@@ -20,21 +20,21 @@ Sideby의 목표는 멀티 디스플레이 환경을 하나의 작업공간처�
 
 ## 현재 상태
 
-Sideby는 pre-1.0 소프트웨어입니다. 0.5.0은 메뉴바 워크플로를 더 쉽게 훑고 조정할 수 있게 만드는 데 집중합니다. floating menu는 이제 520pt의 컴팩트한 너비로 열리고, Sideby 토글과 Previous/Next 컨트롤은 스크롤 콘텐츠 위에 고정됩니다. 불필요하게 시선을 끌던 last-switch 상태 행은 제거했고, Context matrix는 더 촘촘하게 보이면서도 디스플레이 이름 가독성과 Space membership 드래그 조정을 유지합니다.
+Sideby는 pre-1.0 소프트웨어입니다. 0.6.0부터 앱은 Dock 아이콘 없이 메뉴바에만 머물고, 최상단 Sideby 토글이 Context 직접 이동에도 동일하게 적용됩니다. Context matrix는 가로/세로 축을 표시하고 내용에 맞춰 헤더 높이를 정해, 정렬을 유지하면서 첫 Space 행의 불필요한 여백을 줄였습니다.
 
 현재 릴리즈 전략은 App Sandbox off 직접 배포입니다. Context Capture와 Align Displays는 가능할 때 read-only SkyLight layout query를 사용하고, layout query를 사용할 수 없으면 Capture Contexts는 더 느린 공개 명령 기반 fallback을 사용합니다. 따라서 Sideby는 Mac App Store 배포를 목표로 하지 않습니다.
 
 ## 기능
 
-- 스크롤되는 설정 콘텐츠 위에 고정된 Sideby/Switch 컨트롤을 포함해 여러 디스플레이를 빠르게 제어하는 리사이즈 가능한 메뉴바 설정 팝오버
+- 스크롤되는 설정 콘텐츠 위에 고정된 Sideby/Switch 컨트롤을 포함해 여러 디스플레이를 빠르게 제어하는 리사이즈 가능한 메뉴바 전용 설정 팝오버. Sideby는 Dock에 남지 않습니다.
 - 하나 이상의 디스플레이를 묶는 이름 있는 Context
-- 각 Context에 속한 디스플레이, 캡처된 Space 번호, 사용자가 정한 디스플레이 행 순서, 드래그 가능한 Space membership, 조절 가능한 디스플레이 이름 열을 확인하는 컴팩트 Context matrix
+- 각 Context에 속한 디스플레이, Context/디스플레이 방향 축, 내용에 맞춰지는 헤더, 캡처된 Space 번호, 사용자가 정한 디스플레이 행 순서, 드래그 가능한 Space membership, 조절 가능한 디스플레이 이름 열을 확인하는 컴팩트 Context matrix
 - 현재 디스플레이/Space 배치에서 Context 묶음을 즉시 만드는 Capture Contexts 흐름. layout query를 사용할 수 없으면 walk-based fallback을 사용합니다.
 - 디스플레이별 현재 Space 위치가 다를 때 중간 Context의 빈칸을 보존하는 Context Capture
 - 다른 선택 디스플레이를 캡처할 수 있으면 미러링 디스플레이나 독립 Space layout이 없는 디스플레이를 건너뛰는 Context Capture
 - 일반 이동 모드에서 함께 전환할 디스플레이를 고르는 Move Targets
 - 디스플레이별 목표 Space index를 사용해 이전/다음 Context로 전환하는 Move by Contexts
-- Context matrix에서 이름 있는 Context로 바로 이동하는 기능
+- Context matrix에서 이름 있는 Context로 바로 이동하는 기능. Sideby가 꺼져 있거나 전환 또는 캡처 중이면 이동할 수 없습니다.
 - Context matrix에서 디스플레이 Space 위치를 드래그해 캡처된 membership을 조정하고, 디스플레이 행을 드래그해 matrix 순서를 바꾸는 기능
 - 기준 디스플레이의 현재 Space가 나타내는 Context에 선택 디스플레이를 맞추는 Align Displays. 이미 정렬됐거나 해당 Context에 속하지 않은 디스플레이에는 화면 피드백을 표시합니다.
 - 공개 macOS 키보드 명령 경로를 통한 Previous/Next Screen Switching
@@ -68,6 +68,8 @@ swift test
 scripts/build_app_bundle.sh
 open "dist/Sideby.app"
 ```
+
+Sideby는 Dock 아이콘을 표시하지 않고 메뉴바에만 머뭅니다. 컨트롤을 다시 열려면 메뉴바의 Sideby 항목을 사용하세요.
 
 앱을 연 뒤 macOS 시스템 설정에서 요청된 Accessibility와 Screen Switching 권한을 허용합니다. 번들을 다시 빌드한 뒤에도 macOS가 권한을 거부 상태로 표시하면 macOS 시스템 설정에서 기존 Sideby 항목을 삭제하고 다시 빌드한 앱을 추가하세요.
 
