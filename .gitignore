@@ -26,3 +26,8 @@ dist/
 # Local brainstorming artifacts
 .superpowers/
 .worktrees/
+
+# Local agent plans and raw research artifacts
+docs/superpowers/plans/
+docs/local-research/
+docs/SPACE_*_RESEARCH.md

@@ -20,6 +20,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Test public documentation guard
+        run: bash scripts/test_check_public_docs.sh
+
+      - name: Check public documentation
+        run: bash scripts/check_public_docs.sh
+
       - name: Show Swift version
         run: swift --version
 

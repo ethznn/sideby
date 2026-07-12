@@ -42,6 +42,12 @@ Sideby uses a small read-only SkyLight layout query for Context Capture, live Co
 
 These boundaries are meant to protect users and keep the project maintainable. They are not intended to prevent new product ideas.
 
+## Public Documentation
+
+Durable decisions and sanitized, reviewed design specifications may be committed when they help contributors understand Sideby. Keep agent implementation plans, local brainstorming artifacts, raw research logs, and machine-specific experiment output out of the public repository.
+
+Use synthetic placeholders for display UUIDs, private Space IDs, usernames, and local filesystem paths in public examples. Run `scripts/check_public_docs.sh` before submitting documentation changes.
+
 ## License
 
 By submitting a contribution, you agree that your contribution is licensed under the MIT License.
