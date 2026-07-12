@@ -26,4 +26,12 @@ Sideby should stay open to product ideas, but a few technical boundaries protect
 - The current bundle may include Apple Events automation entitlement for the public System Events command path.
 - The current read-only SkyLight dependency is incompatible with a conservative Mac App Store posture; changing that direction needs an explicit release-strategy decision.
 
+## Public Documentation Hygiene
+
+- Keep durable product decisions, architecture, and reviewed design specifications in the repository when they help contributors understand Sideby.
+- Do not track agent-generated implementation plans, local brainstorming artifacts, raw research logs, or machine-specific experiment output.
+- Public examples must use synthetic placeholders for display UUIDs, stable hardware identifiers, private Space IDs, window IDs, app bundle IDs, usernames, and local filesystem paths.
+- Store local research artifacts only in ignored locations. Promote a result to public documentation by rewriting it as a durable, sanitized decision or design.
+- CI must reject tracked internal-plan and raw-research paths as well as obvious machine-specific identifiers in public Markdown files.
+
 Changing permission flow, sandboxing, event posting, global input capture, signing, or distribution strategy can affect user trust and release viability. Please open an issue before making those changes.
