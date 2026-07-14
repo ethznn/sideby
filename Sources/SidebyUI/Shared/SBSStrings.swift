@@ -238,7 +238,6 @@ public struct SBSStrings: Sendable {
     public var automationSettings: String { text("Automation Settings", "자동화 설정") }
 
     public var screenSwitching: String { text("Screen Switching", "화면 전환") }
-    public var switchSection: String { text("Switch", "전환") }
     public var previous: String { text("Previous", "이전") }
     public var next: String { text("Next", "다음") }
     public var targets: String { text("Targets", "대상") }
@@ -261,12 +260,10 @@ public struct SBSStrings: Sendable {
         text("Start at login could not be changed", "로그인 시 시작 설정을 변경할 수 없습니다.")
     }
 
-    public var status: String { text("Status", "상태") }
     public var displays: String { text("Displays", "디스플레이") }
     public var mainDisplay: String { text("Main", "메인") }
     public var selected: String { text("Selected", "선택됨") }
     public var notSelected: String { text("Not selected", "선택 안 됨") }
-    public var noDiagnostics: String { text("No diagnostics", "진단 없음") }
     public var swipe: String { text("Swipe", "스와이프") }
     public var command: String { text("Command", "명령") }
     public var lastInput: String { text("Last input", "마지막 입력") }

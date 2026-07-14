@@ -8,9 +8,9 @@ Sideby does not replace Mission Control and is not a full window manager. It foc
 
 ## Preview
 
-<img src="./docs/images/sideby-context-capture.png" width="720" alt="Sideby 0.6.0 menu showing pinned controls and a compact Context matrix" />
-
-<img src="./docs/images/sideby-swipe-onboarding.png" width="400" alt="Sideby onboarding showing Option Shift swipe gesture" />
+<p align="center">
+  <img src="./docs/images/sideby-context-capture-en.png" width="510" alt="Sideby 0.7.0 menu showing inline navigation, display targets, and the Context matrix in English" />
+</p>
 
 ## Why Sideby Exists
 
@@ -20,13 +20,13 @@ The goal is to make a multi-display setup feel like one workspace that can move 
 
 ## Status
 
-Sideby is pre-1.0 software. Version 0.6.0 keeps the app in the menu bar without a Dock icon and makes the master Sideby toggle authoritative for direct Context moves. The Context matrix now labels its horizontal and vertical axes and sizes its header to its content, so the first Space row starts closer to the Context controls without losing alignment.
+Sideby is pre-1.0 software. Version 0.7.0 adds signed in-app updates through Sparkle 2 and streamlines the menu around the controls used most often: the master Sideby toggle, inline Previous/Next buttons, Move Targets, and the Context matrix. Update checks live in General, while permission guidance remains in Permissions.
 
 The current release strategy is direct distribution with App Sandbox off. Context Capture and Align Displays use a read-only SkyLight layout query when it is available, with a slower public-command fallback for capture. This means Sideby is not targeting Mac App Store distribution.
 
 ## Features
 
-- Menu bar-only app with a resizable settings popover for quick control across multiple displays, including pinned Sideby/Switch controls above the scrolling setup content; Sideby does not remain in the Dock.
+- Menu bar-only app with a resizable settings popover, a pinned master Sideby toggle, and inline Previous/Next controls; Sideby does not remain in the Dock.
 - Named Contexts for workspaces that span one or more displays.
 - Compact Context matrix for reviewing which displays belong to each Context, including directional Context/Display axes, naturally sized headers, each display's captured Space number, user-defined display row order, draggable Space membership, and a resizable display-name column.
 - Instant Capture Contexts flow for building a Context set from the current display/Space arrangement, with a walk-based fallback when the layout query is unavailable.
@@ -43,9 +43,8 @@ The current release strategy is direct distribution with App Sandbox off. Contex
 - Best-effort fallback to general movement when external Space changes make Context matching unsafe.
 - Center-screen Context HUD when switching with Move by Contexts.
 - First-run onboarding for Accessibility and Screen Switching access.
-- Diagnostics for permission, display, and switching limitations.
 - Display Spaces labels and best-effort visible app/window suggestions.
-- Signed in-app update checks, downloads, and user-approved installation through Sparkle 2
+- Signed in-app update checks, downloads, and user-approved installation through Sparkle 2.
 - English and Korean UI copy.
 
 ## Requirements
@@ -62,7 +61,7 @@ Sideby does not request Screen Recording for Screen Switching, Context Capture, 
 
 Download the latest signed and notarized DMG from [GitHub Releases](https://github.com/ethznn/sideby/releases).
 
-If you use 0.6.0, manually install the first Sparkle-enabled release once. After that, Sideby can check for and download signed updates in the app and install them only with your approval.
+If you use 0.6.0 or earlier, manually install 0.7.0 once. Starting with 0.7.0, Sideby can check for and download signed updates in the app and install them only with your approval.
 
 Clone the repository, run the tests, then build the local product bundle:
 

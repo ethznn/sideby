@@ -2990,7 +2990,7 @@ private extension FloatingMenuSectionExpansion {
         var expansion = FloatingMenuSectionExpansion.default
         switch destination {
         case .overview:
-            expansion.showsDiagnostics = true
+            break
         case .input:
             expansion.showsInput = true
         }
@@ -3190,39 +3190,8 @@ private struct ProductMenuContentView: View {
 
             contextsSection
 
-            CompactDisclosureSection(
-                title: strings.input,
-                systemImage: "keyboard",
-                isExpanded: expansionBinding(for: .input)
-            ) {
-                ShortcutSettingsView(
-                    settings: settingsBinding,
-                    showsInputExperiment: false
-                )
-            }
-
-            CompactDisclosureSection(
-                title: strings.permissions,
-                systemImage: "lock",
-                isExpanded: expansionBinding(for: .permissions)
-            ) {
-                PrivacyPermissionsView(model: model)
-            }
-
-            CompactDisclosureSection(
-                title: strings.general,
-                systemImage: "gearshape",
-                isExpanded: expansionBinding(for: .general)
-            ) {
-                generalSettings
-            }
-
-            CompactDisclosureSection(
-                title: strings.status,
-                systemImage: "waveform.path.ecg",
-                isExpanded: expansionBinding(for: .diagnostics)
-            ) {
-                DiagnosticsView(model: model)
+            ForEach(FloatingMenuCollapsibleSectionContent.defaultItems, id: \.self) { section in
+                disclosureSection(section, strings: strings)
             }
 
             menuActions
@@ -3264,6 +3233,42 @@ private struct ProductMenuContentView: View {
         )
     }
 
+    @ViewBuilder
+    private func disclosureSection(
+        _ section: FloatingMenuCollapsibleSection,
+        strings: SBSStrings
+    ) -> some View {
+        switch section {
+        case .input:
+            CompactDisclosureSection(
+                title: strings.input,
+                systemImage: "keyboard",
+                isExpanded: expansionBinding(for: .input)
+            ) {
+                ShortcutSettingsView(
+                    settings: settingsBinding,
+                    showsInputExperiment: false
+                )
+            }
+        case .permissions:
+            CompactDisclosureSection(
+                title: strings.permissions,
+                systemImage: "lock",
+                isExpanded: expansionBinding(for: .permissions)
+            ) {
+                PrivacyPermissionsView(model: model)
+            }
+        case .general:
+            CompactDisclosureSection(
+                title: strings.general,
+                systemImage: "gearshape",
+                isExpanded: expansionBinding(for: .general)
+            ) {
+                generalSettings
+            }
+        }
+    }
+
     private func expansionBinding(for section: FloatingMenuCollapsibleSection) -> Binding<Bool> {
         Binding(
             get: { expansion.isExpanded(section) },
@@ -3296,29 +3301,36 @@ private struct ProductMenuContentView: View {
     }
 
     private var generalButtons: some View {
-        Group {
+        ForEach(FloatingMenuGeneralActionContent.defaultItems, id: \.self) { item in
+            generalButton(for: item)
+        }
+    }
+
+    @ViewBuilder
+    private func generalButton(for item: FloatingMenuGeneralActionItem) -> some View {
+        switch item {
+        case .replayOnboarding:
             Button(model.strings.replayOnboarding, action: actions.replayOnboarding)
                 .pointingHandCursor()
+        case .refresh:
             Button(model.strings.refresh) {
                 model.refresh()
             }
             .pointingHandCursor()
-        }
-    }
-
-    private var menuActions: some View {
-        VStack(alignment: .trailing, spacing: 6) {
+        case .checkForUpdates:
             Button(model.strings.checkForUpdates) {
                 updater.checkForUpdates()
             }
             .disabled(!updater.canCheckForUpdates)
             .pointingHandCursor()
-
-            Button(model.strings.quit, action: actions.quit)
-                .pointingHandCursor()
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
-        .font(.caption)
+    }
+
+    private var menuActions: some View {
+        Button(model.strings.quit, action: actions.quit)
+            .pointingHandCursor()
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .font(.caption)
     }
 }
 
@@ -3770,33 +3782,26 @@ private struct ProductPinnedMenuControlsView: View {
     let onSwitchQueued: (SwitchCommand) -> Void
 
     var body: some View {
-        let strings = model.strings
-
         VStack(alignment: .leading, spacing: 8) {
             ForEach(FloatingMenuPinnedHeaderContent.defaultItems, id: \.self) { item in
-                pinnedItemView(item, strings: strings)
+                pinnedItemView(item)
             }
         }
     }
 
     @ViewBuilder
-    private func pinnedItemView(
-        _ item: FloatingMenuPinnedHeaderItem,
-        strings: SBSStrings
-    ) -> some View {
+    private func pinnedItemView(_ item: FloatingMenuPinnedHeaderItem) -> some View {
         switch item {
-        case .statusHeader:
-            MenuBarStatusHeader(model: model)
-        case .switchControls:
-            GroupBox(strings.switchSection) {
-                ScreenSwitchingControls(
-                    model: model,
-                    visibleItems: FloatingMenuSwitchSectionContent.pinnedItems,
-                    showsTargetSummary: false,
-                    showsHint: false,
-                    onSwitchQueued: onSwitchQueued
-                )
-            }
+        case .masterControl:
+            MenuBarMasterControl(model: model)
+        case .navigationControls:
+            ScreenSwitchingControls(
+                model: model,
+                visibleItems: FloatingMenuSwitchSectionContent.pinnedItems,
+                showsTargetSummary: false,
+                showsHint: false,
+                onSwitchQueued: onSwitchQueued
+            )
         }
     }
 }
@@ -3858,44 +3863,29 @@ private extension CGRect {
     }
 }
 
-private struct MenuBarStatusHeader: View {
+private struct MenuBarMasterControl: View {
     @ObservedObject var model: SidebyAppModel
 
     var body: some View {
         let strings = model.strings
 
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 10) {
-                Text(strings.sideby)
-                    .font(.headline)
-                    .fontWeight(.semibold)
+        HStack(alignment: .center, spacing: 10) {
+            Text(strings.sideby)
+                .font(.headline)
+                .fontWeight(.semibold)
 
-                Spacer()
+            Spacer()
 
-                Toggle(
-                    model.isEnabled ? strings.on : strings.off,
-                    isOn: Binding(
-                        get: { model.isEnabled },
-                        set: { model.setSidebyEnabled($0) }
-                    )
+            Toggle(
+                model.isEnabled ? strings.on : strings.off,
+                isOn: Binding(
+                    get: { model.isEnabled },
+                    set: { model.setSidebyEnabled($0) }
                 )
-                .toggleStyle(.switch)
-                .pointingHandCursor()
-            }
-
-            Text(statusText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            )
+            .toggleStyle(.switch)
+            .pointingHandCursor()
         }
-    }
-
-    private var statusText: String {
-        if model.isEnabled {
-            return "\(SBSStrings(language: model.settings.language).listening) \(model.selectedDisplaySummary)"
-        }
-
-        return "\(SBSStrings(language: model.settings.language).off) · \(model.inputStatus)"
     }
 }
 
@@ -4820,46 +4810,6 @@ private struct ScreenSwitchingControls: View {
             }
             .disabled(!model.isEnabled || model.isSwitching || model.contextCaptureSession != nil)
             .pointingHandCursor(model.isEnabled && !model.isSwitching && model.contextCaptureSession == nil)
-        }
-    }
-}
-
-private struct DiagnosticsView: View {
-    @ObservedObject var model: SidebyAppModel
-
-    var body: some View {
-        let strings = model.strings
-
-        GroupBox(strings.status) {
-            VStack(alignment: .leading, spacing: 8) {
-                StatusRow(label: strings.displays, value: "\(model.displayLayout.displayCount)")
-                StatusRow(label: strings.accessibility, value: strings.permissionState(model.permissionState))
-                StatusRow(label: strings.switchingAccess, value: model.hasSwitchingAccess ? strings.granted : strings.notGranted)
-
-                if model.diagnostics.isEmpty {
-                    Text(strings.noDiagnostics)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(Array(model.diagnostics.enumerated()), id: \.offset) { _, diagnostic in
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(strings.localizedDiagnosticTitle(diagnostic.title))
-                                .foregroundStyle(diagnostic.severity == .blocker ? .red : .primary)
-                            Text(strings.localizedDiagnosticMessage(diagnostic.message))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                            if diagnostic.actionLabel == "Align Displays" {
-                                Button(strings.alignDisplays) {
-                                    model.alignDisplaysToCurrentSpace()
-                                }
-                                .font(.caption)
-                                .buttonStyle(.bordered)
-                                .pointingHandCursor()
-                            }
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

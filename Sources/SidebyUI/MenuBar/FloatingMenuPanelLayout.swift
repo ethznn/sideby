@@ -15,14 +15,14 @@ public enum FloatingMenuContextSectionContent: Sendable {
 }
 
 public enum FloatingMenuPinnedHeaderItem: Equatable, Hashable, Sendable {
-    case statusHeader
-    case switchControls
+    case masterControl
+    case navigationControls
 }
 
 public enum FloatingMenuPinnedHeaderContent: Sendable {
     public static let defaultItems: [FloatingMenuPinnedHeaderItem] = [
-        .statusHeader,
-        .switchControls
+        .masterControl,
+        .navigationControls
     ]
 }
 
@@ -158,36 +158,53 @@ public enum FloatingMenuInteractiveCursorPolicy: Sendable {
     }
 }
 
-public enum FloatingMenuCollapsibleSection: Equatable, Sendable {
+public enum FloatingMenuCollapsibleSection: Equatable, Hashable, Sendable {
     case input
     case permissions
     case general
-    case diagnostics
+}
+
+public enum FloatingMenuCollapsibleSectionContent: Sendable {
+    public static let defaultItems: [FloatingMenuCollapsibleSection] = [
+        .input,
+        .permissions,
+        .general
+    ]
+}
+
+public enum FloatingMenuGeneralActionItem: Equatable, Hashable, Sendable {
+    case replayOnboarding
+    case refresh
+    case checkForUpdates
+}
+
+public enum FloatingMenuGeneralActionContent: Sendable {
+    public static let defaultItems: [FloatingMenuGeneralActionItem] = [
+        .replayOnboarding,
+        .refresh,
+        .checkForUpdates
+    ]
 }
 
 public struct FloatingMenuSectionExpansion: Equatable, Sendable {
     public var showsInput: Bool
     public var showsPermissions: Bool
     public var showsGeneral: Bool
-    public var showsDiagnostics: Bool
 
     public init(
         showsInput: Bool,
         showsPermissions: Bool,
-        showsGeneral: Bool,
-        showsDiagnostics: Bool
+        showsGeneral: Bool
     ) {
         self.showsInput = showsInput
         self.showsPermissions = showsPermissions
         self.showsGeneral = showsGeneral
-        self.showsDiagnostics = showsDiagnostics
     }
 
     public static let `default` = FloatingMenuSectionExpansion(
         showsInput: false,
         showsPermissions: false,
-        showsGeneral: false,
-        showsDiagnostics: false
+        showsGeneral: false
     )
 
     public func isExpanded(_ section: FloatingMenuCollapsibleSection) -> Bool {
@@ -198,8 +215,6 @@ public struct FloatingMenuSectionExpansion: Equatable, Sendable {
             showsPermissions
         case .general:
             showsGeneral
-        case .diagnostics:
-            showsDiagnostics
         }
     }
 
@@ -214,8 +229,6 @@ public struct FloatingMenuSectionExpansion: Equatable, Sendable {
             showsPermissions = isExpanded
         case .general:
             showsGeneral = isExpanded
-        case .diagnostics:
-            showsDiagnostics = isExpanded
         }
     }
 

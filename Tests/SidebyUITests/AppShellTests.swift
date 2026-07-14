@@ -222,14 +222,12 @@ final class AppShellTests: XCTestCase {
             FloatingMenuSectionExpansion(
                 showsInput: false,
                 showsPermissions: false,
-                showsGeneral: false,
-                showsDiagnostics: false
+                showsGeneral: false
             )
         )
         XCTAssertFalse(expansion.showsInput)
         XCTAssertFalse(expansion.showsPermissions)
         XCTAssertFalse(expansion.showsGeneral)
-        XCTAssertFalse(expansion.showsDiagnostics)
     }
 
     func testFloatingMenuPresentationUsesMenuBarFallbackAfterOnboarding() {
@@ -258,7 +256,6 @@ final class AppShellTests: XCTestCase {
         expansion.set(.permissions, isExpanded: true)
         XCTAssertTrue(expansion.isExpanded(.permissions))
         XCTAssertFalse(expansion.isExpanded(.general))
-        XCTAssertFalse(expansion.isExpanded(.diagnostics))
     }
 
     func testFloatingMenuContextSectionGroupsCaptureBeforeMatrix() {
@@ -268,10 +265,24 @@ final class AppShellTests: XCTestCase {
         )
     }
 
-    func testFloatingMenuPinsStatusAndSwitchControlsAboveScrollableContent() {
+    func testFloatingMenuPinsMasterControlAndInlineNavigationControls() {
         XCTAssertEqual(
             FloatingMenuPinnedHeaderContent.defaultItems,
-            [.statusHeader, .switchControls]
+            [.masterControl, .navigationControls]
+        )
+    }
+
+    func testFloatingMenuOnlyShowsEssentialDisclosureSections() {
+        XCTAssertEqual(
+            FloatingMenuCollapsibleSectionContent.defaultItems,
+            [.input, .permissions, .general]
+        )
+    }
+
+    func testFloatingMenuPlacesUpdateCheckInsideGeneralActions() {
+        XCTAssertEqual(
+            FloatingMenuGeneralActionContent.defaultItems,
+            [.replayOnboarding, .refresh, .checkForUpdates]
         )
     }
 

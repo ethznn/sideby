@@ -8,9 +8,9 @@ Sideby는 Mission Control 대체제나 전체 윈도우 매니저가 아닙니�
 
 ## 미리 보기
 
-<img src="./docs/images/sideby-context-capture.png" width="720" alt="고정 컨트롤과 컴팩트 Context matrix를 보여주는 Sideby 0.6.0 메뉴" />
-
-<img src="./docs/images/sideby-swipe-onboarding.png" width="400" alt="Option Shift 스와이프 제스처를 보여주는 Sideby 온보딩" />
+<p align="center">
+  <img src="./docs/images/sideby-context-capture-ko.png" width="510" alt="인라인 전환 버튼, 이동 대상, Context matrix를 한국어로 보여주는 Sideby 0.7.0 메뉴" />
+</p>
 
 ## 만들게 된 배경
 
@@ -20,13 +20,13 @@ Sideby의 목표는 멀티 디스플레이 환경을 하나의 작업공간처�
 
 ## 현재 상태
 
-Sideby는 pre-1.0 소프트웨어입니다. 0.6.0부터 앱은 Dock 아이콘 없이 메뉴바에만 머물고, 최상단 Sideby 토글이 Context 직접 이동에도 동일하게 적용됩니다. Context matrix는 가로/세로 축을 표시하고 내용에 맞춰 헤더 높이를 정해, 정렬을 유지하면서 첫 Space 행의 불필요한 여백을 줄였습니다.
+Sideby는 pre-1.0 소프트웨어입니다. 0.7.0은 Sparkle 2를 통한 서명된 앱 내 업데이트를 추가하고, 메뉴를 자주 쓰는 컨트롤 중심으로 간결하게 정리했습니다. 최상단에는 Sideby 토글과 이전/다음 버튼을 두고, 이어서 이동 대상과 Context matrix를 보여줍니다. 업데이트 확인은 일반에, 권한 안내는 권한에 있습니다.
 
 현재 릴리즈 전략은 App Sandbox off 직접 배포입니다. Context Capture와 Align Displays는 가능할 때 read-only SkyLight layout query를 사용하고, layout query를 사용할 수 없으면 Capture Contexts는 더 느린 공개 명령 기반 fallback을 사용합니다. 따라서 Sideby는 Mac App Store 배포를 목표로 하지 않습니다.
 
 ## 기능
 
-- 스크롤되는 설정 콘텐츠 위에 고정된 Sideby/Switch 컨트롤을 포함해 여러 디스플레이를 빠르게 제어하는 리사이즈 가능한 메뉴바 전용 설정 팝오버. Sideby는 Dock에 남지 않습니다.
+- 고정된 Sideby 토글과 인라인 이전/다음 버튼을 갖춘 리사이즈 가능한 메뉴바 전용 설정 팝오버. Sideby는 Dock에 남지 않습니다.
 - 하나 이상의 디스플레이를 묶는 이름 있는 Context
 - 각 Context에 속한 디스플레이, Context/디스플레이 방향 축, 내용에 맞춰지는 헤더, 캡처된 Space 번호, 사용자가 정한 디스플레이 행 순서, 드래그 가능한 Space membership, 조절 가능한 디스플레이 이름 열을 확인하는 컴팩트 Context matrix
 - 현재 디스플레이/Space 배치에서 Context 묶음을 즉시 만드는 Capture Contexts 흐름. layout query를 사용할 수 없으면 walk-based fallback을 사용합니다.
@@ -43,7 +43,6 @@ Sideby는 pre-1.0 소프트웨어입니다. 0.6.0부터 앱은 Dock 아이콘 �
 - 외부 Space 변경으로 Context matching이 안전하지 않을 때 일반 이동으로 돌아가는 best-effort fallback
 - Move by Contexts로 전환할 때 화면 중앙에 표시되는 Context HUD
 - Accessibility와 Screen Switching access를 안내하는 첫 실행 온보딩
-- 권한, 디스플레이, 전환 한계를 설명하는 진단
 - Display Spaces 라벨과 best-effort visible app/window suggestion
 - Sparkle 2를 통한 서명된 앱 내 업데이트 확인, 다운로드 및 사용자 승인 설치
 - 영어/한국어 UI 문구
@@ -62,7 +61,7 @@ Sideby는 Screen Switching, Context Capture, Align Displays를 위해 Screen Rec
 
 [GitHub Releases](https://github.com/ethznn/sideby/releases)에서 최신 signed/notarized DMG를 다운로드할 수 있습니다.
 
-0.6.0 사용자는 첫 Sparkle 지원 릴리즈를 한 번 직접 설치해야 합니다. 이후 Sideby가 앱에서 서명된 업데이트를 확인하고 다운로드할 수 있으며, 설치는 사용자의 승인이 있어야 진행됩니다.
+0.6.0 이하 사용자는 0.7.0을 한 번 직접 설치해야 합니다. 0.7.0부터는 Sideby가 앱에서 서명된 업데이트를 확인하고 다운로드할 수 있으며, 설치는 사용자의 승인이 있어야 진행됩니다.
 
 저장소를 클론한 뒤 테스트를 실행하고 로컬 제품 번들을 빌드합니다.
 
