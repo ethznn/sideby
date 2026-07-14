@@ -58,7 +58,7 @@ fi
 
 APPCAST_BUILD_NUMBER="$(
   /usr/bin/xmllint --xpath \
-    'string((/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="enclosure"]/@*[local-name()="version"])[1])' \
+    'string((/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="version"])[1])' \
     "$APPCAST_PATH"
 )"
 if [[ "$APPCAST_BUILD_NUMBER" != "$BUILD_NUMBER" ]]; then
@@ -68,7 +68,7 @@ fi
 
 APPCAST_SHORT_VERSION="$(
   /usr/bin/xmllint --xpath \
-    'string((/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="enclosure"]/@*[local-name()="shortVersionString"])[1])' \
+    'string((/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="shortVersionString"])[1])' \
     "$APPCAST_PATH"
 )"
 if [[ "$APPCAST_SHORT_VERSION" != "$VERSION" ]]; then

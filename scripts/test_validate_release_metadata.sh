@@ -191,11 +191,11 @@ appcast_notes_url="${FAKE_APPCAST_NOTES_URL:-https://github.com/ethznn/sideby/re
     <title>Sideby Updates</title>
     <item>
       <title>Sideby $appcast_short_version</title>
+      <sparkle:version>$appcast_build_number</sparkle:version>
+      <sparkle:shortVersionString>$appcast_short_version</sparkle:shortVersionString>
       <sparkle:releaseNotesLink>$appcast_notes_url</sparkle:releaseNotesLink>
       <enclosure
         url="$appcast_dmg_url"
-        sparkle:version="$appcast_build_number"
-        sparkle:shortVersionString="$appcast_short_version"
         length="123"
         type="application/octet-stream"
         sparkle:edSignature="fixture-signature" />
@@ -205,11 +205,11 @@ XML
     cat <<XML
     <item>
       <title>Unexpected second update</title>
+      <sparkle:version>$appcast_build_number</sparkle:version>
+      <sparkle:shortVersionString>$appcast_short_version</sparkle:shortVersionString>
       <sparkle:releaseNotesLink>$appcast_notes_url</sparkle:releaseNotesLink>
       <enclosure
         url="$appcast_dmg_url"
-        sparkle:version="$appcast_build_number"
-        sparkle:shortVersionString="$appcast_short_version"
         length="123"
         type="application/octet-stream"
         sparkle:edSignature="fixture-signature" />
