@@ -41,6 +41,58 @@ SIDEBY_VERSION=0.6.0 SIDEBY_BUILD_NUMBER=1 scripts/build_release_dmg.sh
 
 Release notarization is maintainer-local: submit the generated DMG with Apple's `notarytool` using credentials stored in your local Keychain, then staple the ticket. Do not commit Apple ID credentials, App Store Connect keys, certificates, provisioning profiles, keychain profile names, or notarization output logs.
 
+## Update System
+
+Sideby uses Sparkle 2 for updates after the first Sparkle-enabled release. Users
+of 0.6.0 and earlier must install that first release manually; later releases can
+be discovered, downloaded, verified, installed, and relaunched from the app.
+
+The product app owns one `SPUStandardUpdaterController`. It starts with the app,
+uses Sparkle's standard update UI, and exposes a manual **Check for Updates...**
+action in the General section immediately above Quit. Sparkle asks whether to
+enable automatic checks on the second launch. If the user opts in, scheduled
+checks run once per day. Scheduled checks stay quiet when there is no update or
+the network is unavailable; manual checks show Sparkle's standard result or
+error UI. Download, installation, and relaunch always require user approval.
+
+The updater reads a signed appcast from:
+
+```text
+https://github.com/ethznn/sideby/releases/latest/download/appcast.xml
+```
+
+Each published GitHub release contains the notarized DMG, version-specific
+Markdown release notes, and `appcast.xml`. The appcast points to the immutable,
+versioned release assets rather than another `latest` download URL. The app and
+update feed require HTTPS, Developer ID signing, notarization, and Sparkle EdDSA
+signatures. The EdDSA private key stays in the maintainer's login Keychain; only
+the public key is embedded in `Sideby.app`. Signed-feed verification and archive
+verification occur before extraction. Invalid or damaged updates are rejected
+without replacing the installed app.
+
+Sideby uses an increasing numeric `CFBundleVersion` as Sparkle's machine version
+and `CFBundleShortVersionString` as the user-facing release version. A release
+build must receive both values explicitly and must not reuse a previous build
+number. The initial implementation ships full-DMG updates only; binary delta
+updates and prerelease channels remain out of scope.
+
+The existing local release flow remains authoritative:
+
+1. Build the app and DMG with explicit release and build versions.
+2. Sign with Developer ID, submit for notarization, and staple the accepted
+   ticket to the DMG.
+3. Use Sparkle's release tools to sign the DMG and release notes and generate a
+   signed `appcast.xml` with versioned GitHub asset URLs.
+4. Upload all three assets to a draft GitHub release.
+5. Verify the appcast, asset URLs, Apple signatures, notarization ticket, and
+   Sparkle signatures before publishing the release.
+
+Automated checks cover updater action wiring, localized labels, required bundle
+metadata, framework embedding, monotonically increasing build-number validation,
+public-document hygiene, and bundle signature structure. Before publishing the
+first Sparkle-enabled release, perform one end-to-end update between two genuine
+Developer ID signed and notarized builds using a temporary signed test feed.
+
 Open the package in Xcode:
 
 ```bash
