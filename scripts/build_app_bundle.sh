@@ -17,7 +17,16 @@ APP_DIR="$ROOT_DIR/dist/$APP_NAME"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
+SPARKLE_FRAMEWORK="$FRAMEWORKS_DIR/Sparkle.framework"
 APP_ICON_FILE="$ROOT_DIR/Resources/AppIcon.icns"
+SPARKLE_PUBLIC_KEY_FILE="$ROOT_DIR/Resources/SparklePublicKey.txt"
+
+SPARKLE_PUBLIC_KEY="$(tr -d '\r\n' < "$SPARKLE_PUBLIC_KEY_FILE")"
+if [[ ! "$SPARKLE_PUBLIC_KEY" =~ ^[A-Za-z0-9+/]{43}=$ ]]; then
+  echo "error: invalid Sparkle public key" >&2
+  exit 1
+fi
 
 cd "$ROOT_DIR"
 
@@ -26,12 +35,25 @@ trap 'rm -f "$ENTITLEMENTS_FILE"' EXIT
 
 swift build -c "$BUILD_CONFIGURATION" --product "$PRODUCT_NAME"
 BUILD_DIR="$(swift build -c "$BUILD_CONFIGURATION" --show-bin-path)"
+SPARKLE_FRAMEWORK_SOURCE="$(
+  find "$ROOT_DIR/.build/artifacts" \
+    -path '*/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework' \
+    -type d -print -quit
+)"
+
+if [[ -z "$SPARKLE_FRAMEWORK_SOURCE" ]]; then
+  echo "error: resolved Sparkle.framework was not found" >&2
+  exit 1
+fi
 
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
 
 cp "$BUILD_DIR/$PRODUCT_NAME" "$MACOS_DIR/$EXECUTABLE_NAME"
 chmod +x "$MACOS_DIR/$EXECUTABLE_NAME"
+
+ditto "$SPARKLE_FRAMEWORK_SOURCE" "$SPARKLE_FRAMEWORK"
+rm -rf "$SPARKLE_FRAMEWORK/Versions/B/XPCServices" "$SPARKLE_FRAMEWORK/XPCServices"
 
 if [[ -f "$APP_ICON_FILE" ]]; then
   cp "$APP_ICON_FILE" "$RESOURCES_DIR/AppIcon.icns"
@@ -77,6 +99,18 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>NSAppleEventsUsageDescription</key>
   <string>Sideby sends a System Events command only when you request a Space switch, so selected displays can move to the next work context.</string>
   <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+  <key>SUFeedURL</key>
+  <string>https://github.com/ethznn/sideby/releases/latest/download/appcast.xml</string>
+  <key>SUPublicEDKey</key>
+  <string>$SPARKLE_PUBLIC_KEY</string>
+  <key>SUScheduledCheckInterval</key>
+  <integer>86400</integer>
+  <key>SUAllowsAutomaticUpdates</key>
+  <false/>
+  <key>SUVerifyUpdateBeforeExtraction</key>
+  <true/>
+  <key>SURequireSignedFeed</key>
   <true/>
 </dict>
 </plist>
@@ -125,12 +159,22 @@ if [[ -z "$SIGNING_IDENTITY" ]]; then
   )"
 fi
 
-if [[ -n "$SIGNING_IDENTITY" ]]; then
-  codesign --force --deep --options runtime --entitlements "$ENTITLEMENTS_FILE" --sign "$SIGNING_IDENTITY" "$APP_DIR"
-else
-  codesign --force --deep --options runtime --entitlements "$ENTITLEMENTS_FILE" --sign - "$APP_DIR"
+if [[ -z "$SIGNING_IDENTITY" ]]; then
+  SIGNING_IDENTITY="-"
 fi
 
+codesign_component() {
+  local component="$1"
+  codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$component"
+}
+
+codesign_component "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate"
+codesign_component "$SPARKLE_FRAMEWORK/Versions/B/Updater.app"
+codesign_component "$SPARKLE_FRAMEWORK"
+codesign --force --options runtime --entitlements "$ENTITLEMENTS_FILE" \
+  --sign "$SIGNING_IDENTITY" "$APP_DIR"
+
 codesign --verify --deep --strict "$APP_DIR"
+"$ROOT_DIR/scripts/verify_sparkle_bundle.sh" "$APP_DIR"
 
 echo "$APP_DIR"
