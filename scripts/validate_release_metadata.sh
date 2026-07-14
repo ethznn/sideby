@@ -9,12 +9,12 @@ if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 1
 fi
 
-if [[ ! "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || (( BUILD_NUMBER <= 0 )); then
-  echo "error: build number must be a positive integer" >&2
+if [[ ! "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+  echo "error: build number must be a canonical positive integer without leading zeros" >&2
   exit 1
 fi
 
-if (( BUILD_NUMBER <= 1 )); then
+if (( 10#$BUILD_NUMBER <= 1 )); then
   echo "error: Sparkle build number must be greater than shipped build 1" >&2
   exit 1
 fi

@@ -39,6 +39,8 @@ expect_pass 1.0.0 100
 expect_fail "semantic version" 0.7 2
 expect_fail "positive integer" 0.7.0 two
 expect_fail "greater than shipped build 1" 0.7.0 1
+expect_fail "without leading zeros" 0.7.0 08
+expect_fail "without leading zeros" 0.7.0 09
 
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/sideby-release-metadata-test.XXXXXX")"
 TEST_ROOT="$(cd "$TEST_ROOT" && pwd)"
@@ -139,12 +141,16 @@ printf '# Sideby 0.7.0\n\nRelease notes.\n' > "$TEST_ROOT/Sideby-0.7.0.md"
 
 cat > "$PREPARE_BIN/codesign" <<'CODESIGN'
 #!/usr/bin/env bash
-printf 'codesign\t%s\n' "$*" >> "$CALL_LOG"
-if [[ "$*" == *"--display"* ]]; then
-  echo "Authority=${FAKE_SIGNING_AUTHORITY:-Developer ID Application: Sideby Test}" >&2
-else
-  echo "codesign validation output"
+printf 'codesign' >> "$CALL_LOG"
+for argument in "$@"; do
+  printf '\t%s' "$argument" >> "$CALL_LOG"
+done
+printf '\n' >> "$CALL_LOG"
+if [[ " $* " == *" -R "* && "${FAKE_DEVELOPER_ID_REQUIREMENT_RESULT:-pass}" == "fail" ]]; then
+  echo "explicit Developer ID requirement rejected" >&2
+  exit 1
 fi
+echo "codesign validation output"
 CODESIGN
 
 cat > "$PREPARE_BIN/xcrun" <<'XCRUN'
@@ -172,7 +178,49 @@ while (( $# > 0 )); do
 done
 
 [[ -n "$output_path" ]] || { echo "missing appcast output path" >&2; exit 1; }
-printf '<rss>signed appcast fixture</rss>\n' > "$output_path"
+appcast_build_number="${FAKE_APPCAST_BUILD_NUMBER:-2}"
+appcast_short_version="${FAKE_APPCAST_SHORT_VERSION:-0.7.0}"
+appcast_dmg_url="${FAKE_APPCAST_DMG_URL:-https://github.com/ethznn/sideby/releases/download/v0.7.0/Sideby-0.7.0.dmg}"
+appcast_notes_url="${FAKE_APPCAST_NOTES_URL:-https://github.com/ethznn/sideby/releases/download/v0.7.0/Sideby-0.7.0.md}"
+
+{
+  cat <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Sideby Updates</title>
+    <item>
+      <title>Sideby $appcast_short_version</title>
+      <sparkle:releaseNotesLink>$appcast_notes_url</sparkle:releaseNotesLink>
+      <enclosure
+        url="$appcast_dmg_url"
+        sparkle:version="$appcast_build_number"
+        sparkle:shortVersionString="$appcast_short_version"
+        length="123"
+        type="application/octet-stream"
+        sparkle:edSignature="fixture-signature" />
+    </item>
+XML
+  if [[ "${FAKE_APPCAST_EXTRA_ITEM:-0}" == "1" ]]; then
+    cat <<XML
+    <item>
+      <title>Unexpected second update</title>
+      <sparkle:releaseNotesLink>$appcast_notes_url</sparkle:releaseNotesLink>
+      <enclosure
+        url="$appcast_dmg_url"
+        sparkle:version="$appcast_build_number"
+        sparkle:shortVersionString="$appcast_short_version"
+        length="123"
+        type="application/octet-stream"
+        sparkle:edSignature="fixture-signature" />
+    </item>
+XML
+  fi
+  cat <<'XML'
+  </channel>
+</rss>
+XML
+} > "$output_path"
 echo "generate_appcast output"
 GENERATE_APPCAST
 
@@ -183,7 +231,9 @@ for argument in "$@"; do
   printf '\t%s' "$argument" >> "$CALL_LOG"
 done
 printf '\n' >> "$CALL_LOG"
-[[ -f "${!#}" ]] || { echo "missing appcast to verify" >&2; exit 1; }
+appcast_path="${!#}"
+[[ -f "$appcast_path" ]] || { echo "missing appcast to verify" >&2; exit 1; }
+/usr/bin/xmllint --noout "$appcast_path"
 echo "sign_update verification output"
 SIGN_UPDATE
 
@@ -193,10 +243,57 @@ chmod +x \
   "$SPARKLE_BIN/generate_appcast" \
   "$SPARKLE_BIN/sign_update"
 
+: > "$CALL_LOG"
 if output="$(
   PATH="$PREPARE_BIN:$PATH" \
     CALL_LOG="$CALL_LOG" \
-    FAKE_SIGNING_AUTHORITY="Apple Development: Sideby Test" \
+    SIDEBY_VERSION=0.7.0 \
+    SIDEBY_BUILD_NUMBER=2 \
+    SIDEBY_RELEASE_TAG=latest \
+    SIDEBY_RELEASE_NOTES_PATH="$TEST_ROOT/Sideby-0.7.0.md" \
+    "$PREPARE_ROOT/scripts/prepare_sparkle_release.sh" \
+    2>&1
+)"; then
+  echo "expected noncanonical release tag to fail" >&2
+  exit 1
+fi
+if [[ "$output" != *"release tag must be v0.7.0"* ]]; then
+  echo "expected canonical release tag failure: $output" >&2
+  exit 1
+fi
+if [[ -s "$CALL_LOG" ]]; then
+  echo "release tools must not run for a noncanonical tag" >&2
+  exit 1
+fi
+
+: > "$CALL_LOG"
+if output="$(
+  PATH="$PREPARE_BIN:$PATH" \
+    CALL_LOG="$CALL_LOG" \
+    SIDEBY_VERSION=0.7.0 \
+    SIDEBY_BUILD_NUMBER=2 \
+    SIDEBY_RELEASE_TAG= \
+    SIDEBY_RELEASE_NOTES_PATH="$TEST_ROOT/Sideby-0.7.0.md" \
+    "$PREPARE_ROOT/scripts/prepare_sparkle_release.sh" \
+    2>&1
+)"; then
+  echo "expected empty release tag override to fail" >&2
+  exit 1
+fi
+if [[ "$output" != *"release tag must be v0.7.0"* ]]; then
+  echo "expected empty release tag failure: $output" >&2
+  exit 1
+fi
+if [[ -s "$CALL_LOG" ]]; then
+  echo "release tools must not run for an empty tag override" >&2
+  exit 1
+fi
+
+: > "$CALL_LOG"
+if output="$(
+  PATH="$PREPARE_BIN:$PATH" \
+    CALL_LOG="$CALL_LOG" \
+    FAKE_DEVELOPER_ID_REQUIREMENT_RESULT=fail \
     SIDEBY_VERSION=0.7.0 \
     SIDEBY_BUILD_NUMBER=2 \
     SIDEBY_RELEASE_NOTES_PATH="$TEST_ROOT/Sideby-0.7.0.md" \
@@ -206,14 +303,74 @@ if output="$(
   echo "expected non-Developer-ID release preparation to fail" >&2
   exit 1
 fi
-if [[ "$output" != *"Developer ID Application"* ]]; then
-  echo "expected Developer ID authority failure: $output" >&2
+if [[ "$output" != *"explicit Developer ID requirement"* ]]; then
+  echo "expected explicit Developer ID requirement failure: $output" >&2
   exit 1
 fi
 if grep -Eq '^(xcrun|generate_appcast)' "$CALL_LOG"; then
   echo "stapler and Sparkle must not run for a non-Developer-ID DMG" >&2
   exit 1
 fi
+
+expect_appcast_failure() {
+  local expected_message="$1"
+  shift
+  local output
+
+  rm -f \
+    "$PREPARE_ROOT/dist/Sideby-0.7.0.md" \
+    "$PREPARE_ROOT/dist/appcast.xml"
+  : > "$CALL_LOG"
+
+  if output="$(
+    env -i \
+      PATH="$PREPARE_BIN:$PATH" \
+      HOME="${HOME:-}" \
+      TMPDIR="${TMPDIR:-/tmp}" \
+      CALL_LOG="$CALL_LOG" \
+      SIDEBY_VERSION=0.7.0 \
+      SIDEBY_BUILD_NUMBER=2 \
+      SIDEBY_RELEASE_NOTES_PATH="$TEST_ROOT/Sideby-0.7.0.md" \
+      "$@" \
+      "$PREPARE_ROOT/scripts/prepare_sparkle_release.sh" \
+      2>&1
+  )"; then
+    echo "expected appcast validation to fail" >&2
+    exit 1
+  fi
+  if [[ "$output" != *"$expected_message"* ]]; then
+    echo "expected appcast failure containing '$expected_message': $output" >&2
+    exit 1
+  fi
+  if grep -q '^sign_update' "$CALL_LOG"; then
+    echo "appcast signature verification must not run after metadata mismatch" >&2
+    exit 1
+  fi
+  if [[ -e "$PREPARE_ROOT/dist/Sideby-0.7.0.md" || -e "$PREPARE_ROOT/dist/appcast.xml" ]]; then
+    echo "invalid appcast assets must not be copied to dist" >&2
+    exit 1
+  fi
+}
+
+expect_appcast_failure \
+  "appcast build number 3 does not match requested build number 2" \
+  FAKE_APPCAST_BUILD_NUMBER=3
+
+expect_appcast_failure \
+  "appcast short version 0.8.0 does not match requested version 0.7.0" \
+  FAKE_APPCAST_SHORT_VERSION=0.8.0
+
+expect_appcast_failure \
+  "appcast enclosure URL does not match expected versioned URL" \
+  FAKE_APPCAST_DMG_URL=https://github.com/ethznn/sideby/releases/latest/download/Sideby-0.7.0.dmg
+
+expect_appcast_failure \
+  "appcast release notes URL does not match expected versioned URL" \
+  FAKE_APPCAST_NOTES_URL=https://github.com/ethznn/sideby/releases/latest/download/Sideby-0.7.0.md
+
+expect_appcast_failure \
+  "appcast must contain exactly one update item" \
+  FAKE_APPCAST_EXTRA_ITEM=1
 
 : > "$CALL_LOG"
 if ! output="$(
@@ -238,12 +395,14 @@ if [[ "$output" != "$expected_output" ]]; then
   exit 1
 fi
 
-if [[ "$(sed -n '1p' "$CALL_LOG")" != $'codesign\t--verify --verbose '* ]]; then
+if [[ "$(sed -n '1p' "$CALL_LOG")" != $'codesign\t--verify\t--verbose\t'* ]]; then
   echo "expected codesign verification first" >&2
   exit 1
 fi
-if [[ "$(sed -n '2p' "$CALL_LOG")" != $'codesign\t--display --verbose=4 '* ]]; then
-  echo "expected Developer ID authority inspection second" >&2
+developer_id_call="$(sed -n '2p' "$CALL_LOG")"
+developer_id_requirement=$'=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists'
+if [[ "$developer_id_call" != $'codesign\t--verify\t--verbose\t-R\t'"$developer_id_requirement"$'\t'* ]]; then
+  echo "expected Apple-anchored Developer ID requirement second: $developer_id_call" >&2
   exit 1
 fi
 if [[ "$(sed -n '3p' "$CALL_LOG")" != $'xcrun\tstapler validate '* ]]; then

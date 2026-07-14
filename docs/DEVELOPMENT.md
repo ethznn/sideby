@@ -53,10 +53,12 @@ SIDEBY_RELEASE_NOTES_PATH=/tmp/Sideby-0.7.0.md \
 scripts/prepare_sparkle_release.sh
 ```
 
-The preparation script requires a Developer ID Application signature and
-validates the stapled ticket before using Sparkle's `sideby-sparkle` Keychain
-account. It prints the versioned DMG, version-specific Markdown release notes,
-and signed `appcast.xml` paths. Upload all three files to a draft GitHub release
+The preparation script verifies the Apple-anchored Developer ID Application
+requirement and the stapled ticket before using Sparkle's `sideby-sparkle`
+Keychain account. It then requires exactly one appcast item whose version,
+build number, DMG URL, and release-notes URL match the requested release before
+printing the three asset paths. Upload the versioned DMG, version-specific
+Markdown release notes, and signed `appcast.xml` to a draft GitHub release
 before publishing it.
 
 ## Update System
