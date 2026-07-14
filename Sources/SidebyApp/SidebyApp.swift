@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 @main
 struct SidebyApp: App {
     @StateObject private var model = SidebyAppModel()
+    @StateObject private var updater: SidebyUpdater
     @AppStorage("sideby.v1.onboarding-complete") private var didCompleteOnboarding = false
 
     init() {
@@ -20,12 +21,15 @@ struct SidebyApp: App {
             Thread.sleep(forTimeInterval: 0.1)
             exit(0)
         }
+
+        _updater = StateObject(wrappedValue: SidebyUpdater())
     }
 
     var body: some Scene {
         MenuBarExtra {
             MenuBarControlView(
                 model: model,
+                updater: updater,
                 didCompleteOnboarding: $didCompleteOnboarding
             )
         } label: {
@@ -36,6 +40,7 @@ struct SidebyApp: App {
         WindowGroup("Sideby", id: "main") {
             ProductRootView(
                 model: model,
+                updater: updater,
                 didCompleteOnboarding: $didCompleteOnboarding
             )
             .frame(
@@ -2847,6 +2852,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
 private struct ProductRootView: View {
     @ObservedObject var model: SidebyAppModel
+    let updater: SidebyUpdater
     @Binding var didCompleteOnboarding: Bool
     @Environment(\.openWindow) private var openWindow
 
@@ -2916,6 +2922,7 @@ private struct ProductRootView: View {
 
     private var menuActions: ProductMenuPanelActions {
         ProductMenuPanelActions(
+            updater: updater,
             openSettings: {
                 openMenuPanel(initialExpansion: .opening(.overview))
             },
@@ -3014,6 +3021,7 @@ private struct LaunchAtLoginControls: View {
 
 private struct MenuBarControlView: View {
     @ObservedObject var model: SidebyAppModel
+    let updater: SidebyUpdater
     @Binding var didCompleteOnboarding: Bool
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismiss) private var dismiss
@@ -3113,6 +3121,7 @@ private struct MenuBarControlView: View {
 
     private var menuActions: ProductMenuPanelActions {
         ProductMenuPanelActions(
+            updater: updater,
             openSettings: {
                 handleMenuRoute(
                     SettingsAccessRoute.route(
@@ -3145,6 +3154,7 @@ private struct MenuBarControlView: View {
 }
 
 private struct ProductMenuPanelActions {
+    let updater: SidebyUpdater
     let openSettings: () -> Void
     let replayOnboarding: () -> Void
     let customizeShortcuts: () -> Void
@@ -3154,6 +3164,7 @@ private struct ProductMenuPanelActions {
 private struct ProductMenuContentView: View {
     @ObservedObject var model: SidebyAppModel
     let actions: ProductMenuPanelActions
+    @ObservedObject private var updater: SidebyUpdater
     @State private var expansion = FloatingMenuSectionExpansion.default
 
     init(
@@ -3163,6 +3174,7 @@ private struct ProductMenuContentView: View {
     ) {
         self.model = model
         self.actions = actions
+        self._updater = ObservedObject(wrappedValue: actions.updater)
         self._expansion = State(initialValue: initialExpansion)
     }
 
@@ -3295,11 +3307,17 @@ private struct ProductMenuContentView: View {
     }
 
     private var menuActions: some View {
-        HStack {
-            Spacer(minLength: 0)
+        VStack(alignment: .trailing, spacing: 6) {
+            Button(model.strings.checkForUpdates) {
+                updater.checkForUpdates()
+            }
+            .disabled(!updater.canCheckForUpdates)
+            .pointingHandCursor()
+
             Button(model.strings.quit, action: actions.quit)
                 .pointingHandCursor()
         }
+        .frame(maxWidth: .infinity, alignment: .trailing)
         .font(.caption)
     }
 }
@@ -3607,6 +3625,7 @@ private final class ProductFloatingMenuPanelController {
                     )
                 },
                 actions: ProductMenuPanelActions(
+                    updater: actions.updater,
                     openSettings: { [weak self] in
                         self?.close()
                         actions.openSettings()

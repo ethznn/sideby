@@ -799,6 +799,11 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(english.contextNeedsAlignment, "Displays need alignment")
         XCTAssertEqual(korean.contextNeedsAlignment, "디스플레이 정렬이 필요합니다")
     }
+
+    func testUpdateCheckStringsLocalize() {
+        XCTAssertEqual(SBSStrings(language: .english).checkForUpdates, "Check for Updates…")
+        XCTAssertEqual(SBSStrings(language: .korean).checkForUpdates, "업데이트 확인…")
+    }
 }
 
 private extension RuntimeState {

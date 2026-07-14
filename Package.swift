@@ -29,6 +29,12 @@ let package = Package(
             targets: ["SidebyApp"]
         )
     ],
+    dependencies: [
+        .package(
+            url: "https://github.com/sparkle-project/Sparkle",
+            exact: "2.9.2"
+        )
+    ],
     targets: [
         .target(
             name: "SidebyCore"
@@ -65,7 +71,14 @@ let package = Package(
             dependencies: [
                 "SidebyCore",
                 "SidebySystem",
-                "SidebyUI"
+                "SidebyUI",
+                .product(name: "Sparkle", package: "Sparkle")
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "@executable_path/../Frameworks"
+                ])
             ]
         ),
         .testTarget(

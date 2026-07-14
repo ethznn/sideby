@@ -39,6 +39,7 @@ public struct SBSStrings: Sendable {
     public var advanced: String { text("Advanced", "고급") }
     public var labs: String { text("Labs", "실험실") }
     public var refresh: String { text("Refresh", "새로고침") }
+    public var checkForUpdates: String { text("Check for Updates…", "업데이트 확인…") }
     public var quit: String { text("Quit", "종료") }
     public var on: String { text("On", "켬") }
     public var off: String { text("Off", "끔") }
