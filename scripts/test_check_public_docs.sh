@@ -56,6 +56,12 @@ git -C "$repository" add -f docs/superpowers/plans/example.md
 expect_fail "forbidden public documentation path"
 remove_fixture docs/superpowers/plans/example.md
 
+mkdir -p "$repository/docs/superpowers/specs"
+printf '# Internal spec\n' > "$repository/docs/superpowers/specs/example.md"
+git -C "$repository" add -f docs/superpowers/specs/example.md
+expect_fail "forbidden public documentation path"
+remove_fixture docs/superpowers/specs/example.md
+
 printf '# Raw research\n' > "$repository/docs/SPACE_SAMPLE_RESEARCH.md"
 git -C "$repository" add -f docs/SPACE_SAMPLE_RESEARCH.md
 expect_fail "forbidden public documentation path"

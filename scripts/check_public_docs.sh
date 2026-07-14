@@ -35,7 +35,7 @@ while IFS= read -r file; do
     [[ -f "$file" ]] || continue
 
     case "$file" in
-        docs/superpowers/plans/*|docs/local-research/*|docs/SPACE_*_RESEARCH.md)
+        docs/superpowers/*|docs/local-research/*|docs/SPACE_*_RESEARCH.md)
             report_path_violation "$file"
             ;;
     esac
