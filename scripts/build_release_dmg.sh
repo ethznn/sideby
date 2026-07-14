@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION="${SIDEBY_VERSION:?error: SIDEBY_VERSION is required for a release DMG}"
+BUILD_NUMBER="${SIDEBY_BUILD_NUMBER:?error: SIDEBY_BUILD_NUMBER is required for a release DMG}"
+"$ROOT_DIR/scripts/validate_release_metadata.sh" "$VERSION" "$BUILD_NUMBER"
 APP_BUILD_SCRIPT="$ROOT_DIR/scripts/build_app_bundle.sh"
 APP_NAME="Sideby.app"
 VOLUME_NAME="${SIDEBY_DMG_VOLUME_NAME:-Sideby Installer}"
@@ -27,7 +30,18 @@ if [[ ! -d "$APP_DIR" ]]; then
   exit 1
 fi
 
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
+ACTUAL_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
+if [[ "$ACTUAL_VERSION" != "$VERSION" ]]; then
+  echo "error: app version $ACTUAL_VERSION does not match requested version $VERSION" >&2
+  exit 1
+fi
+
+ACTUAL_BUILD_NUMBER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST")"
+if [[ "$ACTUAL_BUILD_NUMBER" != "$BUILD_NUMBER" ]]; then
+  echo "error: app build number $ACTUAL_BUILD_NUMBER does not match requested build number $BUILD_NUMBER" >&2
+  exit 1
+fi
+
 DMG_PATH="${SIDEBY_DMG_PATH:-$ROOT_DIR/dist/Sideby-$VERSION.dmg}"
 DMG_DIR="$(dirname "$DMG_PATH")"
 
