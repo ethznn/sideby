@@ -45,6 +45,7 @@ Sideby는 pre-1.0 소프트웨어입니다. 0.6.0부터 앱은 Dock 아이콘 �
 - Accessibility와 Screen Switching access를 안내하는 첫 실행 온보딩
 - 권한, 디스플레이, 전환 한계를 설명하는 진단
 - Display Spaces 라벨과 best-effort visible app/window suggestion
+- Sparkle 2를 통한 서명된 앱 내 업데이트 확인, 다운로드 및 사용자 승인 설치
 - 영어/한국어 UI 문구
 
 ## 요구사항
@@ -60,6 +61,8 @@ Sideby는 Screen Switching, Context Capture, Align Displays를 위해 Screen Rec
 ## 빠른 시작
 
 [GitHub Releases](https://github.com/ethznn/sideby/releases)에서 최신 signed/notarized DMG를 다운로드할 수 있습니다.
+
+0.6.0 사용자는 첫 Sparkle 지원 릴리즈를 한 번 직접 설치해야 합니다. 이후 Sideby가 앱에서 서명된 업데이트를 확인하고 다운로드할 수 있으며, 설치는 사용자의 승인이 있어야 진행됩니다.
 
 저장소를 클론한 뒤 테스트를 실행하고 로컬 제품 번들을 빌드합니다.
 

@@ -35,5 +35,14 @@ jobs:
       - name: Build Sideby app
         run: swift build --product SidebyApp
 
+      - name: Test Sparkle bundle verifier
+        run: bash scripts/test_verify_sparkle_bundle.sh
+
+      - name: Test release metadata validation
+        run: bash scripts/test_validate_release_metadata.sh
+
+      - name: Build and verify product bundle
+        run: scripts/build_app_bundle.sh
+
       - name: Build Sideby dev app
         run: swift build --product SidebyDevApp

@@ -45,6 +45,7 @@ The current release strategy is direct distribution with App Sandbox off. Contex
 - First-run onboarding for Accessibility and Screen Switching access.
 - Diagnostics for permission, display, and switching limitations.
 - Display Spaces labels and best-effort visible app/window suggestions.
+- Signed in-app update checks, downloads, and user-approved installation through Sparkle 2
 - English and Korean UI copy.
 
 ## Requirements
@@ -60,6 +61,8 @@ Sideby does not request Screen Recording for Screen Switching, Context Capture, 
 ## Quick Start
 
 Download the latest signed and notarized DMG from [GitHub Releases](https://github.com/ethznn/sideby/releases).
+
+If you use 0.6.0, manually install the first Sparkle-enabled release once. After that, Sideby can check for and download signed updates in the app and install them only with your approval.
 
 Clone the repository, run the tests, then build the local product bundle:
 
