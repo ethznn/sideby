@@ -27,17 +27,17 @@ report_content_violation() {
 }
 
 while IFS= read -r file; do
-    case "$file" in
-        *.md) ;;
-        *) continue ;;
-    esac
-
     [[ -f "$file" ]] || continue
 
     case "$file" in
         docs/superpowers/*|docs/local-research/*|docs/SPACE_*_RESEARCH.md)
             report_path_violation "$file"
             ;;
+    esac
+
+    case "$file" in
+        *.md) ;;
+        *) continue ;;
     esac
 
     report_content_violation \

@@ -62,6 +62,11 @@ git -C "$repository" add -f docs/superpowers/specs/example.md
 expect_fail "forbidden public documentation path"
 remove_fixture docs/superpowers/specs/example.md
 
+printf 'Internal artifact\n' > "$repository/docs/superpowers/example.txt"
+git -C "$repository" add -f docs/superpowers/example.txt
+expect_fail "forbidden public documentation path"
+remove_fixture docs/superpowers/example.txt
+
 printf '# Raw research\n' > "$repository/docs/SPACE_SAMPLE_RESEARCH.md"
 git -C "$repository" add -f docs/SPACE_SAMPLE_RESEARCH.md
 expect_fail "forbidden public documentation path"
