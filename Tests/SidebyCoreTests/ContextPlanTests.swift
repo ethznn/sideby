@@ -13,6 +13,77 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertTrue(plan.isPinned)
     }
 
+    func testAddEmptyContextAppendsUniqueUnmappedContextWithoutChangingState() {
+        var plan = ContextPlan(
+            contexts: [
+                ContextDefinition(id: "context-1", order: 1, name: "Code"),
+                ContextDefinition(id: "context-3", order: 2, name: "Review")
+            ],
+            currentContextID: "context-1",
+            syncState: .needsSync,
+            isPinned: false
+        )
+
+        let added = plan.addEmptyContext()
+
+        XCTAssertEqual(added.id, "context-4")
+        XCTAssertEqual(added.name, "Context 4")
+        XCTAssertEqual(added.order, 3)
+        XCTAssertTrue(added.displaySpaceIndexes.isEmpty)
+        XCTAssertEqual(plan.currentContextID, "context-1")
+        XCTAssertEqual(plan.syncState, .needsSync)
+        XCTAssertFalse(plan.isPinned)
+    }
+
+    func testAddEmptyContextHasNoTwelveContextCap() {
+        var plan = ContextPlan.default
+        for _ in 0..<13 {
+            plan.addEmptyContext()
+        }
+        XCTAssertEqual(plan.contexts.count, 16)
+    }
+
+    func testDeleteContextRejectsFloorAndPreservesPlan() {
+        var plan = ContextPlan.default
+        let original = plan
+
+        XCTAssertFalse(plan.deleteContext(id: "context-3", minimumContextCount: 3))
+        XCTAssertFalse(plan.deleteContext(id: "context-3", minimumContextCount: 0))
+        XCTAssertEqual(plan, original)
+    }
+
+    func testDeleteNonCurrentContextPreservesMappingsAndSyncState() {
+        var plan = ContextPlan(
+            contexts: [
+                ContextDefinition(id: "context-1", order: 1, name: "Code", displaySpaceIndexes: ["built-in": 0]),
+                ContextDefinition(id: "context-2", order: 2, name: "Review", displaySpaceIndexes: ["built-in": 1]),
+                ContextDefinition(id: "context-3", order: 3, name: "Docs", displaySpaceIndexes: ["external": 2])
+            ],
+            currentContextID: "context-1"
+        )
+
+        XCTAssertTrue(plan.deleteContext(id: "context-2", minimumContextCount: 2))
+        XCTAssertEqual(plan.contexts.map(\.id), ["context-1", "context-3"])
+        XCTAssertEqual(plan.contexts.map(\.order), [1, 2])
+        XCTAssertEqual(plan.contexts[1].displaySpaceIndexes, ["external": 2])
+        XCTAssertEqual(plan.currentContextID, "context-1")
+        XCTAssertEqual(plan.syncState, .synchronized)
+    }
+
+    func testDeleteCurrentContextFallsBackAndNeedsSync() {
+        var plan = ContextPlan.default
+        XCTAssertTrue(plan.setCurrentContext(id: "context-2"))
+
+        XCTAssertTrue(plan.deleteContext(id: "context-2", minimumContextCount: 2))
+        XCTAssertEqual(plan.currentContextID, "context-1")
+        XCTAssertEqual(plan.syncState, .needsSync)
+
+        var firstCurrent = ContextPlan.default
+        XCTAssertTrue(firstCurrent.deleteContext(id: "context-1", minimumContextCount: 2))
+        XCTAssertEqual(firstCurrent.currentContextID, "context-2")
+        XCTAssertEqual(firstCurrent.syncState, .needsSync)
+    }
+
     func testRenamesContextWithoutDisplayLabels() {
         var plan = ContextPlan.default
 

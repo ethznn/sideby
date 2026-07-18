@@ -255,6 +255,52 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         contexts.first { $0.id == currentContextID }
     }
 
+    @discardableResult
+    public mutating func addEmptyContext() -> ContextDefinition {
+        let prefix = "context-"
+        let highestGeneratedNumber = contexts.compactMap { context -> Int? in
+            guard context.id.hasPrefix(prefix) else {
+                return nil
+            }
+            return Int(context.id.dropFirst(prefix.count))
+        }.max() ?? 0
+        var number = highestGeneratedNumber + 1
+        while contexts.contains(where: { $0.id == "context-\(number)" }) {
+            number += 1
+        }
+
+        let context = ContextDefinition(
+            id: "context-\(number)",
+            order: contexts.count + 1,
+            name: "Context \(number)"
+        )
+        contexts.append(context)
+        return context
+    }
+
+    @discardableResult
+    public mutating func deleteContext(
+        id: String,
+        minimumContextCount: Int
+    ) -> Bool {
+        guard minimumContextCount >= 1,
+              contexts.count > minimumContextCount,
+              let removedIndex = contexts.firstIndex(where: { $0.id == id })
+        else {
+            return false
+        }
+
+        let removedCurrentContext = currentContextID == id
+        contexts.remove(at: removedIndex)
+        contexts = Self.normalizedContexts(contexts)
+        if removedCurrentContext {
+            let fallbackIndex = max(min(removedIndex - 1, contexts.count - 1), 0)
+            currentContextID = contexts[fallbackIndex].id
+            syncState = .needsSync
+        }
+        return true
+    }
+
     public mutating func renameContext(id: String, name: String) {
         guard let index = contexts.firstIndex(where: { $0.id == id }) else {
             return
