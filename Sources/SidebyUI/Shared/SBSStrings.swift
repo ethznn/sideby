@@ -92,7 +92,17 @@ public struct SBSStrings: Sendable {
     public var addContext: String { text("Add Context", "컨텍스트 추가") }
     public var setCurrent: String { text("Set Current", "현재 위치로 맞춤") }
     public var goToContext: String { text("Go", "이동") }
-    public var deleteContext: String { text("Delete", "삭제") }
+    public var deleteContext: String { text("Delete Context", "컨텍스트 삭제") }
+    public var cancel: String { text("Cancel", "취소") }
+    public func deleteContextConfirmationTitle(_ name: String) -> String {
+        text("Delete \(name)?", "\(name) 컨텍스트를 삭제할까요?")
+    }
+    public var deleteContextConfirmationMessage: String {
+        text(
+            "Sideby will remove this Context's Space mappings. macOS Spaces will not be deleted.",
+            "Sideby의 컨텍스트 Space 매핑만 제거됩니다. 실제 macOS Space는 삭제되지 않습니다."
+        )
+    }
     public var contextLabelPlaceholder: String { text("Context name", "컨텍스트 이름") }
     public var scanCurrentDisplays: String { text("Scan Current Displays", "현재 디스플레이 스캔") }
     public var captureContexts: String { text("Capture Contexts", "컨텍스트 캡처") }

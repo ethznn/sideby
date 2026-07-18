@@ -203,6 +203,26 @@ final class AppShellTests: XCTestCase {
         )
     }
 
+    func testLocalizesContextEditingAndDeletionConfirmation() {
+        let english = SBSStrings(language: .english)
+        let korean = SBSStrings(language: .korean)
+
+        XCTAssertEqual(english.deleteContext, "Delete Context")
+        XCTAssertEqual(korean.deleteContext, "컨텍스트 삭제")
+        XCTAssertEqual(english.deleteContextConfirmationTitle("Review"), "Delete Review?")
+        XCTAssertEqual(korean.deleteContextConfirmationTitle("Review"), "Review 컨텍스트를 삭제할까요?")
+        XCTAssertEqual(
+            english.deleteContextConfirmationMessage,
+            "Sideby will remove this Context's Space mappings. macOS Spaces will not be deleted."
+        )
+        XCTAssertEqual(
+            korean.deleteContextConfirmationMessage,
+            "Sideby의 컨텍스트 Space 매핑만 제거됩니다. 실제 macOS Space는 삭제되지 않습니다."
+        )
+        XCTAssertEqual(english.cancel, "Cancel")
+        XCTAssertEqual(korean.cancel, "취소")
+    }
+
     func testContextMatrixHeaderNameLineLimitAllowsReadableNames() {
         XCTAssertEqual(FloatingMenuContextMatrixLayout.nameLineLimit(isCompact: true), 2)
         XCTAssertEqual(FloatingMenuContextMatrixLayout.nameLineLimit(isCompact: false), 2)

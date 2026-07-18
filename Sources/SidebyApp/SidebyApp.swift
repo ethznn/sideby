@@ -448,6 +448,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var contextCaptureSession: ContextCaptureSession?
     @Published var contextCaptureStatus: String?
     @Published var contextsToCapture = ContextPlan.default.captureLimit
+    @Published private(set) var contextDeletionMinimumCount: Int? = nil
 
     private let settingsStore = UserDefaultsSettingsStore()
     private let permissionService = AccessibilityPermissionService()
@@ -574,6 +575,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     func refresh() {
         displayLayout = displayObserver.currentLayout()
         syncSelectedDisplays(with: displayLayout)
+        refreshContextEditAvailability()
         syncContextPlan()
         permissionState = permissionService.currentState
         postEventAccessGranted = CGPreflightPostEventAccess()
@@ -696,10 +698,58 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             selected.remove(display.id)
         }
         selectedDisplayIDs = selected
+        refreshContextEditAvailability()
     }
 
     func selectAllDisplayTargets() {
         selectedDisplayIDs = Set(displayLayout.displays.map(\.id))
+        refreshContextEditAvailability()
+    }
+
+    var canAddContext: Bool {
+        !isSwitching && contextCaptureSession == nil
+    }
+
+    var canDeleteContext: Bool {
+        canAddContext && ContextEditPolicy.canDelete(
+            contextCount: settings.contextPlan.contexts.count,
+            minimumContextCount: contextDeletionMinimumCount
+        )
+    }
+
+    func addEmptyContext() {
+        guard canAddContext else { return }
+        updateContextPlan { plan in
+            plan.addEmptyContext()
+        }
+    }
+
+    func contextDeletionRequiresConfirmation(contextID: String) -> Bool {
+        guard let context = settings.contextPlan.contexts.first(where: { $0.id == contextID }) else {
+            return false
+        }
+        return ContextEditPolicy.requiresDeleteConfirmation(for: context)
+    }
+
+    @discardableResult
+    func deleteContext(contextID: String) -> Bool {
+        guard canAddContext,
+              let displays = selectedDisplaySpaces(),
+              let minimum = ContextEditPolicy.minimumContextCount(
+                  selectedDisplayIDs: selectedDisplayIDs,
+                  displays: displays
+              )
+        else {
+            refreshContextEditAvailability()
+            return false
+        }
+
+        var deleted = false
+        updateContextPlan { plan in
+            deleted = plan.deleteContext(id: contextID, minimumContextCount: minimum)
+        }
+        refreshContextEditAvailability()
+        return deleted
     }
 
     func setContextsToCapture(_ count: Int) {
@@ -1167,6 +1217,13 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         )
     }
 
+    private func refreshContextEditAvailability() {
+        contextDeletionMinimumCount = ContextEditPolicy.minimumContextCount(
+            selectedDisplayIDs: selectedDisplayIDs,
+            displays: selectedDisplaySpaces() ?? []
+        )
+    }
+
     /// Builds the context plan directly from the Space layout. Returns false
     /// when the layout is unavailable so the caller can fall back to the
     /// walk-based capture.
@@ -1507,6 +1564,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         refresh()
         let defaults = OnboardingCompletionPolicy().completionDefaults(for: displayLayout)
         selectedDisplayIDs = defaults.selectedDisplayIDs
+        refreshContextEditAvailability()
         isEnabled = defaults.isSidebyEnabled
         UserDefaults.standard.set(defaults.isSidebyEnabled, forKey: Self.enabledDefaultsKey)
 
@@ -3982,6 +4040,7 @@ private struct ContextsView: View {
     @State private var displayColumnWidthOverride: CGFloat?
     @State private var displayColumnResizeStartWidth: CGFloat?
     @State private var contextHeaderHeight: CGFloat = 0
+    @State private var pendingContextDeletion: ContextDefinition?
 
     private var defaultDisplayColumnWidth: CGFloat {
         FloatingMenuContextMatrixLayout.displayColumnWidth(isCompact: isCompact)
@@ -4030,6 +4089,8 @@ private struct ContextsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            contextEditToolbar(strings: strings, matrix: matrix)
+
             HStack(alignment: .top, spacing: 8) {
                 displayColumn(rows: matrix.rows)
                     .overlay(alignment: .trailing) {
@@ -4064,7 +4125,63 @@ private struct ContextsView: View {
                 contextHeaderHeight = height
             }
         }
+        .confirmationDialog(
+            pendingContextDeletion.map { strings.deleteContextConfirmationTitle($0.name) }
+                ?? strings.deleteContext,
+            isPresented: Binding(
+                get: { pendingContextDeletion != nil },
+                set: { if !$0 { pendingContextDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(strings.deleteContext, role: .destructive) {
+                if let contextID = pendingContextDeletion?.id {
+                    _ = model.deleteContext(contextID: contextID)
+                }
+                pendingContextDeletion = nil
+            }
+            Button(strings.cancel, role: .cancel) {
+                pendingContextDeletion = nil
+            }
+        } message: {
+            Text(strings.deleteContextConfirmationMessage)
+        }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func contextEditToolbar(strings: SBSStrings, matrix: ContextMatrix) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                model.addEmptyContext()
+            } label: {
+                Label(strings.addContext, systemImage: "plus")
+            }
+            .disabled(!model.canAddContext)
+
+            Menu {
+                ForEach(matrix.columns) { column in
+                    Button("\(strings.contextOrder(column.order)) · \(column.name)") {
+                        requestContextDeletion(column.id)
+                    }
+                }
+            } label: {
+                Label(strings.deleteContext, systemImage: "minus")
+            }
+            .disabled(!model.canDeleteContext)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func requestContextDeletion(_ contextID: String) {
+        guard let context = model.settings.contextPlan.contexts.first(where: { $0.id == contextID }) else {
+            return
+        }
+        if model.contextDeletionRequiresConfirmation(contextID: contextID) {
+            pendingContextDeletion = context
+        } else {
+            _ = model.deleteContext(contextID: contextID)
+        }
     }
 
     private func displayColumnResizeHandle(rowCount: Int) -> some View {
