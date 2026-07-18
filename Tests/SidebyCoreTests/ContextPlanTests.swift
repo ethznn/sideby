@@ -8,9 +8,100 @@ final class ContextPlanTests: XCTestCase {
 
         XCTAssertEqual(plan.contexts.map(\.name), ["Context 1", "Context 2", "Context 3"])
         XCTAssertEqual(plan.currentContext?.name, "Context 1")
-        XCTAssertEqual(plan.captureLimit, 3)
         XCTAssertEqual(plan.syncState, .synchronized)
         XCTAssertTrue(plan.isPinned)
+    }
+
+    func testRemovedCaptureLimitIsIgnoredOnDecodeAndOmittedOnEncode() throws {
+        let data = Data("""
+        {
+            "contexts": [
+                { "id": "context-1", "order": 1, "name": "Code" }
+            ],
+            "currentContextID": "context-1",
+            "syncState": "synchronized",
+            "captureLimit": 99,
+            "isPinned": true
+        }
+        """.utf8)
+
+        let plan = try JSONDecoder().decode(ContextPlan.self, from: data)
+
+        XCTAssertEqual(plan.contexts.map(\.name), ["Code"])
+
+        let encoded = String(decoding: try JSONEncoder().encode(plan), as: UTF8.self)
+        XCTAssertFalse(encoded.contains("captureLimit"))
+    }
+
+    func testAddEmptyContextAppendsUniqueUnmappedContextWithoutChangingState() {
+        var plan = ContextPlan(
+            contexts: [
+                ContextDefinition(id: "context-1", order: 1, name: "Code"),
+                ContextDefinition(id: "context-3", order: 2, name: "Review")
+            ],
+            currentContextID: "context-1",
+            syncState: .needsSync,
+            isPinned: false
+        )
+
+        let added = plan.addEmptyContext()
+
+        XCTAssertEqual(added.id, "context-4")
+        XCTAssertEqual(added.name, "Context 4")
+        XCTAssertEqual(added.order, 3)
+        XCTAssertTrue(added.displaySpaceIndexes.isEmpty)
+        XCTAssertEqual(plan.currentContextID, "context-1")
+        XCTAssertEqual(plan.syncState, .needsSync)
+        XCTAssertFalse(plan.isPinned)
+    }
+
+    func testAddEmptyContextHasNoTwelveContextCap() {
+        var plan = ContextPlan.default
+        for _ in 0..<13 {
+            plan.addEmptyContext()
+        }
+        XCTAssertEqual(plan.contexts.count, 16)
+    }
+
+    func testDeleteContextRejectsFloorAndPreservesPlan() {
+        var plan = ContextPlan.default
+        let original = plan
+
+        XCTAssertFalse(plan.deleteContext(id: "context-3", minimumContextCount: 3))
+        XCTAssertFalse(plan.deleteContext(id: "context-3", minimumContextCount: 0))
+        XCTAssertEqual(plan, original)
+    }
+
+    func testDeleteNonCurrentContextPreservesMappingsAndSyncState() {
+        var plan = ContextPlan(
+            contexts: [
+                ContextDefinition(id: "context-1", order: 1, name: "Code", displaySpaceIndexes: ["built-in": 0]),
+                ContextDefinition(id: "context-2", order: 2, name: "Review", displaySpaceIndexes: ["built-in": 1]),
+                ContextDefinition(id: "context-3", order: 3, name: "Docs", displaySpaceIndexes: ["external": 2])
+            ],
+            currentContextID: "context-1"
+        )
+
+        XCTAssertTrue(plan.deleteContext(id: "context-2", minimumContextCount: 2))
+        XCTAssertEqual(plan.contexts.map(\.id), ["context-1", "context-3"])
+        XCTAssertEqual(plan.contexts.map(\.order), [1, 2])
+        XCTAssertEqual(plan.contexts[1].displaySpaceIndexes, ["external": 2])
+        XCTAssertEqual(plan.currentContextID, "context-1")
+        XCTAssertEqual(plan.syncState, .synchronized)
+    }
+
+    func testDeleteCurrentContextFallsBackAndNeedsSync() {
+        var plan = ContextPlan.default
+        XCTAssertTrue(plan.setCurrentContext(id: "context-2"))
+
+        XCTAssertTrue(plan.deleteContext(id: "context-2", minimumContextCount: 2))
+        XCTAssertEqual(plan.currentContextID, "context-1")
+        XCTAssertEqual(plan.syncState, .needsSync)
+
+        var firstCurrent = ContextPlan.default
+        XCTAssertTrue(firstCurrent.deleteContext(id: "context-1", minimumContextCount: 2))
+        XCTAssertEqual(firstCurrent.currentContextID, "context-2")
+        XCTAssertEqual(firstCurrent.syncState, .needsSync)
     }
 
     func testRenamesContextWithoutDisplayLabels() {
@@ -76,18 +167,17 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(context.displayIDs, [])
     }
 
-    func testReplaceContextsKeepsValidCurrentPointerAndCaptureLimit() {
+    func testReplaceContextsKeepsValidCurrentPointer() {
         var plan = ContextPlan.default
         let contexts = [
             ContextDefinition(id: "context-1", order: 1, name: "Code"),
             ContextDefinition(id: "context-2", order: 2, name: "Review")
         ]
 
-        plan.replaceContexts(contexts, currentContextID: "context-2", captureLimit: 5)
+        plan.replaceContexts(contexts, currentContextID: "context-2")
 
         XCTAssertEqual(plan.contexts.map(\.name), ["Code", "Review"])
         XCTAssertEqual(plan.currentContext?.name, "Review")
-        XCTAssertEqual(plan.captureLimit, 5)
         XCTAssertEqual(plan.syncState, .synchronized)
     }
 
@@ -108,7 +198,7 @@ final class ContextPlanTests: XCTestCase {
             )
         ]
 
-        plan.replaceContexts(contexts, currentContextID: "context-2", captureLimit: 2)
+        plan.replaceContexts(contexts, currentContextID: "context-2")
 
         XCTAssertEqual(plan.contexts[0].displayIDs, ["built-in", "external-lg"])
         XCTAssertEqual(plan.contexts[1].displayIDs, ["built-in"])
@@ -168,50 +258,19 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(plan.currentContext?.name, "Notes")
     }
 
-    func testInitializerNormalizesCaptureLimitBelowMinimum() {
-        let plan = ContextPlan(
-            contexts: ContextPlan.default.contexts,
-            currentContextID: "context-1",
-            captureLimit: 0
-        )
-
-        XCTAssertEqual(plan.captureLimit, 1)
-    }
-
-    func testSetCaptureLimitNormalizesAboveMaximum() {
-        var plan = ContextPlan.default
-
-        plan.setCaptureLimit(13)
-
-        XCTAssertEqual(plan.captureLimit, 12)
-    }
-
-    func testReplaceContextsNormalizesCaptureLimitBelowMinimum() {
-        var plan = ContextPlan.default
-
-        plan.replaceContexts(
-            [ContextDefinition(id: "context-1", order: 1, name: "Code")],
-            currentContextID: "context-1",
-            captureLimit: -5
-        )
-
-        XCTAssertEqual(plan.captureLimit, 1)
-    }
-
     func testReplaceContextsRearmsPinnedMatching() {
         var plan = ContextPlan.default
         plan.setPinned(false)
 
         plan.replaceContexts(
             [ContextDefinition(id: "context-1", order: 1, name: "Code")],
-            currentContextID: "context-1",
-            captureLimit: 1
+            currentContextID: "context-1"
         )
 
         XCTAssertTrue(plan.isPinned)
     }
 
-    func testDecodesLegacyPlanMissingSyncStateAndCaptureLimitIgnoringDisplaySlots() throws {
+    func testDecodesLegacyPlanMissingSyncStateIgnoringDisplaySlots() throws {
         let data = Data("""
         {
             "contexts": [
@@ -239,24 +298,6 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(plan.contexts.map(\.name), ["Code", "Review"])
         XCTAssertEqual(plan.currentContext?.name, "Review")
         XCTAssertEqual(plan.syncState, .synchronized)
-        XCTAssertEqual(plan.captureLimit, 2)
-    }
-
-    func testDecodedCaptureLimitNormalizesAboveMaximum() throws {
-        let data = Data("""
-        {
-            "contexts": [
-                { "id": "context-1", "order": 1, "name": "Context 1" }
-            ],
-            "currentContextID": "context-1",
-            "syncState": "synchronized",
-            "captureLimit": 99
-        }
-        """.utf8)
-
-        let plan = try JSONDecoder().decode(ContextPlan.self, from: data)
-
-        XCTAssertEqual(plan.captureLimit, 12)
     }
 
     func testDecodedInvalidCurrentIDFallsBackToFirstContext() throws {

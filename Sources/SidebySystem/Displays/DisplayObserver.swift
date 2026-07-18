@@ -76,12 +76,18 @@ public enum DisplayLayoutMapper {
         displayLayout: DisplayLayout,
         layouts: [DisplaySpaceLayout],
         stableIDsByUUID: [String: String]
-    ) -> [InstantCaptureDisplay] {
-        let layoutsByStableID: [String: DisplaySpaceLayout] = layouts.reduce(into: [:]) {
-            result, layout in
-            if let stableID = stableIDsByUUID[layout.displayUUID] {
-                result[stableID] = layout
+    ) -> [InstantCaptureDisplay]? {
+        var layoutsByStableID: [String: DisplaySpaceLayout] = [:]
+        for layout in layouts {
+            guard let stableID = stableIDsByUUID[layout.displayUUID],
+                  selectedDisplayIDs.contains(stableID)
+            else {
+                continue
             }
+            guard layoutsByStableID[stableID] == nil else {
+                return nil
+            }
+            layoutsByStableID[stableID] = layout
         }
 
         return displayLayout.displays.compactMap { display in

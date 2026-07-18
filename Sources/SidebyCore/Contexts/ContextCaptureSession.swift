@@ -44,17 +44,14 @@ public struct ContextCaptureDraft: Equatable, Sendable {
 }
 
 public struct ContextCaptureSession: Equatable, Sendable {
-    public let captureLimit: Int
     public let maxAlignmentAttempts: Int
     public private(set) var phase: ContextCapturePhase
     public private(set) var draftContexts: [ContextCaptureDraft]
 
     public init(
-        captureLimit: Int,
         maxAlignmentAttempts: Int = ContextCaptureConfiguration.automatic.maxAlignmentAttempts
     ) {
         self.init(
-            captureLimit: captureLimit,
             maxAlignmentAttempts: maxAlignmentAttempts,
             phase: .aligning(attempt: 1),
             draftContexts: []
@@ -62,12 +59,10 @@ public struct ContextCaptureSession: Equatable, Sendable {
     }
 
     init(
-        captureLimit: Int,
         maxAlignmentAttempts: Int = 12,
         phase: ContextCapturePhase,
         draftContexts: [ContextCaptureDraft]
     ) {
-        self.captureLimit = min(max(captureLimit, 1), 12)
         self.maxAlignmentAttempts = min(max(maxAlignmentAttempts, 1), 24)
         self.phase = phase
         self.draftContexts = draftContexts.sorted { $0.order < $1.order }
@@ -182,7 +177,7 @@ public struct ContextCaptureSession: Equatable, Sendable {
             return
         }
 
-        if movedDisplayIDs.isEmpty || order >= captureLimit {
+        if movedDisplayIDs.isEmpty {
             phase = .completed(currentContextID: "context-\(order)")
         } else {
             phase = .capturing(order: order + 1)

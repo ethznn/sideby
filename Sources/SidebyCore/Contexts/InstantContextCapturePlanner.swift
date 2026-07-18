@@ -16,19 +16,16 @@ public struct InstantCaptureDisplay: Equatable, Sendable {
 public struct InstantCapturePlan: Equatable, Sendable {
     public let contexts: [ContextDefinition]
     public let currentContextID: String
-    public let captureLimit: Int
     /// True when every display reports the same current Space index.
     public let isSynchronized: Bool
 
     public init(
         contexts: [ContextDefinition],
         currentContextID: String,
-        captureLimit: Int,
         isSynchronized: Bool
     ) {
         self.contexts = contexts
         self.currentContextID = currentContextID
-        self.captureLimit = captureLimit
         self.isSynchronized = isSynchronized
     }
 
@@ -40,8 +37,6 @@ public struct InstantCapturePlan: Equatable, Sendable {
 }
 
 public enum InstantContextCapturePlanner {
-    public static let maxContexts = 12
-
     /// Derives the context plan. The first display in `displays` is
     /// authoritative for the current context, so callers must pass displays
     /// in a stable, meaningful order (e.g. layout order).
@@ -52,10 +47,7 @@ public enum InstantContextCapturePlanner {
             return nil
         }
 
-        let contextCount = min(
-            displays.map(\.spaceCount).max() ?? 1,
-            Self.maxContexts
-        )
+        let contextCount = displays.map(\.spaceCount).max() ?? 1
         let maxCurrentIndex = displays.map(\.currentSpaceIndex).max() ?? 0
         let currentOrder = min(maxCurrentIndex + 1, contextCount)
         let indexesByDisplay = Dictionary(
@@ -92,7 +84,6 @@ public enum InstantContextCapturePlanner {
         return InstantCapturePlan(
             contexts: contexts,
             currentContextID: "context-\(currentOrder)",
-            captureLimit: contextCount,
             isSynchronized: isSynchronized
         )
     }

@@ -447,7 +447,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var visibleContextSuggestionsByOrder: [Int: [VisibleAppSuggestion]] = [:]
     @Published var contextCaptureSession: ContextCaptureSession?
     @Published var contextCaptureStatus: String?
-    @Published var contextsToCapture = ContextPlan.default.captureLimit
+    @Published private(set) var contextDeletionMinimumCount: Int? = nil
 
     private let settingsStore = UserDefaultsSettingsStore()
     private let permissionService = AccessibilityPermissionService()
@@ -461,7 +461,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private let contextHUDPolicy = ContextSwitchHUDPolicy()
     private let observerTokens = SidebyAppObserverTokens()
     private static let enabledDefaultsKey = "sideby.enabled"
-    fileprivate static let automaticContextCaptureLimit = 12
     private static let contextCaptureConfiguration = ContextCaptureConfiguration.automatic
     private static let contextCaptureObserverWait: TimeInterval = contextCaptureConfiguration.observerWait
     private static let contextCaptureAlignmentRetryDelay: TimeInterval = contextCaptureConfiguration.alignmentRetryDelay
@@ -495,7 +494,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         var loadedSettings = settingsStore.load()
         loadedSettings.mode = .shortcut
         self.settings = loadedSettings
-        self.contextsToCapture = loadedSettings.contextPlan.captureLimit
         self.isEnabled = UserDefaults.standard.bool(forKey: Self.enabledDefaultsKey)
         let strings = SBSStrings(language: loadedSettings.language)
         self.lastSwitchResult = strings.noSwitchAttempted
@@ -574,7 +572,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     func refresh() {
         displayLayout = displayObserver.currentLayout()
         syncSelectedDisplays(with: displayLayout)
-        syncContextPlan()
+        refreshContextEditAvailability()
         permissionState = permissionService.currentState
         postEventAccessGranted = CGPreflightPostEventAccess()
         automationAccessGranted = automationPermissionProbe.checkAccessWithoutPrompt().isGranted
@@ -696,22 +694,58 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             selected.remove(display.id)
         }
         selectedDisplayIDs = selected
+        refreshContextEditAvailability()
     }
 
     func selectAllDisplayTargets() {
         selectedDisplayIDs = Set(displayLayout.displays.map(\.id))
+        refreshContextEditAvailability()
     }
 
-    func setContextsToCapture(_ count: Int) {
-        guard contextCaptureSession == nil else {
-            return
+    var canAddContext: Bool {
+        !isSwitching && contextCaptureSession == nil
+    }
+
+    var canDeleteContext: Bool {
+        canAddContext && ContextEditPolicy.canDelete(
+            contextCount: settings.contextPlan.contexts.count,
+            minimumContextCount: contextDeletionMinimumCount
+        )
+    }
+
+    func addEmptyContext() {
+        guard canAddContext else { return }
+        updateContextPlan { plan in
+            plan.addEmptyContext()
+        }
+    }
+
+    func contextDeletionRequiresConfirmation(contextID: String) -> Bool {
+        ContextEditAction.requiresDeleteConfirmation(
+            contextID: contextID,
+            contexts: settings.contextPlan.contexts
+        )
+    }
+
+    @discardableResult
+    func deleteContext(contextID: String) -> Bool {
+        guard canAddContext else {
+            refreshContextEditAvailability()
+            return false
         }
 
-        let normalizedCount = min(max(count, 1), 12)
-        contextsToCapture = normalizedCount
+        var deleted = false
         updateContextPlan { plan in
-            plan.setCaptureLimit(normalizedCount)
+            deleted = ContextEditAction.deleteContext(
+                id: contextID,
+                from: &plan,
+                isEditingAllowed: canAddContext,
+                selectedDisplayIDs: selectedDisplayIDs,
+                readLiveDisplays: selectedDisplaySpaces
+            )
         }
+        refreshContextEditAvailability()
+        return deleted
     }
 
     func setContextName(contextID: String, name: String) {
@@ -1167,6 +1201,13 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         )
     }
 
+    private func refreshContextEditAvailability() {
+        contextDeletionMinimumCount = ContextEditAction.minimumContextCount(
+            selectedDisplayIDs: selectedDisplayIDs,
+            readLiveDisplays: selectedDisplaySpaces
+        )
+    }
+
     /// Builds the context plan directly from the Space layout. Returns false
     /// when the layout is unavailable so the caller can fall back to the
     /// walk-based capture.
@@ -1187,8 +1228,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         updateContextPlan { plan in
             plan.replaceContexts(
                 contexts,
-                currentContextID: instantPlan.currentContextID,
-                captureLimit: instantPlan.captureLimit
+                currentContextID: instantPlan.currentContextID
             )
             if !instantPlan.isSynchronized {
                 plan.markNeedsSync()
@@ -1231,9 +1271,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         contextCaptureActiveDisplayIDs = selectedDisplayIDs
         contextCaptureMemberDisplayIDs = selectedDisplayIDs
         contextCaptureNoMoveStreaks = [:]
-        contextsToCapture = Self.automaticContextCaptureLimit
         contextCaptureSession = ContextCaptureSession(
-            captureLimit: Self.automaticContextCaptureLimit,
             maxAlignmentAttempts: Self.contextCaptureConfiguration.maxAlignmentAttempts
         )
         updateContextCaptureStatus()
@@ -1282,8 +1320,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         updateContextPlan { plan in
             plan.replaceContexts(
                 contexts,
-                currentContextID: currentContextID,
-                captureLimit: session.captureLimit
+                currentContextID: currentContextID
             )
         }
         contextCaptureActiveDisplayIDs = []
@@ -1384,7 +1421,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         contextCaptureSession = session
         updateContextCaptureStatus()
 
-        guard order < session.captureLimit, !activeDisplayIDs.isEmpty else {
+        guard !activeDisplayIDs.isEmpty else {
             session.recordForwardSwitch(movedDisplayIDs: [])
             contextCaptureSession = session
             finishContextCaptureIfNeeded(session)
@@ -1507,6 +1544,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         refresh()
         let defaults = OnboardingCompletionPolicy().completionDefaults(for: displayLayout)
         selectedDisplayIDs = defaults.selectedDisplayIDs
+        refreshContextEditAvailability()
         isEnabled = defaults.isSidebyEnabled
         UserDefaults.standard.set(defaults.isSidebyEnabled, forKey: Self.enabledDefaultsKey)
 
@@ -1652,7 +1690,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         settings = loadedSettings
-        contextsToCapture = loadedSettings.contextPlan.captureLimit
         swipePipeline = SwipeInputPipeline(settings: currentGestureSettings)
         refreshLocalizedStatus()
         lastInputEvent = strings.inputSettingsUpdated(gesture: gestureInputSummary, keyboard: keyboardCommandSummary)
@@ -2772,21 +2809,15 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
-    private func syncContextPlan() {
-        contextsToCapture = settings.contextPlan.captureLimit
-    }
-
     private func updateContextPlan(_ mutate: (inout ContextPlan) -> Void) {
         var plan = settings.contextPlan
         mutate(&plan)
 
         guard plan != settings.contextPlan else {
-            contextsToCapture = plan.captureLimit
             return
         }
 
         settings.contextPlan = plan
-        contextsToCapture = plan.captureLimit
         settingsStore.save(settings)
         diagnostics = currentDiagnostics()
         refreshLocalizedStatus()
@@ -3951,11 +3982,6 @@ private struct ContextCaptureControlsView: View {
                 .disabled(model.isSwitching || model.contextCaptureSession != nil)
                 .pointingHandCursor()
 
-                Spacer(minLength: 8)
-
-                Text(strings.contextsToCapture(SidebyAppModel.automaticContextCaptureLimit))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             if let contextCaptureStatus = model.contextCaptureStatus {
@@ -3982,6 +4008,7 @@ private struct ContextsView: View {
     @State private var displayColumnWidthOverride: CGFloat?
     @State private var displayColumnResizeStartWidth: CGFloat?
     @State private var contextHeaderHeight: CGFloat = 0
+    @State private var pendingContextDeletion: ContextDefinition?
 
     private var defaultDisplayColumnWidth: CGFloat {
         FloatingMenuContextMatrixLayout.displayColumnWidth(isCompact: isCompact)
@@ -4030,6 +4057,8 @@ private struct ContextsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            contextEditToolbar(strings: strings, matrix: matrix)
+
             HStack(alignment: .top, spacing: 8) {
                 displayColumn(rows: matrix.rows)
                     .overlay(alignment: .trailing) {
@@ -4064,7 +4093,63 @@ private struct ContextsView: View {
                 contextHeaderHeight = height
             }
         }
+        .confirmationDialog(
+            pendingContextDeletion.map { strings.deleteContextConfirmationTitle($0.name) }
+                ?? strings.deleteContext,
+            isPresented: Binding(
+                get: { pendingContextDeletion != nil },
+                set: { if !$0 { pendingContextDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(strings.deleteContext, role: .destructive) {
+                if let contextID = pendingContextDeletion?.id {
+                    _ = model.deleteContext(contextID: contextID)
+                }
+                pendingContextDeletion = nil
+            }
+            Button(strings.cancel, role: .cancel) {
+                pendingContextDeletion = nil
+            }
+        } message: {
+            Text(strings.deleteContextConfirmationMessage)
+        }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func contextEditToolbar(strings: SBSStrings, matrix: ContextMatrix) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                model.addEmptyContext()
+            } label: {
+                Label(strings.addContext, systemImage: "plus")
+            }
+            .disabled(!model.canAddContext)
+
+            Menu {
+                ForEach(matrix.columns) { column in
+                    Button("\(strings.contextOrder(column.order)) · \(column.name)") {
+                        requestContextDeletion(column.id)
+                    }
+                }
+            } label: {
+                Label(strings.deleteContext, systemImage: "minus")
+            }
+            .disabled(!model.canDeleteContext)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func requestContextDeletion(_ contextID: String) {
+        guard let context = model.settings.contextPlan.contexts.first(where: { $0.id == contextID }) else {
+            return
+        }
+        if model.contextDeletionRequiresConfirmation(contextID: contextID) {
+            pendingContextDeletion = context
+        } else {
+            _ = model.deleteContext(contextID: contextID)
+        }
     }
 
     private func displayColumnResizeHandle(rowCount: Int) -> some View {

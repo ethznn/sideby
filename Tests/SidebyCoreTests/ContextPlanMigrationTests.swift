@@ -27,7 +27,6 @@ final class ContextPlanMigrationTests: XCTestCase {
             ["built-in", "external-lg"]
         ])
         XCTAssertEqual(plan.currentContextID, "context-1")
-        XCTAssertEqual(plan.captureLimit, 4)
         XCTAssertEqual(plan.syncState, .synchronized)
     }
 
@@ -108,7 +107,7 @@ final class ContextPlanMigrationTests: XCTestCase {
         XCTAssertEqual(plan.contexts.map(\.name), ["Context 1"])
     }
 
-    func testMigrationOfEmptyLegacyPlanKeepsOneDefaultContextAndCaptureLimit() {
+    func testMigrationOfEmptyLegacyPlanKeepsOneDefaultContext() {
         let legacy = DisplaySpacePlan(displaySpaces: [], defaultCaptureCount: 4)
 
         let plan = ContextPlanMigration.migrate(from: legacy)
@@ -117,21 +116,5 @@ final class ContextPlanMigrationTests: XCTestCase {
         XCTAssertEqual(plan.contexts.map(\.id), ["context-1"])
         XCTAssertEqual(plan.contexts.map(\.order), [1])
         XCTAssertEqual(plan.contexts.map(\.displayIDs), [[]])
-        XCTAssertEqual(plan.captureLimit, 4)
-    }
-
-    func testMigrationCaptureLimitClampsThroughContextPlan() {
-        let legacy = DisplaySpacePlan(
-            displaySpaces: [
-                DisplaySpaceSet(displayID: "a", spaces: [
-                    DisplaySpaceSlot(order: 1, label: "Code")
-                ])
-            ],
-            defaultCaptureCount: 99
-        )
-
-        let plan = ContextPlanMigration.migrate(from: legacy)
-
-        XCTAssertEqual(plan.captureLimit, 12)
     }
 }

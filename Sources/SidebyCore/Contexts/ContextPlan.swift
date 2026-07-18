@@ -196,14 +196,12 @@ public struct ContextPlan: Equatable, Codable, Sendable {
     public private(set) var contexts: [ContextDefinition]
     public private(set) var currentContextID: String
     public private(set) var syncState: ContextSyncState
-    public private(set) var captureLimit: Int
     public private(set) var isPinned: Bool
 
     private enum CodingKeys: String, CodingKey {
         case contexts
         case currentContextID
         case syncState
-        case captureLimit
         case isPinned
     }
 
@@ -211,13 +209,11 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         contexts: [ContextDefinition],
         currentContextID: String,
         syncState: ContextSyncState = .synchronized,
-        captureLimit: Int? = nil,
         isPinned: Bool = true
     ) {
         self.contexts = Self.normalizedContexts(contexts)
         self.currentContextID = currentContextID
         self.syncState = syncState
-        self.captureLimit = max(captureLimit ?? self.contexts.count, 1)
         self.isPinned = isPinned
         ensureValidCurrentContext()
     }
@@ -229,14 +225,12 @@ public struct ContextPlan: Equatable, Codable, Sendable {
             ?? contexts.first?.id
             ?? Self.default.currentContextID
         let syncState = try container.decodeIfPresent(ContextSyncState.self, forKey: .syncState) ?? .synchronized
-        let captureLimit = try container.decodeIfPresent(Int.self, forKey: .captureLimit)
         let isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? true
 
         self.init(
             contexts: contexts,
             currentContextID: currentContextID,
             syncState: syncState,
-            captureLimit: captureLimit,
             isPinned: isPinned
         )
     }
@@ -247,12 +241,57 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         },
         currentContextID: "context-1",
         syncState: .synchronized,
-        captureLimit: 3,
         isPinned: true
     )
 
     public var currentContext: ContextDefinition? {
         contexts.first { $0.id == currentContextID }
+    }
+
+    @discardableResult
+    public mutating func addEmptyContext() -> ContextDefinition {
+        let prefix = "context-"
+        let highestGeneratedNumber = contexts.compactMap { context -> Int? in
+            guard context.id.hasPrefix(prefix) else {
+                return nil
+            }
+            return Int(context.id.dropFirst(prefix.count))
+        }.max() ?? 0
+        var number = highestGeneratedNumber + 1
+        while contexts.contains(where: { $0.id == "context-\(number)" }) {
+            number += 1
+        }
+
+        let context = ContextDefinition(
+            id: "context-\(number)",
+            order: contexts.count + 1,
+            name: "Context \(number)"
+        )
+        contexts.append(context)
+        return context
+    }
+
+    @discardableResult
+    public mutating func deleteContext(
+        id: String,
+        minimumContextCount: Int
+    ) -> Bool {
+        guard minimumContextCount >= 1,
+              contexts.count > minimumContextCount,
+              let removedIndex = contexts.firstIndex(where: { $0.id == id })
+        else {
+            return false
+        }
+
+        let removedCurrentContext = currentContextID == id
+        contexts.remove(at: removedIndex)
+        contexts = Self.normalizedContexts(contexts)
+        if removedCurrentContext {
+            let fallbackIndex = max(min(removedIndex - 1, contexts.count - 1), 0)
+            currentContextID = contexts[fallbackIndex].id
+            syncState = .needsSync
+        }
+        return true
     }
 
     public mutating func renameContext(id: String, name: String) {
@@ -271,19 +310,13 @@ public struct ContextPlan: Equatable, Codable, Sendable {
 
     public mutating func replaceContexts(
         _ newContexts: [ContextDefinition],
-        currentContextID: String,
-        captureLimit: Int
+        currentContextID: String
     ) {
         contexts = Self.normalizedContexts(newContexts)
         self.currentContextID = currentContextID
-        self.captureLimit = max(captureLimit, 1)
         syncState = .synchronized
         isPinned = true
         ensureValidCurrentContext()
-    }
-
-    public mutating func setCaptureLimit(_ limit: Int) {
-        captureLimit = min(max(limit, 1), 12)
     }
 
     public mutating func setPinned(_ isPinned: Bool) {
@@ -533,6 +566,5 @@ public struct ContextPlan: Equatable, Codable, Sendable {
            let firstContext = contexts.first {
             currentContextID = firstContext.id
         }
-        captureLimit = min(max(captureLimit, 1), 12)
     }
 }
