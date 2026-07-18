@@ -1228,8 +1228,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         updateContextPlan { plan in
             plan.replaceContexts(
                 contexts,
-                currentContextID: instantPlan.currentContextID,
-                captureLimit: contexts.count
+                currentContextID: instantPlan.currentContextID
             )
             if !instantPlan.isSynchronized {
                 plan.markNeedsSync()
@@ -1321,8 +1320,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         updateContextPlan { plan in
             plan.replaceContexts(
                 contexts,
-                currentContextID: currentContextID,
-                captureLimit: contexts.count
+                currentContextID: currentContextID
             )
         }
         contextCaptureActiveDisplayIDs = []

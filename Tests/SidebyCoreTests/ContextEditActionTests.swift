@@ -92,7 +92,6 @@ final class ContextEditActionTests: XCTestCase {
             },
             currentContextID: "context-1",
             syncState: .synchronized,
-            captureLimit: count,
             isPinned: false
         )
     }

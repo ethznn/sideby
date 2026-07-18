@@ -12,7 +12,6 @@ final class InstantContextCapturePlannerTests: XCTestCase {
         XCTAssertEqual(plan?.contexts[2].displayIDs.sorted(), ["builtin", "ext"])
         XCTAssertEqual(plan?.contexts[3].displayIDs, ["ext"])
         XCTAssertEqual(plan?.contexts[4].displayIDs, ["ext"])
-        XCTAssertEqual(plan?.captureLimit, 5)
     }
 
     func testAsymmetricCurrentIndexesCanLeaveMiddleContextEmptyForDisplay() {
@@ -77,7 +76,6 @@ final class InstantContextCapturePlannerTests: XCTestCase {
         ]))
 
         XCTAssertEqual(plan.contexts.count, 30)
-        XCTAssertEqual(plan.captureLimit, 30)
         XCTAssertEqual(plan.currentContextID, "context-21")
         XCTAssertTrue(plan.isSynchronized)
         XCTAssertEqual(plan.contexts.last?.spaceIndex(for: "ext"), 29)

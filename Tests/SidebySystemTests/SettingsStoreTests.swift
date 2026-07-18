@@ -248,7 +248,6 @@ final class SettingsStoreTests: XCTestCase {
 
         XCTAssertEqual(migratedSettings.version, AppSettings.currentVersion)
         XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.name), ["Context 1"])
-        XCTAssertEqual(migratedSettings.contextPlan.captureLimit, 4)
     }
 
     func testMigratesLegacySettingsWithoutDisplaySpacePlan() throws {
@@ -350,7 +349,6 @@ final class SettingsStoreTests: XCTestCase {
             ["built-in", "external-lg"],
             ["built-in", "external-lg"]
         ])
-        XCTAssertEqual(migratedSettings.contextPlan.captureLimit, 4)
         XCTAssertEqual(migratedSettings.displaySpacePlan, .default)
     }
 
@@ -401,7 +399,6 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(migratedSettings.launchAtLogin)
         XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.name), ["Writing"])
         XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.displayIDs), [["built-in"]])
-        XCTAssertEqual(migratedSettings.contextPlan.captureLimit, 2)
         XCTAssertEqual(migratedSettings.displaySpacePlan, .default)
     }
 
@@ -426,7 +423,6 @@ final class SettingsStoreTests: XCTestCase {
         object["displaySpacePlan"] = try jsonObject(from: legacyDisplaySpacePlan)
         var legacyContextPlan = try XCTUnwrap(object["contextPlan"] as? [String: Any])
         legacyContextPlan.removeValue(forKey: "syncState")
-        legacyContextPlan.removeValue(forKey: "captureLimit")
         object["contextPlan"] = legacyContextPlan
         let legacyData = try JSONSerialization.data(withJSONObject: object)
         defaults.set(legacyData, forKey: "settings")
@@ -437,7 +433,6 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(migratedSettings.language, .korean)
         XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.name), ["Mail / Calendar"])
         XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.displayIDs), [["built-in", "external-lg"]])
-        XCTAssertEqual(migratedSettings.contextPlan.captureLimit, 5)
         XCTAssertEqual(migratedSettings.displaySpacePlan, .default)
     }
 
@@ -452,8 +447,7 @@ final class SettingsStoreTests: XCTestCase {
                 ContextDefinition(id: "review", order: 2, name: "Review")
             ],
             currentContextID: "review",
-            syncState: .needsSync,
-            captureLimit: 2
+            syncState: .needsSync
         )
         let legacyDisplaySpacePlan = DisplaySpacePlan(
             displaySpaces: [
@@ -476,8 +470,22 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(loadedSettings.contextPlan.contexts.map(\.name), ["Focus", "Review"])
         XCTAssertEqual(loadedSettings.contextPlan.currentContextID, "review")
         XCTAssertEqual(loadedSettings.contextPlan.syncState, .needsSync)
-        XCTAssertEqual(loadedSettings.contextPlan.captureLimit, 2)
         XCTAssertEqual(loadedSettings.displaySpacePlan, .default)
+    }
+
+    func testLoadingCurrentSettingsIgnoresRemovedContextCaptureLimit() throws {
+        let defaults = makeDefaults()
+        let store = UserDefaultsSettingsStore(userDefaults: defaults, key: "settings")
+        var object = try jsonObject(from: AppSettings.default)
+        var contextPlan = try XCTUnwrap(object["contextPlan"] as? [String: Any])
+        contextPlan["captureLimit"] = 99
+        object["contextPlan"] = contextPlan
+        defaults.set(try JSONSerialization.data(withJSONObject: object), forKey: "settings")
+
+        let loaded = store.load()
+
+        XCTAssertEqual(loaded.contextPlan.contexts, AppSettings.default.contextPlan.contexts)
+        XCTAssertEqual(loaded.contextPlan.currentContextID, AppSettings.default.contextPlan.currentContextID)
     }
 
     private func makeDefaults() -> UserDefaults {

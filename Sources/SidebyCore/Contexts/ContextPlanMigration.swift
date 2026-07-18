@@ -19,8 +19,7 @@ public enum ContextPlanMigration {
         return ContextPlan(
             contexts: contexts,
             currentContextID: contexts.first?.id ?? "context-1",
-            syncState: .synchronized,
-            captureLimit: legacyPlan.defaultCaptureCount
+            syncState: .synchronized
         )
     }
 

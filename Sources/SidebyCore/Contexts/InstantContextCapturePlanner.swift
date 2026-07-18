@@ -16,19 +16,16 @@ public struct InstantCaptureDisplay: Equatable, Sendable {
 public struct InstantCapturePlan: Equatable, Sendable {
     public let contexts: [ContextDefinition]
     public let currentContextID: String
-    public let captureLimit: Int
     /// True when every display reports the same current Space index.
     public let isSynchronized: Bool
 
     public init(
         contexts: [ContextDefinition],
         currentContextID: String,
-        captureLimit: Int,
         isSynchronized: Bool
     ) {
         self.contexts = contexts
         self.currentContextID = currentContextID
-        self.captureLimit = captureLimit
         self.isSynchronized = isSynchronized
     }
 
@@ -87,7 +84,6 @@ public enum InstantContextCapturePlanner {
         return InstantCapturePlan(
             contexts: contexts,
             currentContextID: "context-\(currentOrder)",
-            captureLimit: contextCount,
             isSynchronized: isSynchronized
         )
     }
