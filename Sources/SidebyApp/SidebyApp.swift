@@ -725,28 +725,28 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     func contextDeletionRequiresConfirmation(contextID: String) -> Bool {
-        guard let context = settings.contextPlan.contexts.first(where: { $0.id == contextID }) else {
-            return false
-        }
-        return ContextEditPolicy.requiresDeleteConfirmation(for: context)
+        ContextEditAction.requiresDeleteConfirmation(
+            contextID: contextID,
+            contexts: settings.contextPlan.contexts
+        )
     }
 
     @discardableResult
     func deleteContext(contextID: String) -> Bool {
-        guard canAddContext,
-              let displays = selectedDisplaySpaces(),
-              let minimum = ContextEditPolicy.minimumContextCount(
-                  selectedDisplayIDs: selectedDisplayIDs,
-                  displays: displays
-              )
-        else {
+        guard canAddContext else {
             refreshContextEditAvailability()
             return false
         }
 
         var deleted = false
         updateContextPlan { plan in
-            deleted = plan.deleteContext(id: contextID, minimumContextCount: minimum)
+            deleted = ContextEditAction.deleteContext(
+                id: contextID,
+                from: &plan,
+                isEditingAllowed: canAddContext,
+                selectedDisplayIDs: selectedDisplayIDs,
+                readLiveDisplays: selectedDisplaySpaces
+            )
         }
         refreshContextEditAvailability()
         return deleted
@@ -1218,9 +1218,9 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func refreshContextEditAvailability() {
-        contextDeletionMinimumCount = ContextEditPolicy.minimumContextCount(
+        contextDeletionMinimumCount = ContextEditAction.minimumContextCount(
             selectedDisplayIDs: selectedDisplayIDs,
-            displays: selectedDisplaySpaces() ?? []
+            readLiveDisplays: selectedDisplaySpaces
         )
     }
 
