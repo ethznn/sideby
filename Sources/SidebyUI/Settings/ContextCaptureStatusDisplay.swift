@@ -3,7 +3,6 @@ import SidebyCore
 public enum ContextCaptureStatusDisplay {
     public static func statusText(
         phase: ContextCapturePhase,
-        captureLimit: Int,
         maxAlignmentAttempts: Int? = nil,
         completedContextCount: Int,
         currentContextName: String? = nil,
@@ -16,7 +15,7 @@ public enum ContextCaptureStatusDisplay {
                 maxAttempts: maxAlignmentAttempts
             )
         case .capturing(let order):
-            return strings.capturingContextUpTo(current: order, limit: captureLimit)
+            return strings.capturingContext(current: order)
         case .completed:
             guard let currentContextName else {
                 return strings.capturedContexts(count: completedContextCount)
@@ -49,7 +48,6 @@ public enum ContextCaptureStatusDisplay {
 
         return statusText(
             phase: session.phase,
-            captureLimit: session.captureLimit,
             maxAlignmentAttempts: session.maxAlignmentAttempts,
             completedContextCount: completedContextCount,
             currentContextName: currentContextName,
@@ -57,15 +55,13 @@ public enum ContextCaptureStatusDisplay {
         )
     }
 
-    public static func progressValue(session: ContextCaptureSession) -> Double {
+    public static func progressValue(session: ContextCaptureSession) -> Double? {
         switch session.phase {
         case .aligning(let attempt):
             let attempts = max(session.maxAlignmentAttempts, 1)
             return min(0.16, max(0.04, Double(attempt) / Double(attempts) * 0.16))
-        case .capturing(let order):
-            let captureLimit = max(session.captureLimit, 1)
-            let capturedCount = max(session.draftContexts.count, max(order - 1, 0))
-            return min(0.95, max(0.16, Double(capturedCount) / Double(captureLimit)))
+        case .capturing:
+            return nil
         case .completed:
             return 1
         case .failed, .stopped:

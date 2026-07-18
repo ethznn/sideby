@@ -447,7 +447,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var visibleContextSuggestionsByOrder: [Int: [VisibleAppSuggestion]] = [:]
     @Published var contextCaptureSession: ContextCaptureSession?
     @Published var contextCaptureStatus: String?
-    @Published var contextsToCapture = ContextPlan.default.captureLimit
     @Published private(set) var contextDeletionMinimumCount: Int? = nil
 
     private let settingsStore = UserDefaultsSettingsStore()
@@ -462,7 +461,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private let contextHUDPolicy = ContextSwitchHUDPolicy()
     private let observerTokens = SidebyAppObserverTokens()
     private static let enabledDefaultsKey = "sideby.enabled"
-    fileprivate static let automaticContextCaptureLimit = 12
     private static let contextCaptureConfiguration = ContextCaptureConfiguration.automatic
     private static let contextCaptureObserverWait: TimeInterval = contextCaptureConfiguration.observerWait
     private static let contextCaptureAlignmentRetryDelay: TimeInterval = contextCaptureConfiguration.alignmentRetryDelay
@@ -496,7 +494,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         var loadedSettings = settingsStore.load()
         loadedSettings.mode = .shortcut
         self.settings = loadedSettings
-        self.contextsToCapture = loadedSettings.contextPlan.captureLimit
         self.isEnabled = UserDefaults.standard.bool(forKey: Self.enabledDefaultsKey)
         let strings = SBSStrings(language: loadedSettings.language)
         self.lastSwitchResult = strings.noSwitchAttempted
@@ -576,7 +573,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         displayLayout = displayObserver.currentLayout()
         syncSelectedDisplays(with: displayLayout)
         refreshContextEditAvailability()
-        syncContextPlan()
         permissionState = permissionService.currentState
         postEventAccessGranted = CGPreflightPostEventAccess()
         automationAccessGranted = automationPermissionProbe.checkAccessWithoutPrompt().isGranted
@@ -750,18 +746,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
         refreshContextEditAvailability()
         return deleted
-    }
-
-    func setContextsToCapture(_ count: Int) {
-        guard contextCaptureSession == nil else {
-            return
-        }
-
-        let normalizedCount = min(max(count, 1), 12)
-        contextsToCapture = normalizedCount
-        updateContextPlan { plan in
-            plan.setCaptureLimit(normalizedCount)
-        }
     }
 
     func setContextName(contextID: String, name: String) {
@@ -1245,7 +1229,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             plan.replaceContexts(
                 contexts,
                 currentContextID: instantPlan.currentContextID,
-                captureLimit: instantPlan.captureLimit
+                captureLimit: contexts.count
             )
             if !instantPlan.isSynchronized {
                 plan.markNeedsSync()
@@ -1288,9 +1272,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         contextCaptureActiveDisplayIDs = selectedDisplayIDs
         contextCaptureMemberDisplayIDs = selectedDisplayIDs
         contextCaptureNoMoveStreaks = [:]
-        contextsToCapture = Self.automaticContextCaptureLimit
         contextCaptureSession = ContextCaptureSession(
-            captureLimit: Self.automaticContextCaptureLimit,
             maxAlignmentAttempts: Self.contextCaptureConfiguration.maxAlignmentAttempts
         )
         updateContextCaptureStatus()
@@ -1340,7 +1322,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             plan.replaceContexts(
                 contexts,
                 currentContextID: currentContextID,
-                captureLimit: session.captureLimit
+                captureLimit: contexts.count
             )
         }
         contextCaptureActiveDisplayIDs = []
@@ -1441,7 +1423,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         contextCaptureSession = session
         updateContextCaptureStatus()
 
-        guard order < session.captureLimit, !activeDisplayIDs.isEmpty else {
+        guard !activeDisplayIDs.isEmpty else {
             session.recordForwardSwitch(movedDisplayIDs: [])
             contextCaptureSession = session
             finishContextCaptureIfNeeded(session)
@@ -1710,7 +1692,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         settings = loadedSettings
-        contextsToCapture = loadedSettings.contextPlan.captureLimit
         swipePipeline = SwipeInputPipeline(settings: currentGestureSettings)
         refreshLocalizedStatus()
         lastInputEvent = strings.inputSettingsUpdated(gesture: gestureInputSummary, keyboard: keyboardCommandSummary)
@@ -2830,21 +2811,15 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
-    private func syncContextPlan() {
-        contextsToCapture = settings.contextPlan.captureLimit
-    }
-
     private func updateContextPlan(_ mutate: (inout ContextPlan) -> Void) {
         var plan = settings.contextPlan
         mutate(&plan)
 
         guard plan != settings.contextPlan else {
-            contextsToCapture = plan.captureLimit
             return
         }
 
         settings.contextPlan = plan
-        contextsToCapture = plan.captureLimit
         settingsStore.save(settings)
         diagnostics = currentDiagnostics()
         refreshLocalizedStatus()
@@ -4009,11 +3984,6 @@ private struct ContextCaptureControlsView: View {
                 .disabled(model.isSwitching || model.contextCaptureSession != nil)
                 .pointingHandCursor()
 
-                Spacer(minLength: 8)
-
-                Text(strings.contextsToCapture(SidebyAppModel.automaticContextCaptureLimit))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             if let contextCaptureStatus = model.contextCaptureStatus {

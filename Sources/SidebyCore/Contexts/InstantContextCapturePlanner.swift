@@ -40,8 +40,6 @@ public struct InstantCapturePlan: Equatable, Sendable {
 }
 
 public enum InstantContextCapturePlanner {
-    public static let maxContexts = 12
-
     /// Derives the context plan. The first display in `displays` is
     /// authoritative for the current context, so callers must pass displays
     /// in a stable, meaningful order (e.g. layout order).
@@ -52,10 +50,7 @@ public enum InstantContextCapturePlanner {
             return nil
         }
 
-        let contextCount = min(
-            displays.map(\.spaceCount).max() ?? 1,
-            Self.maxContexts
-        )
+        let contextCount = displays.map(\.spaceCount).max() ?? 1
         let maxCurrentIndex = displays.map(\.currentSpaceIndex).max() ?? 0
         let currentOrder = min(maxCurrentIndex + 1, contextCount)
         let indexesByDisplay = Dictionary(

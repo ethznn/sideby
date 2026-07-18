@@ -636,7 +636,6 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(
                 phase: .aligning(attempt: 2),
-                captureLimit: 5,
                 maxAlignmentAttempts: 5,
                 completedContextCount: 0,
                 strings: strings
@@ -646,17 +645,15 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(
                 phase: .capturing(order: 3),
-                captureLimit: 5,
                 maxAlignmentAttempts: 5,
                 completedContextCount: 0,
                 strings: strings
             ),
-            "Capturing Context 3 · up to 5"
+            "Capturing Context 3"
         )
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(
                 phase: .completed(currentContextID: "captured-final"),
-                captureLimit: 5,
                 maxAlignmentAttempts: 5,
                 completedContextCount: 4,
                 strings: strings
@@ -668,7 +665,6 @@ final class AppShellTests: XCTestCase {
     func testContextCaptureStatusDisplayAnnouncesPinnedMatchingAndCurrentContextName() {
         let english = ContextCaptureStatusDisplay.statusText(
             phase: .completed(currentContextID: "context-4"),
-            captureLimit: 4,
             maxAlignmentAttempts: 5,
             completedContextCount: 4,
             currentContextName: "Design / Docs",
@@ -681,7 +677,6 @@ final class AppShellTests: XCTestCase {
 
         let korean = ContextCaptureStatusDisplay.statusText(
             phase: .completed(currentContextID: "context-4"),
-            captureLimit: 4,
             maxAlignmentAttempts: 5,
             completedContextCount: 4,
             currentContextName: "Design / Docs",
@@ -697,7 +692,6 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(
                 phase: .completed(currentContextID: "context-4"),
-                captureLimit: 4,
                 maxAlignmentAttempts: 5,
                 completedContextCount: 4,
                 currentContextName: nil,
@@ -713,7 +707,6 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(
                 phase: .failed(reason: "No Space movement detected"),
-                captureLimit: 5,
                 maxAlignmentAttempts: 5,
                 completedContextCount: 0,
                 strings: strings
@@ -723,7 +716,6 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(
             ContextCaptureStatusDisplay.statusText(
                 phase: .stopped,
-                captureLimit: 5,
                 maxAlignmentAttempts: 5,
                 completedContextCount: 0,
                 strings: strings
@@ -732,23 +724,29 @@ final class AppShellTests: XCTestCase {
         )
     }
 
-    func testContextCaptureStatusDisplayReportsProgress() {
-        var session = ContextCaptureSession(captureLimit: 4, maxAlignmentAttempts: 4)
+    func testContextCaptureStatusDisplayUsesNoCaptureLimit() throws {
+        XCTAssertEqual(
+            ContextCaptureStatusDisplay.statusText(
+                phase: .capturing(order: 13),
+                maxAlignmentAttempts: 5,
+                completedContextCount: 0,
+                strings: SBSStrings(language: .english)
+            ),
+            "Capturing Context 13"
+        )
 
-        XCTAssertEqual(ContextCaptureStatusDisplay.progressValue(session: session), 0.04, accuracy: 0.0001)
-
-        session.recordAlignment(previousDidChange: true)
-        XCTAssertEqual(ContextCaptureStatusDisplay.progressValue(session: session), 0.08, accuracy: 0.0001)
-
+        var session = ContextCaptureSession(maxAlignmentAttempts: 4)
+        XCTAssertEqual(
+            try XCTUnwrap(ContextCaptureStatusDisplay.progressValue(session: session)),
+            0.04,
+            accuracy: 0.0001
+        )
         session.recordAlignment(previousDidChange: false)
-        XCTAssertEqual(ContextCaptureStatusDisplay.progressValue(session: session), 0.16, accuracy: 0.0001)
-
-        session.recordCurrentSpace(name: "Context 1", displayIDs: ["built-in"])
-        XCTAssertEqual(ContextCaptureStatusDisplay.progressValue(session: session), 0.25, accuracy: 0.0001)
+        XCTAssertNil(ContextCaptureStatusDisplay.progressValue(session: session))
     }
 
     func testContextCaptureStatusDisplayUsesSessionCompletedCount() {
-        var session = ContextCaptureSession(captureLimit: 1)
+        var session = ContextCaptureSession()
         session.recordAlignment(previousDidChange: false)
         session.recordCurrentSpace(name: "Context 1", displayIDs: ["built-in"])
         session.recordForwardSwitch(movedDisplayIDs: [])
@@ -761,7 +759,6 @@ final class AppShellTests: XCTestCase {
 
     func testContextCaptureStatusDisplayFailsInvalidCompletedSession() {
         let session = ContextCaptureSession(
-            captureLimit: 5,
             phase: .completed(currentContextID: "missing"),
             draftContexts: []
         )

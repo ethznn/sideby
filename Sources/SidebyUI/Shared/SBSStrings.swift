@@ -145,19 +145,12 @@ public struct SBSStrings: Sendable {
             "캡처가 중지되었습니다. 기존 컨텍스트는 유지되었습니다."
         )
     }
-    public func contextsToCapture(_ count: Int) -> String {
-        if count == 1 {
-            return text("Capture up to 1 Context", "최대 1개 컨텍스트 캡처")
-        }
-        return text("Capture up to \(count) Contexts", "최대 \(count)개 컨텍스트 캡처")
-    }
-
     public func detectedApp(_ label: String) -> String {
         text("Detected: \(label)", "감지됨: \(label)")
     }
 
-    public func capturingContextUpTo(current: Int, limit: Int) -> String {
-        text("Capturing Context \(current) · up to \(limit)", "컨텍스트 \(current) 캡처 중 · 최대 \(limit)개")
+    public func capturingContext(current: Int) -> String {
+        text("Capturing Context \(current)", "컨텍스트 \(current) 캡처 중")
     }
 
     public func capturedContexts(count: Int) -> String {

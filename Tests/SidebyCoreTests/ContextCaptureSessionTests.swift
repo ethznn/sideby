@@ -139,11 +139,10 @@ final class ContextCaptureSessionTests: XCTestCase {
         XCTAssertEqual(decision.noMoveStreaks, ["built-in": 0])
     }
 
-    func testSessionStartsAligningWithCaptureLimit() {
-        let session = ContextCaptureSession(captureLimit: 4)
+    func testSessionStartsAligning() {
+        let session = ContextCaptureSession()
 
         XCTAssertEqual(session.phase, .aligning(attempt: 1))
-        XCTAssertEqual(session.captureLimit, 4)
         XCTAssertEqual(session.draftContexts, [])
     }
 
@@ -157,7 +156,7 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testAlignmentContinuesWhenPreviousChangedSpace() {
-        var session = ContextCaptureSession(captureLimit: 4)
+        var session = ContextCaptureSession()
 
         session.recordAlignment(previousDidChange: true)
 
@@ -165,7 +164,7 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testAlignmentCompletesWhenPreviousDoesNotChangeSpace() {
-        var session = ContextCaptureSession(captureLimit: 4)
+        var session = ContextCaptureSession()
 
         session.recordAlignment(previousDidChange: false)
 
@@ -173,7 +172,7 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testCaptureStoresDraftDisplayMembershipAndAdvances() {
-        var session = ContextCaptureSession(captureLimit: 3)
+        var session = ContextCaptureSession()
         session.recordAlignment(previousDidChange: false)
 
         session.recordCurrentSpace(name: "Code", displayIDs: ["external-lg", "built-in"])
@@ -184,8 +183,24 @@ final class ContextCaptureSessionTests: XCTestCase {
         XCTAssertEqual(session.phase, .capturing(order: 2))
     }
 
-    func testCaptureCompletesWhenNoDisplaysMoveBeforeLimit() {
-        var session = ContextCaptureSession(captureLimit: 3)
+    func testCaptureContinuesPastTwelveAndCompletesOnlyWithoutMovement() {
+        var session = ContextCaptureSession()
+        session.recordAlignment(previousDidChange: false)
+
+        for order in 1...13 {
+            session.recordCurrentSpace(name: "Context \(order)", displayIDs: ["built-in"])
+            session.recordForwardSwitch(movedDisplayIDs: ["built-in"])
+        }
+        XCTAssertEqual(session.phase, .capturing(order: 14))
+
+        session.recordCurrentSpace(name: "Context 14", displayIDs: ["built-in"])
+        session.recordForwardSwitch(movedDisplayIDs: [])
+        XCTAssertEqual(session.phase, .completed(currentContextID: "context-14"))
+        XCTAssertEqual(session.completedContextDefinitions?.count, 14)
+    }
+
+    func testCaptureCompletesWhenNoDisplaysMove() {
+        var session = ContextCaptureSession()
         session.recordAlignment(previousDidChange: false)
 
         session.recordCurrentSpace(name: "Code", displayIDs: ["built-in"])
@@ -196,7 +211,7 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testStopDiscardsDraftsForCommitPurposes() {
-        var session = ContextCaptureSession(captureLimit: 3)
+        var session = ContextCaptureSession()
         session.recordAlignment(previousDidChange: false)
         session.recordCurrentSpace(name: "Code")
 
@@ -206,18 +221,13 @@ final class ContextCaptureSessionTests: XCTestCase {
         XCTAssertFalse(session.shouldCommitDrafts)
     }
 
-    func testCaptureLimitClampsToSupportedRange() {
-        XCTAssertEqual(ContextCaptureSession(captureLimit: 0).captureLimit, 1)
-        XCTAssertEqual(ContextCaptureSession(captureLimit: 13).captureLimit, 12)
-    }
-
     func testMaxAlignmentAttemptsClampsToSupportedRange() {
-        XCTAssertEqual(ContextCaptureSession(captureLimit: 3, maxAlignmentAttempts: 0).maxAlignmentAttempts, 1)
-        XCTAssertEqual(ContextCaptureSession(captureLimit: 3, maxAlignmentAttempts: 25).maxAlignmentAttempts, 24)
+        XCTAssertEqual(ContextCaptureSession(maxAlignmentAttempts: 0).maxAlignmentAttempts, 1)
+        XCTAssertEqual(ContextCaptureSession(maxAlignmentAttempts: 25).maxAlignmentAttempts, 24)
     }
 
     func testAlignmentFailsWhenPreviousStillChangesAtMaxAttempt() {
-        var session = ContextCaptureSession(captureLimit: 3, maxAlignmentAttempts: 2)
+        var session = ContextCaptureSession(maxAlignmentAttempts: 2)
 
         session.recordAlignment(previousDidChange: true)
         XCTAssertEqual(session.phase, .aligning(attempt: 2))
@@ -227,7 +237,7 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testForwardSwitchWithoutCurrentDraftFailsOnObservedMovement() {
-        var session = ContextCaptureSession(captureLimit: 3)
+        var session = ContextCaptureSession()
         session.recordAlignment(previousDidChange: false)
 
         session.recordForwardSwitch(movedDisplayIDs: ["built-in"])
@@ -237,7 +247,7 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testForwardSwitchWithoutCurrentDraftFailsWithoutMovement() {
-        var session = ContextCaptureSession(captureLimit: 3)
+        var session = ContextCaptureSession()
         session.recordAlignment(previousDidChange: false)
 
         session.recordForwardSwitch(movedDisplayIDs: [])
@@ -247,7 +257,7 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testRecordCurrentSpaceReplacesDuplicateRecordsForSameOrder() {
-        var session = ContextCaptureSession(captureLimit: 3)
+        var session = ContextCaptureSession()
         session.recordAlignment(previousDidChange: false)
 
         session.recordCurrentSpace(name: "Old", displayIDs: ["built-in"])
@@ -258,10 +268,10 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testCompletedSessionCannotBeStopped() {
-        var session = ContextCaptureSession(captureLimit: 1)
+        var session = ContextCaptureSession()
         session.recordAlignment(previousDidChange: false)
         session.recordCurrentSpace(name: "Code", displayIDs: ["built-in"])
-        session.recordForwardSwitch(movedDisplayIDs: ["built-in"])
+        session.recordForwardSwitch(movedDisplayIDs: [])
 
         session.stop()
 
@@ -270,7 +280,7 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testFailedSessionCannotBeStopped() {
-        var session = ContextCaptureSession(captureLimit: 3)
+        var session = ContextCaptureSession()
 
         session.fail(reason: "Switch failed")
         session.stop()
@@ -280,7 +290,7 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testCompletedContextDefinitionsReturnSortedDraftPayload() {
-        var session = ContextCaptureSession(captureLimit: 2)
+        var session = ContextCaptureSession()
         session.recordAlignment(previousDidChange: false)
         session.recordCurrentSpace(name: "Code", displayIDs: ["built-in", "external-lg"])
         session.recordForwardSwitch(movedDisplayIDs: ["built-in"])
@@ -298,7 +308,6 @@ final class ContextCaptureSessionTests: XCTestCase {
 
     func testCompletedContextDefinitionsRequiresCurrentDraft() {
         let session = ContextCaptureSession(
-            captureLimit: 2,
             phase: .completed(currentContextID: "context-2"),
             draftContexts: [ContextCaptureDraft(order: 1, name: "Code")]
         )
@@ -308,7 +317,6 @@ final class ContextCaptureSessionTests: XCTestCase {
 
     func testCompletedContextDefinitionsRejectsSkippedOrders() {
         let session = ContextCaptureSession(
-            captureLimit: 3,
             phase: .completed(currentContextID: "context-3"),
             draftContexts: [
                 ContextCaptureDraft(order: 1, name: "Code"),
@@ -321,7 +329,6 @@ final class ContextCaptureSessionTests: XCTestCase {
 
     func testCompletedContextDefinitionsDropsDraftsBeyondCompletedOrder() {
         let session = ContextCaptureSession(
-            captureLimit: 3,
             phase: .completed(currentContextID: "context-2"),
             draftContexts: [
                 ContextCaptureDraft(order: 1, name: "Code"),
@@ -341,7 +348,6 @@ final class ContextCaptureSessionTests: XCTestCase {
 
     func testCompletedContextDefinitionsRejectsDuplicateOrders() {
         let session = ContextCaptureSession(
-            captureLimit: 3,
             phase: .completed(currentContextID: "context-2"),
             draftContexts: [
                 ContextCaptureDraft(order: 1, name: "Code"),
@@ -354,7 +360,7 @@ final class ContextCaptureSessionTests: XCTestCase {
     }
 
     func testFailDiscardsDraftsForCommitPurposes() {
-        var session = ContextCaptureSession(captureLimit: 3)
+        var session = ContextCaptureSession()
         session.recordAlignment(previousDidChange: false)
         session.recordCurrentSpace(name: "Code")
 
