@@ -1041,6 +1041,70 @@ final class SystemAdapterTests: XCTestCase {
         ])
     }
 
+    func testCaptureDisplayMappingRejectsDuplicateSelectedLayoutsBeforeContextDeletion() {
+        let displayLayout = DisplayLayout(displays: [
+            DisplayInfo(id: "built-in", name: "Built-in", isPrimary: true, isBuiltin: true)
+        ])
+        let captureDisplays = DisplayLayoutMapper.instantCaptureDisplays(
+            selectedDisplayIDs: ["built-in"],
+            displayLayout: displayLayout,
+            layouts: [
+                DisplaySpaceLayout(displayUUID: "UUID-BUILTIN", spaceIDs: [10, 11, 12], currentSpaceID: 10),
+                DisplaySpaceLayout(displayUUID: "UUID-BUILTIN", spaceIDs: [20, 21], currentSpaceID: 20)
+            ],
+            stableIDsByUUID: ["UUID-BUILTIN": "built-in"]
+        )
+
+        XCTAssertNil(captureDisplays)
+        XCTAssertNil(ContextEditAction.minimumContextCount(
+            selectedDisplayIDs: ["built-in"],
+            readLiveDisplays: { captureDisplays }
+        ))
+
+        var plan = ContextPlan(
+            contexts: (1...3).map { index in
+                ContextDefinition(id: "context-\(index)", order: index, name: "Context \(index)")
+            },
+            currentContextID: "context-1",
+            syncState: .synchronized,
+            isPinned: false
+        )
+
+        XCTAssertFalse(ContextEditAction.deleteContext(
+            id: "context-3",
+            from: &plan,
+            isEditingAllowed: true,
+            selectedDisplayIDs: ["built-in"],
+            readLiveDisplays: { captureDisplays }
+        ))
+        XCTAssertEqual(plan.contexts.map(\.id), ["context-1", "context-2", "context-3"])
+    }
+
+    func testCaptureDisplayMappingAllowsDuplicateUnselectedLayouts() {
+        let displayLayout = DisplayLayout(displays: [
+            DisplayInfo(id: "built-in", name: "Built-in", isPrimary: true, isBuiltin: true),
+            DisplayInfo(id: "external", name: "External", isPrimary: false, isBuiltin: false)
+        ])
+
+        let captureDisplays = DisplayLayoutMapper.instantCaptureDisplays(
+            selectedDisplayIDs: ["built-in"],
+            displayLayout: displayLayout,
+            layouts: [
+                DisplaySpaceLayout(displayUUID: "UUID-BUILTIN", spaceIDs: [10, 11], currentSpaceID: 11),
+                DisplaySpaceLayout(displayUUID: "UUID-EXTERNAL", spaceIDs: [20, 21, 22], currentSpaceID: 20),
+                DisplaySpaceLayout(displayUUID: "UUID-EXTERNAL", spaceIDs: [30], currentSpaceID: 30)
+            ],
+            stableIDsByUUID: [
+                "UUID-BUILTIN": "built-in",
+                "UUID-EXTERNAL": "external"
+            ]
+        )
+
+        XCTAssertEqual(captureDisplays, [
+            InstantCaptureDisplay(displayID: "built-in", spaceCount: 2, currentSpaceIndex: 1)
+        ])
+    }
+
     func testGlobalEventTapSuppressesConfiguredModifierFlagChanges() {
         XCTAssertTrue(
             GlobalEventTapInputSource.shouldSuppressModifierFlagChange(
