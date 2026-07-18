@@ -25,10 +25,10 @@ scripts/build_dev_app_bundle.sh
 `build_app_bundle.sh` defaults to a release build. Override with `SIDEBY_BUILD_CONFIGURATION=debug` when you need a faster local product build. `build_dev_app_bundle.sh` defaults to debug.
 The bundle scripts use a local Developer ID or Apple Development signing identity when one is available, and otherwise sign ad-hoc for local testing.
 
-Build the first Sparkle-enabled release DMG with explicit release metadata:
+Build a Sparkle-enabled release DMG with explicit release metadata:
 
 ```bash
-SIDEBY_VERSION=0.7.0 SIDEBY_BUILD_NUMBER=2 scripts/build_release_dmg.sh
+SIDEBY_VERSION=0.8.0 SIDEBY_BUILD_NUMBER=3 scripts/build_release_dmg.sh
 ```
 
 The DMG script is included so release packaging stays reproducible. It requires
@@ -47,9 +47,9 @@ After the signed DMG is notarized and stapled, prepare the signed Sparkle assets
 ```bash
 # Submit the DMG to Apple's notary service, then staple it locally.
 
-SIDEBY_VERSION=0.7.0 \
-SIDEBY_BUILD_NUMBER=2 \
-SIDEBY_RELEASE_NOTES_PATH=/tmp/Sideby-0.7.0.md \
+SIDEBY_VERSION=0.8.0 \
+SIDEBY_BUILD_NUMBER=3 \
+SIDEBY_RELEASE_NOTES_PATH=/tmp/Sideby-0.8.0.md \
 scripts/prepare_sparkle_release.sh
 ```
 
