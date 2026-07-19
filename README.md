@@ -9,7 +9,7 @@ Choose the displays that belong together, capture their current Spaces, and swit
 ## Preview
 
 <p align="center">
-  <img src="./docs/images/sideby-context-capture-en.png" width="510" alt="Sideby menu showing navigation controls, display targets, and the Context matrix" />
+  <img src="./docs/images/sideby-demo-en.gif" width="720" alt="Sideby switching a multi-display workspace between Contexts" />
 </p>
 
 ## Why Sideby

@@ -9,7 +9,7 @@ Sideby는 여러 디스플레이를 하나의 작업 Context처럼 함께 움직
 ## 미리 보기
 
 <p align="center">
-  <img src="./docs/images/sideby-context-capture-ko.png" width="510" alt="이동 컨트롤, 이동 대상, Context matrix를 보여주는 Sideby 메뉴" />
+  <img src="./docs/images/sideby-demo-en.gif" width="720" alt="여러 디스플레이의 작업공간을 Context 단위로 전환하는 Sideby" />
 </p>
 
 ## Why Sideby
