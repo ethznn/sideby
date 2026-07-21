@@ -434,7 +434,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var automationAccessGranted = false
     @Published var permissionRequestFeedback: PermissionRequestFeedback?
     @Published var selectedDisplayIDs: Set<String> = []
-    @Published var diagnostics: [DiagnosticState] = []
+    @Published private var presentedDiagnostics: [DiagnosticState] = []
     @Published var lastSwitchResult = "No switch attempted"
     @Published var isSwitching = false
     @Published var isEnabled = false
@@ -490,6 +490,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var lastScrollStatusUpdate = 0.0
     private var isOnboardingGestureTestActive = false
     private var ignoresExternalSpaceChangesUntil: Date?
+
+    var diagnostics: [DiagnosticState] {
+        get { presentedDiagnostics }
+        set { presentedDiagnostics = diagnosticsIncludingContextKeyboardFailures(newValue) }
+    }
 
     init() {
         var loadedSettings = settingsStore.load()
@@ -597,24 +602,17 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             )
         }
 
-        if !failedContextKeyboardCommands.isEmpty {
-            let shortcuts = failedContextKeyboardCommands.compactMap { command in
-                ContextKeyboardShortcutCatalog.binding(for: command)
-            }
-            .map { KeyboardShortcutFormatter.shortcutText($0.shortcut) }
-            .joined(separator: ", ")
-
-            values.append(
-                DiagnosticState(
-                    severity: .warning,
-                    title: strings.contextKeyboardRegistrationTitle,
-                    message: strings.contextKeyboardRegistrationMessage(shortcuts: shortcuts),
-                    actionLabel: nil
-                )
-            )
-        }
-
         return values
+    }
+
+    private func diagnosticsIncludingContextKeyboardFailures(
+        _ diagnostics: [DiagnosticState]
+    ) -> [DiagnosticState] {
+        ContextKeyboardDiagnosticMerger.mergingRegistrationFailures(
+            failedContextKeyboardCommands,
+            into: diagnostics,
+            strings: strings
+        )
     }
 
     private func startContextKeyboardInput() {
