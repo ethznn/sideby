@@ -65,4 +65,58 @@ final class ShortcutSettingsViewTests: XCTestCase {
         XCTAssertEqual(SBSStrings(language: .english).onboardingCompletionActionTitle, "Open Settings")
         XCTAssertEqual(SBSStrings(language: .korean).onboardingCompletionActionTitle, "설정 열기")
     }
+
+    func testLocalizesFixedContextKeyboardLayer() {
+        let english = SBSStrings(language: .english)
+        let korean = SBSStrings(language: .korean)
+
+        XCTAssertEqual(english.contextKeyboardNumberHint, "Jump to Context: ⌥⇧1 … ⌥⇧9, ⌥⇧0")
+        XCTAssertEqual(korean.contextKeyboardNumberHint, "Context 바로 이동: ⌥⇧1 … ⌥⇧9, ⌥⇧0")
+        XCTAssertEqual(english.contextKeyboardArrowHint, "Previous / Next Context: ⌥⇧← / ⌥⇧→")
+        XCTAssertEqual(korean.contextKeyboardArrowHint, "이전 / 다음 Context: ⌥⇧← / ⌥⇧→")
+        XCTAssertEqual(english.sidebyToggleOffHUD, "Sideby is turned off")
+        XCTAssertEqual(korean.sidebyToggleOffHUD, "Sideby 토글이 꺼져 있습니다")
+        XCTAssertEqual(english.missingContextHUD(position: 10), "Context 10 does not exist")
+        XCTAssertEqual(korean.missingContextHUD(position: 7), "Context 7이 없습니다")
+    }
+
+    func testFixedKeyboardFeedbackUsesCompactHUD() {
+        let presenter = HUDPresenter()
+
+        XCTAssertEqual(
+            presenter.stateForSidebyToggleOff(strings: SBSStrings(language: .korean)),
+            HUDPresentationState(text: "Sideby 토글이 꺼져 있습니다", isCompact: true)
+        )
+        XCTAssertEqual(
+            presenter.stateForMissingContext(
+                position: 7,
+                strings: SBSStrings(language: .english)
+            ),
+            HUDPresentationState(text: "Context 7 does not exist", isCompact: true)
+        )
+    }
+
+    func testLocalizesFixedKeyboardRegistrationFailure() {
+        let english = SBSStrings(language: .english)
+
+        XCTAssertEqual(english.contextKeyboardRegistrationTitle, "Some Context shortcuts are unavailable")
+        XCTAssertEqual(
+            english.contextKeyboardRegistrationMessage(shortcuts: "⌥⇧2, ⌥⇧←"),
+            "Sideby could not register ⌥⇧2, ⌥⇧←. Check macOS Keyboard Shortcuts and other apps."
+        )
+    }
+
+    func testInputAndOnboardingCopyDescribeFixedKeyboardLayer() {
+        let english = SBSStrings(language: .english)
+        let korean = SBSStrings(language: .korean)
+
+        XCTAssertEqual(
+            english.inputSubtitle,
+            "Set the gesture modifier and review fixed Context keyboard controls."
+        )
+        XCTAssertEqual(
+            korean.contextKeyboardLayerHint,
+            "Option + Shift를 누른 채 숫자 또는 왼쪽/오른쪽 화살표를 사용할 수 있습니다."
+        )
+    }
 }

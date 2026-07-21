@@ -49,6 +49,23 @@ final class V1SetupFlowTests: XCTestCase {
         XCTAssertTrue(state.canCompleteSetup)
     }
 
+    func testDescribesFixedKeyboardControlsWhenSidebyIsEnabled() {
+        let state = V1SetupFlow().viewState(
+            for: V1SetupStatus(
+                displayCount: 2,
+                selectedTargetCount: 2,
+                accessibilityPermission: .granted,
+                isSidebyEnabled: true,
+                didCompleteOnboarding: false
+            )
+        )
+
+        XCTAssertEqual(
+            state.status,
+            "Use Option + Shift with horizontal scroll, a Context number, or Left/Right Arrow."
+        )
+    }
+
     func testOnboardingCompletionSelectsAllConnectedDisplaysAndEnablesSideby() {
         let layout = DisplayLayout(displays: [
             DisplayInfo(id: "built-in", name: "Built-in Display", isPrimary: true, isBuiltin: true),

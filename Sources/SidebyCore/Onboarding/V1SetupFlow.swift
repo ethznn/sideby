@@ -81,7 +81,7 @@ public struct V1SetupFlow: Sendable {
 
         return V1SetupViewState(
             title: "Sideby is on",
-            status: "Use Option + Shift + horizontal scroll. Keyboard shortcuts can be enabled in Input settings.",
+            status: "Use Option + Shift with horizontal scroll, a Context number, or Left/Right Arrow.",
             primaryActionTitle: status.didCompleteOnboarding ? "Open Settings" : "Complete Setup",
             canCompleteSetup: true
         )

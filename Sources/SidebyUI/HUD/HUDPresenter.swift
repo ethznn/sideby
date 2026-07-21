@@ -53,4 +53,17 @@ public struct HUDPresenter: Sendable {
     ) -> HUDPresentationState {
         HUDPresentationState(text: strings.contextNeedsSync, isCompact: true)
     }
+
+    public func stateForSidebyToggleOff(
+        strings: SBSStrings = SBSStrings(language: .english)
+    ) -> HUDPresentationState {
+        HUDPresentationState(text: strings.sidebyToggleOffHUD, isCompact: true)
+    }
+
+    public func stateForMissingContext(
+        position: Int,
+        strings: SBSStrings = SBSStrings(language: .english)
+    ) -> HUDPresentationState {
+        HUDPresentationState(text: strings.missingContextHUD(position: position), isCompact: true)
+    }
 }

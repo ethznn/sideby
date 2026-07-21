@@ -64,7 +64,7 @@ public struct SBSStrings: Sendable {
         text("Choose which displays move together.", "함께 이동할 디스플레이를 선택합니다.")
     }
     public var inputSubtitle: String {
-        text("Set the gesture modifier and keyboard shortcuts.", "제스처 보조 키와 키보드 단축키를 설정합니다.")
+        text("Set the gesture modifier and review fixed Context keyboard controls.", "제스처 보조 키와 고정 Context 키보드 조작을 확인합니다.")
     }
     public var permissionsSubtitle: String {
         text("Review the permissions used for gesture detection and switching.", "제스처 감지와 전환에 필요한 권한을 확인합니다.")
@@ -549,6 +549,33 @@ public struct SBSStrings: Sendable {
     public var controlSwipe: String { text("Control Swipe", "Control 스와이프") }
     public var defaultGesturePreset: String { text("Option Shift", "Option Shift") }
     public var keyboardShortcuts: String { text("Keyboard Shortcuts", "키보드 단축키") }
+    public var contextKeyboardNumberHint: String {
+        text("Jump to Context: ⌥⇧1 … ⌥⇧9, ⌥⇧0", "Context 바로 이동: ⌥⇧1 … ⌥⇧9, ⌥⇧0")
+    }
+    public var contextKeyboardArrowHint: String {
+        text("Previous / Next Context: ⌥⇧← / ⌥⇧→", "이전 / 다음 Context: ⌥⇧← / ⌥⇧→")
+    }
+    public var contextKeyboardLayerHint: String {
+        text(
+            "Hold Option + Shift and use a number or Left/Right Arrow.",
+            "Option + Shift를 누른 채 숫자 또는 왼쪽/오른쪽 화살표를 사용할 수 있습니다."
+        )
+    }
+    public var sidebyToggleOffHUD: String {
+        text("Sideby is turned off", "Sideby 토글이 꺼져 있습니다")
+    }
+    public func missingContextHUD(position: Int) -> String {
+        text("Context \(position) does not exist", "Context \(position)이 없습니다")
+    }
+    public var contextKeyboardRegistrationTitle: String {
+        text("Some Context shortcuts are unavailable", "일부 Context 단축키를 사용할 수 없습니다")
+    }
+    public func contextKeyboardRegistrationMessage(shortcuts: String) -> String {
+        text(
+            "Sideby could not register \(shortcuts). Check macOS Keyboard Shortcuts and other apps.",
+            "Sideby가 \(shortcuts)을 등록하지 못했습니다. macOS 키보드 단축키와 다른 앱을 확인하세요."
+        )
+    }
     public var keyboardShortcutsOn: String { text("Keyboard shortcuts on", "키보드 단축키 켜짐") }
     public var keyboardShortcutsOff: String { text("Keyboard shortcuts off", "키보드 단축키 꺼짐") }
     public var enableKeyboardShortcuts: String { text("Enable keyboard shortcuts", "키보드 단축키 사용") }
@@ -656,6 +683,11 @@ public struct SBSStrings: Sendable {
             text("Turn on Sideby to enable swipe gestures and test buttons.", "스와이프 제스처와 테스트 버튼을 사용하려면 Sideby를 켜세요.")
         case "Use Option + Shift + horizontal scroll. Keyboard shortcuts can be enabled in Input settings.":
             text("Use Option + Shift + horizontal scroll. Keyboard shortcuts can be enabled in Input settings.", "Option + Shift + 가로 스크롤을 사용하세요. 키보드 단축키는 입력 설정에서 켤 수 있습니다.")
+        case "Use Option + Shift with horizontal scroll, a Context number, or Left/Right Arrow.":
+            text(
+                "Use Option + Shift with horizontal scroll, a Context number, or Left/Right Arrow.",
+                "Option + Shift와 가로 스크롤, Context 숫자 또는 왼쪽/오른쪽 화살표를 사용하세요."
+            )
         default:
             status
         }
