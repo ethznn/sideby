@@ -78,6 +78,27 @@ final class ContextKeyboardDiagnosticMergerTests: XCTestCase {
         )
     }
 
+    func testDiagnosticsUseCurrentLanguageWithoutAccumulatingStoredWarningWhileInputIsOff() {
+        let runtimeDiagnostics = [diagnostic(title: "Runtime")]
+
+        let english = ContextKeyboardDiagnosticMerger.diagnostics(
+            runtimeDiagnostics: runtimeDiagnostics,
+            failedCommands: failedCommands,
+            strings: SBSStrings(language: .english)
+        )
+        let korean = ContextKeyboardDiagnosticMerger.diagnostics(
+            runtimeDiagnostics: runtimeDiagnostics,
+            failedCommands: failedCommands,
+            strings: SBSStrings(language: .korean)
+        )
+
+        XCTAssertEqual(english.count, 2)
+        XCTAssertEqual(english.last?.title, "Some Context shortcuts are unavailable")
+        XCTAssertEqual(korean.count, 2)
+        XCTAssertEqual(korean.last?.title, "일부 Context 단축키를 사용할 수 없습니다")
+        XCTAssertFalse(korean.contains { $0.title == "Some Context shortcuts are unavailable" })
+    }
+
     private var registrationWarning: DiagnosticState {
         DiagnosticState(
             severity: .warning,

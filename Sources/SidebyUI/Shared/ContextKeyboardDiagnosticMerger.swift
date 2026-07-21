@@ -1,6 +1,18 @@
 import SidebyCore
 
 public enum ContextKeyboardDiagnosticMerger {
+    public static func diagnostics(
+        runtimeDiagnostics: [DiagnosticState],
+        failedCommands: [ContextKeyboardCommand],
+        strings: SBSStrings
+    ) -> [DiagnosticState] {
+        mergingRegistrationFailures(
+            failedCommands,
+            into: runtimeDiagnostics,
+            strings: strings
+        )
+    }
+
     public static func mergingRegistrationFailures(
         _ failedCommands: [ContextKeyboardCommand],
         into diagnostics: [DiagnosticState],

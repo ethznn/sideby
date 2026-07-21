@@ -434,7 +434,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var automationAccessGranted = false
     @Published var permissionRequestFeedback: PermissionRequestFeedback?
     @Published var selectedDisplayIDs: Set<String> = []
-    @Published private var presentedDiagnostics: [DiagnosticState] = []
+    @Published private var runtimeDiagnostics: [DiagnosticState] = []
     @Published var lastSwitchResult = "No switch attempted"
     @Published var isSwitching = false
     @Published var isEnabled = false
@@ -473,7 +473,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var didInitializeSelectedDisplays = false
     private var swipeInputSource: GlobalEventTapInputSource?
     private var contextKeyboardInputSource: GlobalContextKeyboardShortcutInputSource?
-    private var failedContextKeyboardCommands: [ContextKeyboardCommand] = []
+    @Published private var failedContextKeyboardCommands: [ContextKeyboardCommand] = []
     private var swipePipeline = SwipeInputPipeline(settings: .default)
     private var inputLatch = InputCommandLatch()
     private var inputSessionID = 0
@@ -492,8 +492,14 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var ignoresExternalSpaceChangesUntil: Date?
 
     var diagnostics: [DiagnosticState] {
-        get { presentedDiagnostics }
-        set { presentedDiagnostics = diagnosticsIncludingContextKeyboardFailures(newValue) }
+        get {
+            ContextKeyboardDiagnosticMerger.diagnostics(
+                runtimeDiagnostics: runtimeDiagnostics,
+                failedCommands: failedContextKeyboardCommands,
+                strings: strings
+            )
+        }
+        set { runtimeDiagnostics = newValue }
     }
 
     init() {
@@ -603,16 +609,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         return values
-    }
-
-    private func diagnosticsIncludingContextKeyboardFailures(
-        _ diagnostics: [DiagnosticState]
-    ) -> [DiagnosticState] {
-        ContextKeyboardDiagnosticMerger.mergingRegistrationFailures(
-            failedContextKeyboardCommands,
-            into: diagnostics,
-            strings: strings
-        )
     }
 
     private func startContextKeyboardInput() {
@@ -3106,6 +3102,10 @@ private struct ProductMenuContentView: View {
 
     var body: some View {
         let strings = model.strings
+        let diagnosticsSection = FloatingMenuDiagnosticsContent.section(
+            for: model.diagnostics,
+            strings: strings
+        )
 
         VStack(alignment: .leading, spacing: 8) {
             MoveTargetsView(
@@ -3115,6 +3115,10 @@ private struct ProductMenuContentView: View {
             )
 
             contextsSection
+
+            if let diagnosticsSection {
+                ProductMenuDiagnosticsView(section: diagnosticsSection)
+            }
 
             ForEach(FloatingMenuCollapsibleSectionContent.defaultItems, id: \.self) { section in
                 disclosureSection(section, strings: strings)
@@ -3257,6 +3261,62 @@ private struct ProductMenuContentView: View {
             .pointingHandCursor()
             .frame(maxWidth: .infinity, alignment: .trailing)
             .font(.caption)
+    }
+}
+
+private struct ProductMenuDiagnosticsView: View {
+    let section: FloatingMenuDiagnosticsSection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(section.items.enumerated()), id: \.offset) { index, item in
+                if index > 0 {
+                    Divider()
+                }
+
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: systemImage(for: item.severity))
+                        .foregroundStyle(tint(for: item.severity))
+                        .frame(width: 16)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title)
+                            .font(.subheadline.weight(.semibold))
+                        Text(item.message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(10)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.7))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func systemImage(for severity: DiagnosticSeverity) -> String {
+        switch severity {
+        case .info:
+            "info.circle.fill"
+        case .warning:
+            "exclamationmark.triangle.fill"
+        case .blocker:
+            "xmark.octagon.fill"
+        }
+    }
+
+    private func tint(for severity: DiagnosticSeverity) -> Color {
+        switch severity {
+        case .info:
+            .blue
+        case .warning:
+            .orange
+        case .blocker:
+            .red
+        }
     }
 }
 
