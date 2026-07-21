@@ -30,6 +30,38 @@ final class ContextKeyboardShortcutTests: XCTestCase {
         )
     }
 
+    func testCatalogLooksUpBindingsForSupportedCommands() {
+        XCTAssertEqual(
+            ContextKeyboardShortcutCatalog.binding(for: .activate(position: 1)),
+            ContextKeyboardShortcutBinding(
+                shortcut: KeyboardShortcut(keyCode: 18, modifiers: [.option, .shift]),
+                command: .activate(position: 1)
+            )
+        )
+        XCTAssertEqual(
+            ContextKeyboardShortcutCatalog.binding(for: .activate(position: 10)),
+            ContextKeyboardShortcutBinding(
+                shortcut: KeyboardShortcut(keyCode: 29, modifiers: [.option, .shift]),
+                command: .activate(position: 10)
+            )
+        )
+        XCTAssertEqual(
+            ContextKeyboardShortcutCatalog.binding(for: .move(.previous)),
+            ContextKeyboardShortcutBinding(
+                shortcut: KeyboardShortcut(keyCode: 123, modifiers: [.option, .shift]),
+                command: .move(.previous)
+            )
+        )
+        XCTAssertEqual(
+            ContextKeyboardShortcutCatalog.binding(for: .move(.next)),
+            ContextKeyboardShortcutBinding(
+                shortcut: KeyboardShortcut(keyCode: 124, modifiers: [.option, .shift]),
+                command: .move(.next)
+            )
+        )
+        XCTAssertNil(ContextKeyboardShortcutCatalog.binding(for: .activate(position: 11)))
+    }
+
     func testPolicyActivatesContextAtLatestDisplayPosition() {
         let plan = ContextPlan(
             contexts: [
