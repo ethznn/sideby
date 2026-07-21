@@ -42,13 +42,14 @@ Sideby는 디스플레이별 Space 구성을 이름 있는 Context로 만듭니�
 - 선택한 디스플레이를 기준 디스플레이가 나타내는 Context에 맞춥니다.
 - 외부 Space 변경으로 Context matching이 안전하지 않으면 일반 이동으로 돌아갑니다.
 - 이동이 끝나면 화면 중앙의 간결한 Context HUD로 결과를 확인합니다.
+- `Option + Shift`를 누른 채 `1...9` 또는 `0`으로 Context 1~10에 바로 이동하고, 왼쪽/오른쪽 화살표로 한 Context씩 이동합니다.
 
 ### Customization
 
 - 일반 Previous/Next Space 이동에 사용할 Move Targets를 선택합니다.
 - 디스플레이 Space 위치를 드래그해 캡처된 membership을 조정합니다.
 - 디스플레이 행 순서를 바꾸고 디스플레이 이름 열 너비를 조절합니다.
-- 기본 `Option + Shift + horizontal swipe`, 선택적 키보드 단축키 또는 인라인 컨트롤을 사용합니다.
+- 기본 `Option + Shift + horizontal swipe`, 고정 Context 키보드 레이어 또는 인라인 컨트롤을 사용합니다.
 - 캡처된 Space에 이름과 best-effort visible app/window suggestion을 적용합니다.
 
 ### Native macOS Experience
@@ -84,7 +85,7 @@ open "dist/Sideby.app"
 
 ## 개인정보와 플랫폼 안내
 
-Sideby는 켜져 있는 동안 설정된 제스처를 감지하기 위해서만 Accessibility를 사용합니다. 사용자가 행동한 뒤에만 Previous/Next Space 명령을 보냅니다.
+Sideby는 켜져 있는 동안 설정된 제스처를 감지하기 위해서만 Accessibility를 사용합니다. 앱이 실행 중일 때는 마스터 토글이 꺼진 상태를 안내할 수 있도록 macOS 전역 hot-key 등록으로 고정 `Option + Shift + 숫자/화살표` 조합만 감지합니다. 다른 키 입력을 검사하거나 저장하지 않으며, 허용된 전환 요청 뒤에만 Space 명령을 보냅니다.
 
 macOS가 제공할 때 현재 디스플레이별 Space layout을 런타임에 읽지만 private Space ID, 숨겨진 Mission Control 상태, 입력 내용, raw input event, 스크린샷, app bundle ID 또는 window ID를 저장하지 않습니다.
 
