@@ -85,7 +85,7 @@ If macOS still reports a rebuilt local app as denied, remove the old Sideby entr
 
 ## Privacy & Platform Notes
 
-While its master toggle is on, Sideby uses Accessibility to detect the configured gesture, send a Space command after an allowed switching or capture request, and make best-effort visible app/window name suggestions during Context Capture. While the app is running, macOS global hot-key registration listens only for the fixed `Option + Shift + number/arrow` combinations so Sideby can explain when its master toggle is off. Sideby does not inspect or store other typed input.
+Sideby uses Accessibility to detect the configured gesture while its master toggle is on. It also uses Accessibility to send a Space command after an allowed switching or capture request and to make best-effort visible app/window name suggestions during Context Capture. While the app is running, macOS global hot-key registration listens only for the fixed `Option + Shift + number/arrow` combinations so Sideby can explain when its master toggle is off. Sideby does not inspect or store other typed input.
 
 Sideby reads the current per-display Space layout at runtime when macOS makes it available. It does not store private Space IDs, hidden Mission Control state, typed input, raw input events, screenshots, app bundle IDs, or window IDs.
 
