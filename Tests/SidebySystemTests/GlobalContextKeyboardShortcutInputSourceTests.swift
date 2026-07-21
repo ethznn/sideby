@@ -3,6 +3,7 @@ import XCTest
 @testable import SidebyCore
 @testable import SidebySystem
 
+@MainActor
 final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
     func testCarbonEventDecoderRejectsForeignHotKeySignatures() {
         XCTAssertNil(
@@ -66,8 +67,16 @@ final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
         XCTAssertEqual(commands, [.activate(position: 1), .move(.next)])
 
         registrar.emit(id: 1, event: .released)
+        registrar.emit(id: 12, event: .pressed)
         registrar.emit(id: 1, event: .pressed)
         XCTAssertEqual(commands, [.activate(position: 1), .move(.next), .activate(position: 1)])
+
+        registrar.emit(id: 12, event: .released)
+        registrar.emit(id: 12, event: .pressed)
+        XCTAssertEqual(
+            commands,
+            [.activate(position: 1), .move(.next), .activate(position: 1), .move(.next)]
+        )
     }
 
     func testPartialFailureKeepsSuccessfulBindings() {

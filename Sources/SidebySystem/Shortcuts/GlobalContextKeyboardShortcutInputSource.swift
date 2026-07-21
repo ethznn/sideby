@@ -1,4 +1,5 @@
 import Carbon
+import Foundation
 import SidebyCore
 
 public struct ContextKeyboardShortcutStartResult: Equatable, Sendable {
@@ -14,7 +15,7 @@ public struct ContextKeyboardShortcutStartResult: Equatable, Sendable {
     }
 }
 
-enum ContextKeyboardHotKeyEvent: Equatable {
+enum ContextKeyboardHotKeyEvent: Equatable, Sendable {
     case pressed
     case released
 }
@@ -44,6 +45,7 @@ enum ContextKeyboardCarbonEventDecoder {
     }
 }
 
+@MainActor
 protocol ContextKeyboardHotKeyRegistering: AnyObject {
     func installHandler(
         _ handler: @escaping (UInt32, ContextKeyboardHotKeyEvent) -> Void
@@ -52,6 +54,7 @@ protocol ContextKeyboardHotKeyRegistering: AnyObject {
     func stop()
 }
 
+@MainActor
 public final class GlobalContextKeyboardShortcutInputSource {
     public typealias CommandHandler = (ContextKeyboardCommand) -> Void
 
@@ -74,7 +77,7 @@ public final class GlobalContextKeyboardShortcutInputSource {
         self.handler = handler
     }
 
-    deinit {
+    isolated deinit {
         stop()
     }
 
@@ -150,12 +153,13 @@ public final class GlobalContextKeyboardShortcutInputSource {
     }
 }
 
+@MainActor
 private final class CarbonContextKeyboardHotKeyRegistrar: ContextKeyboardHotKeyRegistering {
     private var handler: ((UInt32, ContextKeyboardHotKeyEvent) -> Void)?
     private var eventHandler: EventHandlerRef?
     private var hotKeyRefs: [EventHotKeyRef] = []
 
-    deinit {
+    isolated deinit {
         stop()
     }
 
@@ -233,8 +237,9 @@ private final class CarbonContextKeyboardHotKeyRegistrar: ContextKeyboardHotKeyR
         handler = nil
     }
 
-    private static let callback: EventHandlerUPP = { _, event, userData in
+    private nonisolated static let callback: EventHandlerUPP = { _, event, userData in
         guard let event, let userData else { return noErr }
+        guard Thread.isMainThread else { return OSStatus(eventNotHandledErr) }
 
         var hotKeyID = EventHotKeyID()
         let status = GetEventParameter(
@@ -255,11 +260,14 @@ private final class CarbonContextKeyboardHotKeyRegistrar: ContextKeyboardHotKeyR
             return OSStatus(eventNotHandledErr)
         }
 
+        let id = hotKeyID.id
         let registrar = Unmanaged<CarbonContextKeyboardHotKeyRegistrar>
             .fromOpaque(userData)
             .takeUnretainedValue()
-        registrar.handler?(hotKeyID.id, hotKeyEvent)
-        return noErr
+        return MainActor.assumeIsolated {
+            registrar.handler?(id, hotKeyEvent)
+            return noErr
+        }
     }
 
     private static func carbonModifiers(from modifiers: ModifierFlags) -> UInt32 {
