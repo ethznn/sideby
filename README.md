@@ -42,7 +42,7 @@ Sideby turns those per-display Spaces into named Contexts. It keeps the scope in
 - Align selected displays with the Context represented by the reference display.
 - Fall back to general movement when external Space changes make Context matching unsafe.
 - See a compact center-screen Context HUD after a successful move.
-- Hold `Option + Shift` and press `1...9` or `0` to jump to Contexts 1–10, or use `⌥⇧< / ⌥⇧>` to move one Context at a time.
+- Press `1...9`, `0`, `<`, or `>` with `Option + Shift`, then release both modifiers to switch Contexts.
 
 ### Customization
 
