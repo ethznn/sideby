@@ -219,58 +219,25 @@ public extension PrivateCGEventSpaceCommandExecutor where Poster == CGEventKeyEv
     }
 }
 
-protocol ModifierRewriteSession: AnyObject {
-    func start() -> Bool
-    func stop()
-}
-
 public final class EventTapModifierRewritingSpaceCommandExecutor<Base: SpaceCommandExecuting>: SpaceCommandExecuting, @unchecked Sendable {
     private let baseExecutor: Base
-    private let makeSession: () -> any ModifierRewriteSession
+    private let tapLocation: CGEventTapLocation
 
-    public convenience init(
+    public init(
         baseExecutor: Base,
         tapLocation: CGEventTapLocation = .cgSessionEventTap
     ) {
-        self.init(
-            baseExecutor: baseExecutor,
-            makeSession: { TemporaryModifierRewriteEventTap(tapLocation: tapLocation) }
-        )
-    }
-
-    init(
-        baseExecutor: Base,
-        makeSession: @escaping () -> any ModifierRewriteSession
-    ) {
         self.baseExecutor = baseExecutor
-        self.makeSession = makeSession
+        self.tapLocation = tapLocation
     }
 
     public func execute(_ command: SwitchCommand) -> Bool {
-        let session = makeSession()
+        let session = TemporaryModifierRewriteEventTap(tapLocation: tapLocation)
         guard session.start() else {
             return false
         }
         defer { session.stop() }
         return baseExecutor.execute(command)
-    }
-}
-
-public struct FixedContextKeyboardSpaceCommandExecutor: SpaceCommandExecuting {
-    private let executor: any SpaceCommandExecuting
-
-    public init() {
-        executor = EventTapModifierRewritingSpaceCommandExecutor(
-            baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster())
-        )
-    }
-
-    init(executor: any SpaceCommandExecuting) {
-        self.executor = executor
-    }
-
-    public func execute(_ command: SwitchCommand) -> Bool {
-        executor.execute(command)
     }
 }
 
@@ -290,7 +257,7 @@ enum EventTapModifierRewriter {
     }
 }
 
-private final class TemporaryModifierRewriteEventTap: ModifierRewriteSession, @unchecked Sendable {
+private final class TemporaryModifierRewriteEventTap: @unchecked Sendable {
     private let tapLocation: CGEventTapLocation
     private let ready = DispatchSemaphore(value: 0)
     private let stopped = DispatchSemaphore(value: 0)

@@ -81,7 +81,7 @@ public struct V1SetupFlow: Sendable {
 
         return V1SetupViewState(
             title: "Sideby is on",
-            status: "Use Option + Shift with horizontal scroll, a Context number, or < / >.",
+            status: "Use Option + Shift with horizontal scroll. For a Context number or < / >, release Option + Shift to switch.",
             primaryActionTitle: status.didCompleteOnboarding ? "Open Settings" : "Complete Setup",
             canCompleteSetup: true
         )

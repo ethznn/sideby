@@ -66,7 +66,7 @@ final class V1SetupFlowTests: XCTestCase {
 
         XCTAssertEqual(
             state.status,
-            "Use Option + Shift with horizontal scroll, a Context number, or < / >."
+            "Use Option + Shift with horizontal scroll. For a Context number or < / >, release Option + Shift to switch."
         )
     }
 

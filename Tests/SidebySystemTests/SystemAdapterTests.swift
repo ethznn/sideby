@@ -70,39 +70,6 @@ final class SystemAdapterTests: XCTestCase {
         )
     }
 
-    func testModifierRewritingExecutorStartsSessionBeforeBaseAndStopsAfterward() {
-        let trace = ModifierRewriteTrace()
-        let base = TracingSpaceCommandExecutor(trace: trace, result: true)
-        let session = TracingModifierRewriteSession(trace: trace, starts: true)
-        let executor = EventTapModifierRewritingSpaceCommandExecutor(
-            baseExecutor: base,
-            makeSession: { session }
-        )
-
-        XCTAssertTrue(executor.execute(.next))
-        XCTAssertEqual(trace.values, ["start", "base-next", "stop"])
-    }
-
-    func testModifierRewritingExecutorDoesNotPostWhenSessionCannotStart() {
-        let base = CountingSpaceCommandExecutor(result: true)
-        let session = TracingModifierRewriteSession(starts: false)
-        let executor = EventTapModifierRewritingSpaceCommandExecutor(
-            baseExecutor: base,
-            makeSession: { session }
-        )
-
-        XCTAssertFalse(executor.execute(.next))
-        XCTAssertEqual(base.executionCount, 0)
-    }
-
-    func testFixedContextKeyboardExecutorDelegatesToItsExecutor() {
-        let base = CountingSpaceCommandExecutor(result: true)
-        let executor = FixedContextKeyboardSpaceCommandExecutor(executor: base)
-
-        XCTAssertTrue(executor.execute(.previous))
-        XCTAssertEqual(base.executionCount, 1)
-    }
-
     func testSystemEventsAutomationProbeBuildsPermissionSafeScript() {
         let runner = RecordingAppleScriptRunner()
         let probe = SystemEventsAutomationProbe(runner: runner)
@@ -1272,62 +1239,6 @@ private final class RecordingSpaceCommandExecutor: SpaceCommandExecuting, @unche
     func execute(_ command: SwitchCommand) -> Bool {
         commands.append(command)
         return true
-    }
-}
-
-private final class ModifierRewriteTrace: @unchecked Sendable {
-    private(set) var values: [String] = []
-
-    func append(_ value: String) {
-        values.append(value)
-    }
-}
-
-private final class TracingSpaceCommandExecutor: SpaceCommandExecuting, @unchecked Sendable {
-    private let trace: ModifierRewriteTrace
-    private let result: Bool
-
-    init(trace: ModifierRewriteTrace, result: Bool) {
-        self.trace = trace
-        self.result = result
-    }
-
-    func execute(_ command: SwitchCommand) -> Bool {
-        trace.append("base-\(command)")
-        return result
-    }
-}
-
-private final class CountingSpaceCommandExecutor: SpaceCommandExecuting, @unchecked Sendable {
-    private let result: Bool
-    private(set) var executionCount = 0
-
-    init(result: Bool) {
-        self.result = result
-    }
-
-    func execute(_: SwitchCommand) -> Bool {
-        executionCount += 1
-        return result
-    }
-}
-
-private final class TracingModifierRewriteSession: ModifierRewriteSession, @unchecked Sendable {
-    private let trace: ModifierRewriteTrace?
-    private let starts: Bool
-
-    init(trace: ModifierRewriteTrace? = nil, starts: Bool) {
-        self.trace = trace
-        self.starts = starts
-    }
-
-    func start() -> Bool {
-        trace?.append("start")
-        return starts
-    }
-
-    func stop() {
-        trace?.append("stop")
     }
 }
 

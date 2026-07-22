@@ -131,17 +131,21 @@ final class ShortcutSettingsViewTests: XCTestCase {
             "Set the gesture modifier and review fixed Context keyboard controls."
         )
         XCTAssertEqual(
+            english.contextKeyboardLayerHint,
+            "Press a number or < / > with Option + Shift, then release both modifiers."
+        )
+        XCTAssertEqual(
             korean.contextKeyboardLayerHint,
-            "Option + Shift를 누른 채 숫자 또는 < / >를 사용할 수 있습니다."
+            "Option + Shift와 숫자 또는 < / >를 누른 뒤, 두 보조 키를 모두 떼세요."
         )
     }
 
     func testLocalizesFixedKeyboardSetupStatusInKorean() {
         XCTAssertEqual(
             SBSStrings(language: .korean).setupViewStatus(
-                "Use Option + Shift with horizontal scroll, a Context number, or < / >."
+                "Use Option + Shift with horizontal scroll. For a Context number or < / >, release Option + Shift to switch."
             ),
-            "Option + Shift와 가로 스크롤, Context 숫자 또는 < / >를 사용하세요."
+            "Option + Shift와 가로 스크롤을 사용하세요. Context 숫자 또는 < / >는 Option + Shift를 떼면 전환합니다."
         )
     }
 
