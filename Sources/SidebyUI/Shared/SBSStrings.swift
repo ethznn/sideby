@@ -553,12 +553,12 @@ public struct SBSStrings: Sendable {
         text("Jump to Context: ⌥⇧1 … ⌥⇧9, ⌥⇧0", "Context 바로 이동: ⌥⇧1 … ⌥⇧9, ⌥⇧0")
     }
     public var contextKeyboardArrowHint: String {
-        text("Previous / Next Context: ⌥⇧← / ⌥⇧→", "이전 / 다음 Context: ⌥⇧← / ⌥⇧→")
+        text("Previous / Next Context: ⌥⇧< / ⌥⇧>", "이전 / 다음 Context: ⌥⇧< / ⌥⇧>")
     }
     public var contextKeyboardLayerHint: String {
         text(
-            "Hold Option + Shift and use a number or Left/Right Arrow.",
-            "Option + Shift를 누른 채 숫자 또는 왼쪽/오른쪽 화살표를 사용할 수 있습니다."
+            "Hold Option + Shift and use a number or < / >.",
+            "Option + Shift를 누른 채 숫자 또는 < / >를 사용할 수 있습니다."
         )
     }
     public var sidebyToggleOffHUD: String {
@@ -683,10 +683,10 @@ public struct SBSStrings: Sendable {
             text("Turn on Sideby to enable swipe gestures and test buttons.", "스와이프 제스처와 테스트 버튼을 사용하려면 Sideby를 켜세요.")
         case "Use Option + Shift + horizontal scroll. Keyboard shortcuts can be enabled in Input settings.":
             text("Use Option + Shift + horizontal scroll. Keyboard shortcuts can be enabled in Input settings.", "Option + Shift + 가로 스크롤을 사용하세요. 키보드 단축키는 입력 설정에서 켤 수 있습니다.")
-        case "Use Option + Shift with horizontal scroll, a Context number, or Left/Right Arrow.":
+        case "Use Option + Shift with horizontal scroll, a Context number, or < / >.":
             text(
-                "Use Option + Shift with horizontal scroll, a Context number, or Left/Right Arrow.",
-                "Option + Shift와 가로 스크롤, Context 숫자 또는 왼쪽/오른쪽 화살표를 사용하세요."
+                "Use Option + Shift with horizontal scroll, a Context number, or < / >.",
+                "Option + Shift와 가로 스크롤, Context 숫자 또는 < / >를 사용하세요."
             )
         default:
             status

@@ -32,9 +32,9 @@ final class ContextKeyboardDiagnosticMergerTests: XCTestCase {
         )
     }
 
-    func testPartialRegistrationWarningSurvivesArrowSuccessAndFailureDiagnostics() {
-        let successDiagnostic = diagnostic(title: "Arrow success")
-        let failureDiagnostic = diagnostic(title: "Arrow failure")
+    func testPartialRegistrationWarningSurvivesContextMoveSuccessAndFailureDiagnostics() {
+        let successDiagnostic = diagnostic(title: "Context move success")
+        let failureDiagnostic = diagnostic(title: "Context move failure")
 
         XCTAssertEqual(
             ContextKeyboardDiagnosticMerger.mergingRegistrationFailures(
@@ -103,7 +103,7 @@ final class ContextKeyboardDiagnosticMergerTests: XCTestCase {
         DiagnosticState(
             severity: .warning,
             title: "Some Context shortcuts are unavailable",
-            message: "Sideby could not register ⌥⇧2, ⌥⇧←. Check macOS Keyboard Shortcuts and other apps.",
+            message: "Sideby could not register ⌥⇧2, ⌥⇧<. Check macOS Keyboard Shortcuts and other apps.",
             actionLabel: nil
         )
     }

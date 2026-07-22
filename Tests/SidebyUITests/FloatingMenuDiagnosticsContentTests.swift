@@ -20,7 +20,7 @@ final class FloatingMenuDiagnosticsContentTests: XCTestCase {
                     FloatingMenuDiagnosticItem(
                         severity: .warning,
                         title: "Some Context shortcuts are unavailable",
-                        message: "Sideby could not register ⌥⇧2, ⌥⇧←. Check macOS Keyboard Shortcuts and other apps."
+                        message: "Sideby could not register ⌥⇧2, ⌥⇧<. Check macOS Keyboard Shortcuts and other apps."
                     )
                 ]
             )
@@ -40,7 +40,7 @@ final class FloatingMenuDiagnosticsContentTests: XCTestCase {
                 for: diagnostics,
                 strings: SBSStrings(language: .english)
             )?.items.first?.message,
-            "Sideby could not register ⌥⇧1, ⌥⇧2, ⌥⇧3, ⌥⇧4, ⌥⇧5, ⌥⇧6, ⌥⇧7, ⌥⇧8, ⌥⇧9, ⌥⇧0, ⌥⇧←, ⌥⇧→. Check macOS Keyboard Shortcuts and other apps."
+            "Sideby could not register ⌥⇧1, ⌥⇧2, ⌥⇧3, ⌥⇧4, ⌥⇧5, ⌥⇧6, ⌥⇧7, ⌥⇧8, ⌥⇧9, ⌥⇧0, ⌥⇧<, ⌥⇧>. Check macOS Keyboard Shortcuts and other apps."
         )
     }
 

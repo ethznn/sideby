@@ -12,7 +12,7 @@ public enum KeyboardShortcutFormatter {
     }
 
     public static func keyCaps(_ shortcut: SBSKeyboardShortcut) -> [String] {
-        modifierCaps(shortcut.modifiers) + [keyCap(for: shortcut.keyCode)]
+        modifierCaps(shortcut.modifiers) + [keyCap(for: shortcut.keyCode, modifiers: shortcut.modifiers)]
     }
 
     public static func shortcutText(_ shortcut: SBSKeyboardShortcut) -> String {
@@ -34,6 +34,13 @@ public enum KeyboardShortcutFormatter {
         }
 
         return "#\(keyCode)"
+    }
+
+    private static func keyCap(for keyCode: UInt16, modifiers: ModifierFlags) -> String {
+        if modifiers.contains(.shift), let symbol = shiftedKeyCaps[keyCode] {
+            return symbol
+        }
+        return keyCap(for: keyCode)
     }
 
     private static let symbolicKeyCaps: [UInt16: String] = [
@@ -115,6 +122,11 @@ public enum KeyboardShortcutFormatter {
         46: "M",
         47: ".",
         50: "`"
+    ]
+
+    private static let shiftedKeyCaps: [UInt16: String] = [
+        43: "<",
+        47: ">"
     ]
 }
 

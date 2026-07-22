@@ -3,11 +3,21 @@ import XCTest
 @testable import SidebyUI
 
 final class ShortcutSettingsViewTests: XCTestCase {
-    func testFormatsDefaultShortcutCaps() {
+    func testFormatsShiftedCommaAndPeriodAsAngleBrackets() {
         XCTAssertEqual(
-            KeyboardShortcutFormatter.shortcutText(AppSettings.default.shortcutNext),
-            "⌥⇧→"
+            KeyboardShortcutFormatter.shortcutText(
+                SBSKeyboardShortcut(keyCode: 43, modifiers: [.option, .shift])
+            ),
+            "⌥⇧<"
         )
+        XCTAssertEqual(
+            KeyboardShortcutFormatter.shortcutText(
+                SBSKeyboardShortcut(keyCode: 47, modifiers: [.option, .shift])
+            ),
+            "⌥⇧>"
+        )
+        XCTAssertEqual(KeyboardShortcutFormatter.keyCap(for: 43), ",")
+        XCTAssertEqual(KeyboardShortcutFormatter.keyCap(for: 47), ".")
     }
 
     func testFormatsGestureModifiers() {
@@ -72,8 +82,8 @@ final class ShortcutSettingsViewTests: XCTestCase {
 
         XCTAssertEqual(english.contextKeyboardNumberHint, "Jump to Context: ⌥⇧1 … ⌥⇧9, ⌥⇧0")
         XCTAssertEqual(korean.contextKeyboardNumberHint, "Context 바로 이동: ⌥⇧1 … ⌥⇧9, ⌥⇧0")
-        XCTAssertEqual(english.contextKeyboardArrowHint, "Previous / Next Context: ⌥⇧← / ⌥⇧→")
-        XCTAssertEqual(korean.contextKeyboardArrowHint, "이전 / 다음 Context: ⌥⇧← / ⌥⇧→")
+        XCTAssertEqual(english.contextKeyboardArrowHint, "Previous / Next Context: ⌥⇧< / ⌥⇧>")
+        XCTAssertEqual(korean.contextKeyboardArrowHint, "이전 / 다음 Context: ⌥⇧< / ⌥⇧>")
         XCTAssertEqual(english.sidebyToggleOffHUD, "Sideby is turned off")
         XCTAssertEqual(korean.sidebyToggleOffHUD, "Sideby 토글이 꺼져 있습니다")
         XCTAssertEqual(english.missingContextHUD(position: 10), "Context 10 does not exist")
@@ -102,13 +112,13 @@ final class ShortcutSettingsViewTests: XCTestCase {
 
         XCTAssertEqual(english.contextKeyboardRegistrationTitle, "Some Context shortcuts are unavailable")
         XCTAssertEqual(
-            english.contextKeyboardRegistrationMessage(shortcuts: "⌥⇧2, ⌥⇧←"),
-            "Sideby could not register ⌥⇧2, ⌥⇧←. Check macOS Keyboard Shortcuts and other apps."
+            english.contextKeyboardRegistrationMessage(shortcuts: "⌥⇧2, ⌥⇧<"),
+            "Sideby could not register ⌥⇧2, ⌥⇧<. Check macOS Keyboard Shortcuts and other apps."
         )
         XCTAssertEqual(korean.contextKeyboardRegistrationTitle, "일부 Context 단축키를 사용할 수 없습니다")
         XCTAssertEqual(
-            korean.contextKeyboardRegistrationMessage(shortcuts: "⌥⇧2, ⌥⇧←"),
-            "Sideby가 ⌥⇧2, ⌥⇧←을 등록하지 못했습니다. macOS 키보드 단축키와 다른 앱을 확인하세요."
+            korean.contextKeyboardRegistrationMessage(shortcuts: "⌥⇧2, ⌥⇧<"),
+            "Sideby가 ⌥⇧2, ⌥⇧<을 등록하지 못했습니다. macOS 키보드 단축키와 다른 앱을 확인하세요."
         )
     }
 
@@ -122,16 +132,16 @@ final class ShortcutSettingsViewTests: XCTestCase {
         )
         XCTAssertEqual(
             korean.contextKeyboardLayerHint,
-            "Option + Shift를 누른 채 숫자 또는 왼쪽/오른쪽 화살표를 사용할 수 있습니다."
+            "Option + Shift를 누른 채 숫자 또는 < / >를 사용할 수 있습니다."
         )
     }
 
     func testLocalizesFixedKeyboardSetupStatusInKorean() {
         XCTAssertEqual(
             SBSStrings(language: .korean).setupViewStatus(
-                "Use Option + Shift with horizontal scroll, a Context number, or Left/Right Arrow."
+                "Use Option + Shift with horizontal scroll, a Context number, or < / >."
             ),
-            "Option + Shift와 가로 스크롤, Context 숫자 또는 왼쪽/오른쪽 화살표를 사용하세요."
+            "Option + Shift와 가로 스크롤, Context 숫자 또는 < / >를 사용하세요."
         )
     }
 }
