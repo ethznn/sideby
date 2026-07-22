@@ -161,6 +161,77 @@ private final class SidebyAppObserverTokens {
     }
 }
 
+struct ContextKeyboardCommandCoordinator {
+    private(set) var gate: ContextKeyboardExecutionGate
+
+    init(settlingDuration: Double = 0.75) {
+        gate = ContextKeyboardExecutionGate(settlingDuration: settlingDuration)
+    }
+
+    mutating func handle(
+        _ event: ContextKeyboardShortcutInputEvent,
+        contextPlan: ContextPlan,
+        isSidebyEnabled: Bool,
+        isSwitching: Bool,
+        isCapturing: Bool,
+        at timestamp: Double
+    ) -> ContextKeyboardAction {
+        switch event {
+        case .pressed(let command):
+            guard !isBusy(at: timestamp) else {
+                return .ignore
+            }
+
+            let action = ContextKeyboardShortcutPolicy.action(
+                command: command,
+                contextPlan: contextPlan,
+                isSidebyEnabled: isSidebyEnabled,
+                isSwitching: isSwitching,
+                isCapturing: isCapturing
+            )
+            switch action {
+            case .activate, .move:
+                _ = gate.reserve(command, at: timestamp)
+                return .ignore
+            case .ignore, .showSidebyOff, .showMissingContext:
+                return action
+            }
+
+        case .released(let command):
+            guard gate.beginExecution(for: command) else {
+                return .ignore
+            }
+
+            let action = ContextKeyboardShortcutPolicy.action(
+                command: command,
+                contextPlan: contextPlan,
+                isSidebyEnabled: isSidebyEnabled,
+                isSwitching: isSwitching,
+                isCapturing: isCapturing
+            )
+            switch action {
+            case .activate, .move:
+                return action
+            case .ignore, .showSidebyOff, .showMissingContext:
+                gate.reset()
+                return .ignore
+            }
+        }
+    }
+
+    mutating func finishExecution(at timestamp: Double) {
+        gate.finishExecution(at: timestamp)
+    }
+
+    private mutating func isBusy(at timestamp: Double) -> Bool {
+        if case let .settling(until) = gate.state, timestamp >= until {
+            gate.reset()
+        }
+
+        return gate.state != .idle
+    }
+}
+
 @MainActor
 private enum ProductMainWindowPresenter {
     static let windowIdentifier = NSUserInterfaceItemIdentifier("sideby-main-window")
@@ -473,6 +544,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var didInitializeSelectedDisplays = false
     private var swipeInputSource: GlobalEventTapInputSource?
     private var contextKeyboardInputSource: GlobalContextKeyboardShortcutInputSource?
+    private var contextKeyboardCoordinator = ContextKeyboardCommandCoordinator()
     @Published private var failedContextKeyboardCommands: [ContextKeyboardCommand] = []
     private var swipePipeline = SwipeInputPipeline(settings: .default)
     private var inputLatch = InputCommandLatch()
@@ -612,24 +684,25 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func startContextKeyboardInput() {
-        let source = GlobalContextKeyboardShortcutInputSource { [weak self] command in
+        let source = GlobalContextKeyboardShortcutInputSource(handler: { [weak self] event in
             DispatchQueue.main.async { [weak self] in
-                self?.handleContextKeyboardCommand(command)
+                self?.handleContextKeyboardEvent(event)
             }
-        }
+        })
         let result = source.start()
         contextKeyboardInputSource = source
         failedContextKeyboardCommands = result.failedCommands
         diagnostics = currentDiagnostics()
     }
 
-    private func handleContextKeyboardCommand(_ command: ContextKeyboardCommand) {
-        let action = ContextKeyboardShortcutPolicy.action(
-            command: command,
+    private func handleContextKeyboardEvent(_ event: ContextKeyboardShortcutInputEvent) {
+        let action = contextKeyboardCoordinator.handle(
+            event,
             contextPlan: settings.contextPlan,
             isSidebyEnabled: isEnabled,
             isSwitching: isSwitching,
-            isCapturing: contextCaptureSession != nil
+            isCapturing: contextCaptureSession != nil,
+            at: ProcessInfo.processInfo.systemUptime
         )
 
         switch action {
@@ -644,10 +717,20 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 HUDPresenter().stateForMissingContext(position: position, strings: strings)
             )
         case .activate(let contextID):
-            activateContext(contextID: contextID)
+            activateContext(contextID: contextID) { [weak self] _ in
+                self?.finishContextKeyboardExecution()
+            }
         case .move(let switchCommand):
-            _ = switchContext(switchCommand)
+            performSwitch(switchCommand, label: "context-keyboard") { [weak self] _ in
+                self?.finishContextKeyboardExecution()
+            }
         }
+    }
+
+    private func finishContextKeyboardExecution() {
+        contextKeyboardCoordinator.finishExecution(
+            at: ProcessInfo.processInfo.systemUptime
+        )
     }
 
     func requestPermissions() {
@@ -819,7 +902,10 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
-    func activateContext(contextID: String) {
+    func activateContext(
+        contextID: String,
+        completion: (@MainActor @Sendable (Bool) -> Void)? = nil
+    ) {
         guard isEnabled else {
             diagnostics = [
                 DiagnosticState(
@@ -830,9 +916,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 )
             ]
             lastSwitchResult = strings.sidebyOffReason
+            completion?(false)
             return
         }
         guard canActivateContext else {
+            completion?(false)
             return
         }
 
@@ -842,13 +930,15 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 diagnostics = [diagnostic]
                 lastSwitchResult = strings.localizedDiagnosticTitle(diagnostic.title)
             }
+            completion?(false)
             return
         }
         guard hasPostEventAccess(command: .next, label: "context") else {
+            completion?(false)
             return
         }
 
-        performContextActivation(targetContext: targetContext)
+        performContextActivation(targetContext: targetContext, completion: completion)
     }
 
     func moveDisplaySpace(displayID: String, spaceIndex: Int, toContextID: String) {
@@ -876,7 +966,10 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         settingsStore.save(settings)
     }
 
-    private func performContextActivation(targetContext: ContextDefinition) {
+    private func performContextActivation(
+        targetContext: ContextDefinition,
+        completion: (@MainActor @Sendable (Bool) -> Void)?
+    ) {
         let decision = ModePolicy().decision(
             for: settings.mode,
             inputMethod: .shortcut,
@@ -888,6 +981,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             if let diagnostic = modeDiagnostics.first(where: { $0.severity == .blocker }) ?? modeDiagnostics.first {
                 lastSwitchResult = strings.localizedDiagnosticTitle(diagnostic.title)
             }
+            completion?(false)
             return
         }
 
@@ -897,6 +991,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             }
             diagnostics = currentDiagnostics()
             lastSwitchResult = strings.alignFailed
+            completion?(false)
             return
         }
 
@@ -913,6 +1008,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 )
             ]
             lastSwitchResult = strings.noMoveTargetsReason
+            completion?(false)
             return
         }
 
@@ -933,6 +1029,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 displayIDs: targetMemberDisplayIDs,
                 displayLayout: displayLayout
             )
+            completion?(true)
             return
         }
 
@@ -993,7 +1090,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             }
 
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.switchSessionID == sessionID else {
+                guard let self else {
+                    completion?(false)
+                    return
+                }
+                guard self.switchSessionID == sessionID else {
+                    completion?(false)
                     return
                 }
                 self.isSwitching = false
@@ -1029,6 +1131,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 Self.contextCaptureLog.notice(
                     "context-activate target=\(targetContext.id, privacy: .public) moved=\(moves.count, privacy: .public) success=\(didMoveAll, privacy: .public)"
                 )
+                completion?(didMoveAll)
             }
         }
     }
@@ -2207,7 +2310,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             )
 
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.switchSessionID == sessionID else {
+                guard let self else {
+                    completion?(false)
+                    return
+                }
+                guard self.switchSessionID == sessionID else {
+                    completion?(false)
                     return
                 }
 
@@ -2432,7 +2540,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             }
 
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.switchSessionID == sessionID else {
+                guard let self else {
+                    completion?(false)
+                    return
+                }
+                guard self.switchSessionID == sessionID else {
+                    completion?(false)
                     return
                 }
                 self.isSwitching = false
