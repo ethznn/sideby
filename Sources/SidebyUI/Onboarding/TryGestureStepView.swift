@@ -29,7 +29,7 @@ public struct TryGestureStepView: View {
             gestureCard
                 .frame(maxWidth: .infinity, alignment: .center)
 
-            Text(strings.keyboardShortcutsLater)
+            Text(strings.contextKeyboardLayerHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

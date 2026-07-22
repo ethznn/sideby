@@ -64,7 +64,7 @@ public struct V1SetupFlow: Sendable {
         if status.accessibilityPermission != .granted {
             return V1SetupViewState(
                 title: "Permission needed",
-                status: "Input is used only while Sideby is on. Raw input is not stored.",
+                status: "Configured gestures are observed only while Sideby is on or during an explicitly active onboarding gesture test. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored.",
                 primaryActionTitle: "Enable Accessibility",
                 canCompleteSetup: false
             )
@@ -81,7 +81,7 @@ public struct V1SetupFlow: Sendable {
 
         return V1SetupViewState(
             title: "Sideby is on",
-            status: "Use Option + Shift + horizontal scroll. Keyboard shortcuts can be enabled in Input settings.",
+            status: "Use Option + Shift with horizontal scroll. For a Context number or < / >, release Option + Shift to switch.",
             primaryActionTitle: status.didCompleteOnboarding ? "Open Settings" : "Complete Setup",
             canCompleteSetup: true
         )

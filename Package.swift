@@ -100,6 +100,14 @@ let package = Package(
                 "SidebySystem",
                 "SidebyUI"
             ]
+        ),
+        .testTarget(
+            name: "SidebyAppTests",
+            dependencies: [
+                "SidebyApp",
+                "SidebyCore",
+                "SidebySystem"
+            ]
         )
     ]
 )

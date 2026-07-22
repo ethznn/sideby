@@ -3,11 +3,21 @@ import XCTest
 @testable import SidebyUI
 
 final class ShortcutSettingsViewTests: XCTestCase {
-    func testFormatsDefaultShortcutCaps() {
+    func testFormatsShiftedCommaAndPeriodAsAngleBrackets() {
         XCTAssertEqual(
-            KeyboardShortcutFormatter.shortcutText(AppSettings.default.shortcutNext),
-            "⌥⇧→"
+            KeyboardShortcutFormatter.shortcutText(
+                SBSKeyboardShortcut(keyCode: 43, modifiers: [.option, .shift])
+            ),
+            "⌥⇧<"
         )
+        XCTAssertEqual(
+            KeyboardShortcutFormatter.shortcutText(
+                SBSKeyboardShortcut(keyCode: 47, modifiers: [.option, .shift])
+            ),
+            "⌥⇧>"
+        )
+        XCTAssertEqual(KeyboardShortcutFormatter.keyCap(for: 43), ",")
+        XCTAssertEqual(KeyboardShortcutFormatter.keyCap(for: 47), ".")
     }
 
     func testFormatsGestureModifiers() {
@@ -64,5 +74,106 @@ final class ShortcutSettingsViewTests: XCTestCase {
     func testOnboardingCompletionActionOpensSettings() {
         XCTAssertEqual(SBSStrings(language: .english).onboardingCompletionActionTitle, "Open Settings")
         XCTAssertEqual(SBSStrings(language: .korean).onboardingCompletionActionTitle, "설정 열기")
+    }
+
+    func testLocalizesFixedContextKeyboardLayer() {
+        let english = SBSStrings(language: .english)
+        let korean = SBSStrings(language: .korean)
+
+        XCTAssertEqual(english.contextKeyboardNumberHint, "Jump to Context: ⌥⇧1 … ⌥⇧9, ⌥⇧0")
+        XCTAssertEqual(korean.contextKeyboardNumberHint, "Context 바로 이동: ⌥⇧1 … ⌥⇧9, ⌥⇧0")
+        XCTAssertEqual(english.contextKeyboardArrowHint, "Previous / Next Context: ⌥⇧< / ⌥⇧>")
+        XCTAssertEqual(korean.contextKeyboardArrowHint, "이전 / 다음 Context: ⌥⇧< / ⌥⇧>")
+        XCTAssertEqual(english.sidebyToggleOffHUD, "Sideby is turned off")
+        XCTAssertEqual(korean.sidebyToggleOffHUD, "Sideby 토글이 꺼져 있습니다")
+        XCTAssertEqual(english.missingContextHUD(position: 10), "Context 10 does not exist")
+        XCTAssertEqual(korean.missingContextHUD(position: 7), "Context 7이 없습니다")
+    }
+
+    func testFixedKeyboardFeedbackUsesCompactHUD() {
+        let presenter = HUDPresenter()
+
+        XCTAssertEqual(
+            presenter.stateForSidebyToggleOff(strings: SBSStrings(language: .korean)),
+            HUDPresentationState(text: "Sideby 토글이 꺼져 있습니다", isCompact: true)
+        )
+        XCTAssertEqual(
+            presenter.stateForMissingContext(
+                position: 7,
+                strings: SBSStrings(language: .english)
+            ),
+            HUDPresentationState(text: "Context 7 does not exist", isCompact: true)
+        )
+    }
+
+    func testLocalizesFixedKeyboardRegistrationFailure() {
+        let english = SBSStrings(language: .english)
+        let korean = SBSStrings(language: .korean)
+
+        XCTAssertEqual(english.contextKeyboardRegistrationTitle, "Some Context shortcuts are unavailable")
+        XCTAssertEqual(
+            english.contextKeyboardRegistrationMessage(shortcuts: "⌥⇧2, ⌥⇧<"),
+            "Sideby could not register ⌥⇧2, ⌥⇧<. Check macOS Keyboard Shortcuts and other apps."
+        )
+        XCTAssertEqual(korean.contextKeyboardRegistrationTitle, "일부 Context 단축키를 사용할 수 없습니다")
+        XCTAssertEqual(
+            korean.contextKeyboardRegistrationMessage(shortcuts: "⌥⇧2, ⌥⇧<"),
+            "Sideby가 ⌥⇧2, ⌥⇧<을 등록하지 못했습니다. macOS 키보드 단축키와 다른 앱을 확인하세요."
+        )
+    }
+
+    func testInputAndOnboardingCopyDescribeFixedKeyboardLayer() {
+        let english = SBSStrings(language: .english)
+        let korean = SBSStrings(language: .korean)
+
+        XCTAssertEqual(
+            english.inputSubtitle,
+            "Set the gesture modifier and review fixed Context keyboard controls."
+        )
+        XCTAssertEqual(
+            english.contextKeyboardLayerHint,
+            "Press a number or < / > with Option + Shift, then release both modifiers."
+        )
+        XCTAssertEqual(
+            korean.contextKeyboardLayerHint,
+            "Option + Shift와 숫자 또는 < / >를 누른 뒤, 두 보조 키를 모두 떼세요."
+        )
+    }
+
+    func testLocalizesFixedKeyboardSetupStatusInKorean() {
+        XCTAssertEqual(
+            SBSStrings(language: .korean).setupViewStatus(
+                "Use Option + Shift with horizontal scroll. For a Context number or < / >, release Option + Shift to switch."
+            ),
+            "Option + Shift와 가로 스크롤을 사용하세요. Context 숫자 또는 < / >는 Option + Shift를 떼면 전환합니다."
+        )
+    }
+
+    func testLocalizesPrivacyBoundaryForSettingsAndSetup() {
+        let english = SBSStrings(language: .english)
+        let korean = SBSStrings(language: .korean)
+        let setupStatus = "Configured gestures are observed only while Sideby is on or during an explicitly active onboarding gesture test. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored."
+
+        XCTAssertEqual(english.inputPrivacyNote, setupStatus)
+        XCTAssertEqual(
+            korean.inputPrivacyNote,
+            "설정된 제스처는 Sideby가 켜져 있거나 명시적으로 활성화된 온보딩 제스처 테스트 중에만 감지합니다. 앱이 실행 중인 동안 꺼짐 상태 안내를 위해 고정 ⌥⇧ 숫자 / < / > 단축키는 등록된 상태로 유지됩니다. 그 밖의 원본 입력은 검사하거나 저장하지 않습니다."
+        )
+        XCTAssertEqual(english.setupViewStatus(setupStatus), setupStatus)
+        XCTAssertEqual(korean.setupViewStatus(setupStatus), korean.inputPrivacyNote)
+    }
+
+    func testLocalizesScopedOnboardingPermissionPrivacyPromise() {
+        let english = SBSStrings(language: .english)
+        let korean = SBSStrings(language: .korean)
+
+        XCTAssertEqual(
+            english.onboardingPermissionSubtitle,
+            "Observes ⌥⇧ swipes only while Sideby is on or during an explicitly active onboarding gesture test, and sends Space switches. Fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback; other raw input is not inspected or stored."
+        )
+        XCTAssertEqual(
+            korean.onboardingPermissionSubtitle,
+            "⌥⇧ 스와이프는 Sideby가 켜져 있거나 명시적으로 활성화된 온보딩 제스처 테스트 중에만 감지하고 화면 전환 명령을 보냅니다. 꺼짐 상태 안내를 위해 고정 ⌥⇧ 숫자 / < / > 단축키는 등록된 상태로 유지되며, 그 밖의 원본 입력은 검사하거나 저장하지 않습니다."
+        )
     }
 }

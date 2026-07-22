@@ -64,7 +64,7 @@ public struct SBSStrings: Sendable {
         text("Choose which displays move together.", "함께 이동할 디스플레이를 선택합니다.")
     }
     public var inputSubtitle: String {
-        text("Set the gesture modifier and keyboard shortcuts.", "제스처 보조 키와 키보드 단축키를 설정합니다.")
+        text("Set the gesture modifier and review fixed Context keyboard controls.", "제스처 보조 키와 고정 Context 키보드 조작을 확인합니다.")
     }
     public var permissionsSubtitle: String {
         text("Review the permissions used for gesture detection and switching.", "제스처 감지와 전환에 필요한 권한을 확인합니다.")
@@ -228,7 +228,10 @@ public struct SBSStrings: Sendable {
     public var granted: String { text("granted", "허용됨") }
     public var notGranted: String { text("not granted", "허용 안 됨") }
     public var inputPrivacyNote: String {
-        text("Input is used only while Sideby is on. Raw input is not stored.", "입력은 Sideby가 켜져 있을 때만 사용되며 원본 입력은 저장하지 않습니다.")
+        text(
+            "Configured gestures are observed only while Sideby is on or during an explicitly active onboarding gesture test. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored.",
+            "설정된 제스처는 Sideby가 켜져 있거나 명시적으로 활성화된 온보딩 제스처 테스트 중에만 감지합니다. 앱이 실행 중인 동안 꺼짐 상태 안내를 위해 고정 ⌥⇧ 숫자 / < / > 단축키는 등록된 상태로 유지됩니다. 그 밖의 원본 입력은 검사하거나 저장하지 않습니다."
+        )
     }
     public var enablePermissions: String { text("Enable Permissions", "권한 허용") }
     public var enableAccessibility: String { text("Enable Accessibility", "손쉬운 사용 허용") }
@@ -508,7 +511,10 @@ public struct SBSStrings: Sendable {
 
     public var onboardingPermissionTitle: String { text("Allow input and switching", "입력 감지와 화면 전환 허용") }
     public var onboardingPermissionSubtitle: String {
-        text("Used to detect ⌥⇧ swipes and send the requested Space switch. Keystrokes are never read.", "⌥⇧ 스와이프를 감지하고 요청한 화면 전환을 보내는 데만 사용합니다. 키 입력 내용은 읽지 않습니다.")
+        text(
+            "Observes ⌥⇧ swipes only while Sideby is on or during an explicitly active onboarding gesture test, and sends Space switches. Fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback; other raw input is not inspected or stored.",
+            "⌥⇧ 스와이프는 Sideby가 켜져 있거나 명시적으로 활성화된 온보딩 제스처 테스트 중에만 감지하고 화면 전환 명령을 보냅니다. 꺼짐 상태 안내를 위해 고정 ⌥⇧ 숫자 / < / > 단축키는 등록된 상태로 유지되며, 그 밖의 원본 입력은 검사하거나 저장하지 않습니다."
+        )
     }
     public var permissionAccessibilitySubtitle: String {
         text("Required to observe ⌥⇧-held swipes.", "⌥⇧를 누른 스와이프를 감지하는 데 필요합니다.")
@@ -549,6 +555,33 @@ public struct SBSStrings: Sendable {
     public var controlSwipe: String { text("Control Swipe", "Control 스와이프") }
     public var defaultGesturePreset: String { text("Option Shift", "Option Shift") }
     public var keyboardShortcuts: String { text("Keyboard Shortcuts", "키보드 단축키") }
+    public var contextKeyboardNumberHint: String {
+        text("Jump to Context: ⌥⇧1 … ⌥⇧9, ⌥⇧0", "Context 바로 이동: ⌥⇧1 … ⌥⇧9, ⌥⇧0")
+    }
+    public var contextKeyboardArrowHint: String {
+        text("Previous / Next Context: ⌥⇧< / ⌥⇧>", "이전 / 다음 Context: ⌥⇧< / ⌥⇧>")
+    }
+    public var contextKeyboardLayerHint: String {
+        text(
+            "Press a number or < / > with Option + Shift, then release both modifiers.",
+            "Option + Shift와 숫자 또는 < / >를 누른 뒤, 두 보조 키를 모두 떼세요."
+        )
+    }
+    public var sidebyToggleOffHUD: String {
+        text("Sideby is turned off", "Sideby 토글이 꺼져 있습니다")
+    }
+    public func missingContextHUD(position: Int) -> String {
+        text("Context \(position) does not exist", "Context \(position)이 없습니다")
+    }
+    public var contextKeyboardRegistrationTitle: String {
+        text("Some Context shortcuts are unavailable", "일부 Context 단축키를 사용할 수 없습니다")
+    }
+    public func contextKeyboardRegistrationMessage(shortcuts: String) -> String {
+        text(
+            "Sideby could not register \(shortcuts). Check macOS Keyboard Shortcuts and other apps.",
+            "Sideby가 \(shortcuts)을 등록하지 못했습니다. macOS 키보드 단축키와 다른 앱을 확인하세요."
+        )
+    }
     public var keyboardShortcutsOn: String { text("Keyboard shortcuts on", "키보드 단축키 켜짐") }
     public var keyboardShortcutsOff: String { text("Keyboard shortcuts off", "키보드 단축키 꺼짐") }
     public var enableKeyboardShortcuts: String { text("Enable keyboard shortcuts", "키보드 단축키 사용") }
@@ -650,12 +683,17 @@ public struct SBSStrings: Sendable {
             text("Connect a display or refresh before setting up Sideby.", "Sideby를 설정하기 전에 디스플레이를 연결하거나 새로고침하세요.")
         case "Select at least one display to move.":
             text("Select at least one display to move.", "이동할 디스플레이를 하나 이상 선택하세요.")
-        case "Input is used only while Sideby is on. Raw input is not stored.":
+        case "Configured gestures are observed only while Sideby is on or during an explicitly active onboarding gesture test. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored.":
             inputPrivacyNote
         case "Turn on Sideby to enable swipe gestures and test buttons.":
             text("Turn on Sideby to enable swipe gestures and test buttons.", "스와이프 제스처와 테스트 버튼을 사용하려면 Sideby를 켜세요.")
         case "Use Option + Shift + horizontal scroll. Keyboard shortcuts can be enabled in Input settings.":
             text("Use Option + Shift + horizontal scroll. Keyboard shortcuts can be enabled in Input settings.", "Option + Shift + 가로 스크롤을 사용하세요. 키보드 단축키는 입력 설정에서 켤 수 있습니다.")
+        case "Use Option + Shift with horizontal scroll. For a Context number or < / >, release Option + Shift to switch.":
+            text(
+                "Use Option + Shift with horizontal scroll. For a Context number or < / >, release Option + Shift to switch.",
+                "Option + Shift와 가로 스크롤을 사용하세요. Context 숫자 또는 < / >는 Option + Shift를 떼면 전환합니다."
+            )
         default:
             status
         }

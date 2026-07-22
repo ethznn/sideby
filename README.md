@@ -42,13 +42,14 @@ Sideby turns those per-display Spaces into named Contexts. It keeps the scope in
 - Align selected displays with the Context represented by the reference display.
 - Fall back to general movement when external Space changes make Context matching unsafe.
 - See a compact center-screen Context HUD after a successful move.
+- Press `1...9`, `0`, `<`, or `>` with `Option + Shift`, then release both modifiers to switch Contexts.
 
 ### Customization
 
 - Choose Move Targets for general previous/next Space movement.
 - Drag display Space positions to adjust captured membership.
 - Reorder display rows and resize the display-name column.
-- Use the default `Option + Shift + horizontal swipe`, optional keyboard shortcuts, or inline controls.
+- Use the default `Option + Shift + horizontal swipe`, the fixed Context keyboard layer, or inline controls.
 - Add names and best-effort visible app/window suggestions to captured Spaces.
 
 ### Native macOS Experience
@@ -84,7 +85,7 @@ If macOS still reports a rebuilt local app as denied, remove the old Sideby entr
 
 ## Privacy & Platform Notes
 
-Sideby uses Accessibility only while Sideby is on to detect the configured gesture. It sends a previous/next Space command only after the user acts.
+Sideby uses Accessibility to detect the configured gesture while its master toggle is on or during an explicitly active onboarding gesture test. It also uses Accessibility to send a Space command after an allowed switching or capture request and to make best-effort visible app/window name suggestions during Context Capture. While the app is running, macOS global hot-key registration listens only for the fixed `Option + Shift + number / < / >` combinations so Sideby can explain when its master toggle is off. Sideby does not inspect or store other typed input.
 
 Sideby reads the current per-display Space layout at runtime when macOS makes it available. It does not store private Space IDs, hidden Mission Control state, typed input, raw input events, screenshots, app bundle IDs, or window IDs.
 

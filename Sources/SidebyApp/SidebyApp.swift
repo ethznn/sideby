@@ -161,6 +161,134 @@ private final class SidebyAppObserverTokens {
     }
 }
 
+private enum SpaceCommandExecutionContext: Sendable {
+    case ordinary
+    case fixedKeyboard
+
+    func makeExecutor() -> any SpaceCommandExecuting {
+        let executor = MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster())
+        switch self {
+        case .ordinary:
+            return executor
+        case .fixedKeyboard:
+            return ModifierReleaseWaitingSpaceCommandExecutor(
+                baseExecutor: executor,
+                triggerModifiers: ContextKeyboardShortcutCatalog.triggerModifiers
+            )
+        }
+    }
+}
+
+struct ContextKeyboardCommandCoordinator {
+    private(set) var gate: ContextKeyboardExecutionGate
+
+    init(settlingDuration: Double = 0.75) {
+        gate = ContextKeyboardExecutionGate(settlingDuration: settlingDuration)
+    }
+
+    mutating func handle(
+        _ event: ContextKeyboardShortcutInputEvent,
+        contextPlan: ContextPlan,
+        isSidebyEnabled: Bool,
+        isSwitching: Bool,
+        isCapturing: Bool,
+        at timestamp: Double
+    ) -> ContextKeyboardAction {
+        switch event {
+        case .pressed(let command):
+            guard !isBusy(at: timestamp) else {
+                return .ignore
+            }
+
+            let action = ContextKeyboardShortcutPolicy.action(
+                command: command,
+                contextPlan: contextPlan,
+                isSidebyEnabled: isSidebyEnabled,
+                isSwitching: isSwitching,
+                isCapturing: isCapturing
+            )
+            switch action {
+            case .activate, .move:
+                _ = gate.reserve(command, at: timestamp)
+                return .ignore
+            case .ignore, .showSidebyOff, .showMissingContext, .waitForModifierRelease:
+                return action
+            }
+
+        case .released(let command):
+            guard gate.state == .pending(command) else {
+                return .ignore
+            }
+
+            return .waitForModifierRelease(command)
+        }
+    }
+
+    mutating func resumeAfterModifierRelease(
+        _ command: ContextKeyboardCommand,
+        contextPlan: ContextPlan,
+        isSidebyEnabled: Bool,
+        isSwitching: Bool,
+        isCapturing: Bool
+    ) -> ContextKeyboardAction {
+        guard gate.beginExecution(for: command) else {
+            return .ignore
+        }
+
+        let action = ContextKeyboardShortcutPolicy.action(
+            command: command,
+            contextPlan: contextPlan,
+            isSidebyEnabled: isSidebyEnabled,
+            isSwitching: isSwitching,
+            isCapturing: isCapturing
+        )
+        switch action {
+        case .activate, .move:
+            return action
+        case .ignore, .showSidebyOff, .showMissingContext, .waitForModifierRelease:
+            gate.reset()
+            return .ignore
+        }
+    }
+
+    mutating func finishExecution(at timestamp: Double) {
+        gate.finishExecution(at: timestamp)
+    }
+
+    private mutating func isBusy(at timestamp: Double) -> Bool {
+        if case let .settling(until) = gate.state, timestamp >= until {
+            gate.reset()
+        }
+
+        return gate.state != .idle
+    }
+}
+
+enum ContextKeyboardResolvedExecution: Equatable {
+    case activate(contextID: String)
+    case move(SwitchCommand)
+}
+
+enum ContextKeyboardExecutionResolver {
+    static func execution(
+        for action: ContextKeyboardAction,
+        contextPlan: ContextPlan
+    ) -> ContextKeyboardResolvedExecution? {
+        switch action {
+        case .activate(let contextID):
+            return .activate(contextID: contextID)
+        case .move(let command):
+            let intent = contextPlan.switchIntent(for: command)
+            if intent.shouldExecute, let targetContext = intent.targetContext {
+                return .activate(contextID: targetContext.id)
+            }
+            return .move(command)
+        case .ignore, .showSidebyOff, .showMissingContext, .waitForModifierRelease:
+            return nil
+        }
+    }
+}
+
 @MainActor
 private enum ProductMainWindowPresenter {
     static let windowIdentifier = NSUserInterfaceItemIdentifier("sideby-main-window")
@@ -434,7 +562,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var automationAccessGranted = false
     @Published var permissionRequestFeedback: PermissionRequestFeedback?
     @Published var selectedDisplayIDs: Set<String> = []
-    @Published var diagnostics: [DiagnosticState] = []
+    @Published private var runtimeDiagnostics: [DiagnosticState] = []
     @Published var lastSwitchResult = "No switch attempted"
     @Published var isSwitching = false
     @Published var isEnabled = false
@@ -459,6 +587,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private let visibleAppSuggestionProvider = MacVisibleAppSuggestionProvider()
     private let spaceLayoutReader: any SpaceLayoutReading = SLSSpaceLayoutReader()
     private let contextHUDPolicy = ContextSwitchHUDPolicy()
+    private let contextKeyboardModifierReleaseWaiter = ContextKeyboardModifierReleaseWaiter()
     private let observerTokens = SidebyAppObserverTokens()
     private static let enabledDefaultsKey = "sideby.enabled"
     private static let contextCaptureConfiguration = ContextCaptureConfiguration.automatic
@@ -472,7 +601,9 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     )
     private var didInitializeSelectedDisplays = false
     private var swipeInputSource: GlobalEventTapInputSource?
-    private var keyboardShortcutInputSource: GlobalShortcutInputSource?
+    private var contextKeyboardInputSource: GlobalContextKeyboardShortcutInputSource?
+    private var contextKeyboardCoordinator = ContextKeyboardCommandCoordinator()
+    @Published private var failedContextKeyboardCommands: [ContextKeyboardCommand] = []
     private var swipePipeline = SwipeInputPipeline(settings: .default)
     private var inputLatch = InputCommandLatch()
     private var inputSessionID = 0
@@ -490,6 +621,17 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var isOnboardingGestureTestActive = false
     private var ignoresExternalSpaceChangesUntil: Date?
 
+    var diagnostics: [DiagnosticState] {
+        get {
+            ContextKeyboardDiagnosticMerger.diagnostics(
+                runtimeDiagnostics: runtimeDiagnostics,
+                failedCommands: failedContextKeyboardCommands,
+                strings: strings
+            )
+        }
+        set { runtimeDiagnostics = newValue }
+    }
+
     init() {
         var loadedSettings = settingsStore.load()
         loadedSettings.mode = .shortcut
@@ -503,9 +645,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         startSettingsChangeObserver()
         startExternalSpaceChangeObserver()
         refresh()
-        if isEnabled {
-            DispatchQueue.main.async { [weak self] in
-                self?.resumeEnabledInputIfNeeded()
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.startContextKeyboardInput()
+            if self.isEnabled {
+                self.resumeEnabledInputIfNeeded()
             }
         }
     }
@@ -519,14 +663,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     var gestureInputSummary: String {
         strings.horizontalScrollGesture(settings.requiredModifiers)
-    }
-
-    var keyboardCommandSummary: String {
-        settings.keyboardShortcutsEnabled ? Self.keyboardShortcutSummary(for: settings) : strings.keyboardShortcutsOff
-    }
-
-    var keyboardShortcutModifierSummary: String {
-        strings.modifierText(keyboardShortcutModifiers)
     }
 
     var hasAccessibilityPermission: Bool {
@@ -603,6 +739,90 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         return values
+    }
+
+    private func startContextKeyboardInput() {
+        let source = GlobalContextKeyboardShortcutInputSource(handler: { [weak self] event in
+            DispatchQueue.main.async { [weak self] in
+                self?.handleContextKeyboardEvent(event)
+            }
+        })
+        let result = source.start()
+        contextKeyboardInputSource = source
+        failedContextKeyboardCommands = result.failedCommands
+        diagnostics = currentDiagnostics()
+    }
+
+    private func handleContextKeyboardEvent(_ event: ContextKeyboardShortcutInputEvent) {
+        let action = contextKeyboardCoordinator.handle(
+            event,
+            contextPlan: settings.contextPlan,
+            isSidebyEnabled: isEnabled,
+            isSwitching: isSwitching,
+            isCapturing: contextCaptureSession != nil,
+            at: ProcessInfo.processInfo.systemUptime
+        )
+
+        routeContextKeyboardAction(action)
+    }
+
+    private func routeContextKeyboardAction(_ action: ContextKeyboardAction) {
+        switch action {
+        case .ignore:
+            return
+        case .showSidebyOff:
+            ProductContextHUDController.shared.show(
+                HUDPresenter().stateForSidebyToggleOff(strings: strings)
+            )
+        case .showMissingContext(let position):
+            ProductContextHUDController.shared.show(
+                HUDPresenter().stateForMissingContext(position: position, strings: strings)
+            )
+        case .waitForModifierRelease(let command):
+            contextKeyboardModifierReleaseWaiter.waitUntilReleased(
+                triggerModifiers: ContextKeyboardShortcutCatalog.triggerModifiers
+            ) { [weak self] in
+                guard let self else { return }
+                let resumedAction = self.contextKeyboardCoordinator.resumeAfterModifierRelease(
+                    command,
+                    contextPlan: self.settings.contextPlan,
+                    isSidebyEnabled: self.isEnabled,
+                    isSwitching: self.isSwitching,
+                    isCapturing: self.contextCaptureSession != nil
+                )
+                self.routeContextKeyboardAction(resumedAction)
+            }
+        case .activate, .move:
+            guard let execution = ContextKeyboardExecutionResolver.execution(
+                for: action,
+                contextPlan: settings.contextPlan
+            ) else {
+                return
+            }
+            switch execution {
+            case .activate(let contextID):
+                activateContext(
+                    contextID: contextID,
+                    spaceExecutionContext: .fixedKeyboard
+                ) { [weak self] _ in
+                    self?.finishContextKeyboardExecution()
+                }
+            case .move(let switchCommand):
+                performSwitch(
+                    switchCommand,
+                    label: "context-keyboard",
+                    spaceExecutionContext: .fixedKeyboard
+                ) { [weak self] _ in
+                    self?.finishContextKeyboardExecution()
+                }
+            }
+        }
+    }
+
+    private func finishContextKeyboardExecution() {
+        contextKeyboardCoordinator.finishExecution(
+            at: ProcessInfo.processInfo.systemUptime
+        )
     }
 
     func requestPermissions() {
@@ -774,7 +994,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
     }
 
-    func activateContext(contextID: String) {
+    func activateContext(
+        contextID: String,
+        spaceExecutionContext: SpaceCommandExecutionContext = .ordinary,
+        completion: (@MainActor @Sendable (Bool) -> Void)? = nil
+    ) {
         guard isEnabled else {
             diagnostics = [
                 DiagnosticState(
@@ -785,9 +1009,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 )
             ]
             lastSwitchResult = strings.sidebyOffReason
+            completion?(false)
             return
         }
         guard canActivateContext else {
+            completion?(false)
             return
         }
 
@@ -797,13 +1023,19 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 diagnostics = [diagnostic]
                 lastSwitchResult = strings.localizedDiagnosticTitle(diagnostic.title)
             }
+            completion?(false)
             return
         }
         guard hasPostEventAccess(command: .next, label: "context") else {
+            completion?(false)
             return
         }
 
-        performContextActivation(targetContext: targetContext)
+        performContextActivation(
+            targetContext: targetContext,
+            spaceExecutionContext: spaceExecutionContext,
+            completion: completion
+        )
     }
 
     func moveDisplaySpace(displayID: String, spaceIndex: Int, toContextID: String) {
@@ -831,7 +1063,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         settingsStore.save(settings)
     }
 
-    private func performContextActivation(targetContext: ContextDefinition) {
+    private func performContextActivation(
+        targetContext: ContextDefinition,
+        spaceExecutionContext: SpaceCommandExecutionContext,
+        completion: (@MainActor @Sendable (Bool) -> Void)?
+    ) {
         let decision = ModePolicy().decision(
             for: settings.mode,
             inputMethod: .shortcut,
@@ -843,6 +1079,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             if let diagnostic = modeDiagnostics.first(where: { $0.severity == .blocker }) ?? modeDiagnostics.first {
                 lastSwitchResult = strings.localizedDiagnosticTitle(diagnostic.title)
             }
+            completion?(false)
             return
         }
 
@@ -852,6 +1089,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             }
             diagnostics = currentDiagnostics()
             lastSwitchResult = strings.alignFailed
+            completion?(false)
             return
         }
 
@@ -868,6 +1106,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 )
             ]
             lastSwitchResult = strings.noMoveTargetsReason
+            completion?(false)
             return
         }
 
@@ -888,6 +1127,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 displayIDs: targetMemberDisplayIDs,
                 displayLayout: displayLayout
             )
+            completion?(true)
             return
         }
 
@@ -923,7 +1163,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
             for move in moves {
                 let executor = HiddenCursorDisplaySpaceCommandExecutor(
-                    baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                    baseExecutor: spaceExecutionContext.makeExecutor(),
                     targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: [move.displayID])
                 )
                 var index = move.currentIndex
@@ -948,7 +1188,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             }
 
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.switchSessionID == sessionID else {
+                guard let self else {
+                    completion?(false)
+                    return
+                }
+                guard self.switchSessionID == sessionID else {
+                    completion?(false)
                     return
                 }
                 self.isSwitching = false
@@ -984,6 +1229,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 Self.contextCaptureLog.notice(
                     "context-activate target=\(targetContext.id, privacy: .public) moved=\(moves.count, privacy: .public) success=\(didMoveAll, privacy: .public)"
                 )
+                completion?(didMoveAll)
             }
         }
     }
@@ -1572,12 +1818,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     func updateSettings(_ newSettings: AppSettings) {
-        let issues = KeyboardShortcutValidator.issues(
-            previous: newSettings.shortcutPrevious,
-            next: newSettings.shortcutNext,
-            gestureModifiers: newSettings.requiredModifiers
-        )
-        guard issues.isEmpty else {
+        guard KeyboardShortcutValidator.isValidGestureModifierSet(newSettings.requiredModifiers) else {
             lastInputEvent = strings.shortcutSettingsNotSaved
             return
         }
@@ -1588,7 +1829,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         settingsStore.save(savedSettings)
         swipePipeline = SwipeInputPipeline(settings: currentGestureSettings)
         refreshLocalizedStatus()
-        lastInputEvent = strings.inputSettingsSaved(gesture: gestureInputSummary, keyboard: keyboardCommandSummary)
+        lastInputEvent = Self.inputHint(for: settings, strings: strings)
 
         guard isInputRunning else {
             return
@@ -1692,7 +1933,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         settings = loadedSettings
         swipePipeline = SwipeInputPipeline(settings: currentGestureSettings)
         refreshLocalizedStatus()
-        lastInputEvent = strings.inputSettingsUpdated(gesture: gestureInputSummary, keyboard: keyboardCommandSummary)
+        lastInputEvent = Self.inputHint(for: settings, strings: strings)
 
         guard isInputRunning else {
             return
@@ -1820,50 +2061,17 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 self?.handleSwipeInput(event)
             }
         }
-        let shortcutSource: GlobalShortcutInputSource?
-        if settings.keyboardShortcutsEnabled {
-            shortcutSource = GlobalShortcutInputSource(
-                shortcutInputSource: ShortcutInputSource(
-                    previousShortcut: settings.shortcutPrevious,
-                    nextShortcut: settings.shortcutNext
-                ),
-                suppressedModifierFlags: nil,
-                commandHandler: { [weak self] command in
-                    DispatchQueue.main.async { [weak self] in
-                        guard self?.inputSessionID == sessionID else {
-                            return
-                        }
-                        self?.handleKeyboardCommand(command)
-                    }
-                },
-                releaseHandler: { [weak self] command in
-                    DispatchQueue.main.async { [weak self] in
-                        guard self?.inputSessionID == sessionID else {
-                            return
-                        }
-                        self?.handleKeyboardShortcutRelease(command)
-                    }
-                }
-            )
-        } else {
-            shortcutSource = nil
-        }
-
         let didStartSwipe = Self.didStartInputSource(swipeSource.start())
-        let didStartShortcut = shortcutSource.map { Self.didStartInputSource($0.start()) } ?? true
-        guard didStartSwipe && didStartShortcut else {
+        guard didStartSwipe else {
             swipeSource.stop()
-            shortcutSource?.stop()
             swipeInputSource = nil
-            keyboardShortcutInputSource = nil
             isInputRunning = false
             inputStatus = strings.couldNotStartInput
-            lastInputEvent = didStartSwipe ? strings.keyboardListenerFailed : strings.swipeListenerFailed
+            lastInputEvent = strings.swipeListenerFailed
             return false
         }
 
         swipeInputSource = swipeSource
-        keyboardShortcutInputSource = shortcutSource
         isInputRunning = true
         inputStatus = isEnabled
             ? strings.sidebyOnTargets(selectedDisplaySummary)
@@ -1940,9 +2148,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private func stopRunningInputSources() {
         inputSessionID += 1
         swipeInputSource?.stop()
-        keyboardShortcutInputSource?.stop()
         swipeInputSource = nil
-        keyboardShortcutInputSource = nil
     }
 
     private func resumeEnabledInputIfNeeded() {
@@ -1965,10 +2171,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             ignoresMomentum: true,
             naturalScrollingEnabled: true
         )
-    }
-
-    private var keyboardShortcutModifiers: ModifierFlags {
-        settings.shortcutPrevious.modifiers.union(settings.shortcutNext.modifiers)
     }
 
     private func performAcknowledgedSwitch(
@@ -2109,6 +2311,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         _ command: SwitchCommand,
         label: String,
         inputMethod: InputMethod = .shortcut,
+        spaceExecutionContext: SpaceCommandExecutionContext = .ordinary,
         resumeInputAfterCompletion shouldResumeInput: Bool? = nil,
         completion: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
@@ -2161,6 +2364,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 label: label,
                 inputMethod: inputMethod,
                 intent: intent,
+                spaceExecutionContext: spaceExecutionContext,
                 resumeInputAfterCompletion: shouldResumeInput,
                 completion: completion
             )
@@ -2194,7 +2398,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
         DispatchQueue.global(qos: .userInitiated).async {
             let executor = HiddenCursorDisplaySpaceCommandExecutor(
-                baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                baseExecutor: spaceExecutionContext.makeExecutor(),
                 targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: targetDisplayIDs)
             )
             let engine = ContextSwitchEngine(executor: executor)
@@ -2206,7 +2410,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             )
 
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.switchSessionID == sessionID else {
+                guard let self else {
+                    completion?(false)
+                    return
+                }
+                guard self.switchSessionID == sessionID else {
+                    completion?(false)
                     return
                 }
 
@@ -2283,6 +2492,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         label: String,
         inputMethod: InputMethod,
         intent: ContextSwitchIntent,
+        spaceExecutionContext: SpaceCommandExecutionContext,
         resumeInputAfterCompletion shouldResumeInput: Bool?,
         completion: (@MainActor @Sendable (Bool) -> Void)?
     ) {
@@ -2406,7 +2616,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
             for move in moves {
                 let executor = HiddenCursorDisplaySpaceCommandExecutor(
-                    baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                    baseExecutor: spaceExecutionContext.makeExecutor(),
                     targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: [move.display.displayID])
                 )
                 var index = move.display.currentSpaceIndex
@@ -2431,7 +2641,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             }
 
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.switchSessionID == sessionID else {
+                guard let self else {
+                    completion?(false)
+                    return
+                }
+                guard self.switchSessionID == sessionID else {
+                    completion?(false)
                     return
                 }
                 self.isSwitching = false
@@ -2568,12 +2783,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             updateScrollStatusIfNeeded(event, at: timestamp)
         case .flagsChanged:
             if let latchedCommand = releasedPendingInputCommand(for: event) {
-                switch latchedCommand.source {
-                case .swipe:
-                    executeSwipeCommand(latchedCommand.command)
-                case .keyboard:
-                    executeKeyboardCommand(latchedCommand.command)
-                }
+                executeSwipeCommand(latchedCommand.command)
                 return
             }
             resetSwipeRecognitionIfNeeded(for: event)
@@ -2660,107 +2870,23 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         )
     }
 
-    private func handleKeyboardCommand(_ command: SwitchCommand) {
-        let timestamp = ProcessInfo.processInfo.systemUptime
-        guard inputLatch.allowsInput(at: timestamp) else {
-            return
-        }
-        let intent = settings.contextPlan.switchIntent(for: command)
-        guard hasSwitchMoveTargets(for: intent, label: "keyboard-command") else {
-            inputStatus = strings.noMoveTargetsStatus
-            return
-        }
-        guard inputLatch.accept(command, source: .keyboard, at: timestamp) else {
-            return
-        }
-        lastInputEvent = strings.acceptedCommand(command: command, modifiers: strings.modifierText(shortcutModifiers(for: command)))
-        inputStatus = strings.releaseShortcutModifier
-    }
-
-    private func handleKeyboardShortcutRelease(_ command: SwitchCommand) {
-        waitForKeyboardShortcutModifiersToRelease(
-            command: command,
-            modifiers: shortcutModifiers(for: command)
-        )
-    }
-
-    private func waitForKeyboardShortcutModifiersToRelease(
-        command: SwitchCommand,
-        modifiers: ModifierFlags,
-        remainingAttempts: Int = 40
-    ) {
-        guard remainingAttempts > 0 else {
-            return
-        }
-
-        let currentModifiers = EventTapInputNormalizer.modifierFlags(
-            from: CGEventSource.flagsState(.combinedSessionState)
-        )
-        guard currentModifiers.contains(modifiers) else {
-            guard case let .pending(latchedCommand) = inputLatch.state,
-                  latchedCommand.source == .keyboard,
-                  latchedCommand.command == command,
-                  inputLatch.releasePending(source: .keyboard) != nil
-            else {
-                return
-            }
-
-            executeKeyboardCommand(command)
-            return
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) { [weak self] in
-            self?.waitForKeyboardShortcutModifiersToRelease(
-                command: command,
-                modifiers: modifiers,
-                remainingAttempts: remainingAttempts - 1
-            )
-        }
-    }
-
-    private func executeKeyboardCommand(_ command: SwitchCommand) {
-        let intent = settings.contextPlan.switchIntent(for: command)
-        guard hasSwitchMoveTargets(for: intent, label: "keyboard-command") else {
-            inputLatch.reset()
-            inputStatus = strings.noMoveTargetsStatus
-            return
-        }
-
-        let shouldResumeInput = isInputRunning
-        stopRunningInputSources()
-        swipePipeline = SwipeInputPipeline(settings: currentGestureSettings)
-        lastInputEvent = strings.switchingFromShortcut(command: command, modifiers: keyboardShortcutModifierSummary)
-        inputStatus = strings.switchingInputPaused(command: command)
-        performSwitch(
-            command,
-            label: "keyboard-command",
-            resumeInputAfterCompletion: shouldResumeInput
-        )
-    }
-
     private func releasedPendingInputCommand(for event: InputEvent) -> LatchedInputCommand? {
-        guard case let .pending(latchedCommand) = inputLatch.state else {
-            return nil
-        }
-
-        let releaseModifiers: ModifierFlags
-        switch latchedCommand.source {
-        case .swipe:
-            releaseModifiers = settings.requiredModifiers
-        case .keyboard:
-            releaseModifiers = shortcutModifiers(for: latchedCommand.command)
-        }
-
-        guard InputModifierReleasePolicy.didReleaseAllTriggerModifiers(
-            currentModifiers: event.modifierFlags,
-            triggerModifiers: releaseModifiers
-        ),
-              let command = inputLatch.releasePending(source: latchedCommand.source)
+        guard case let .pending(latchedCommand) = inputLatch.state,
+              latchedCommand.source == .swipe
         else {
             return nil
         }
 
-        return LatchedInputCommand(command: command, source: latchedCommand.source)
+        guard InputModifierReleasePolicy.didReleaseAllTriggerModifiers(
+            currentModifiers: event.modifierFlags,
+            triggerModifiers: settings.requiredModifiers
+        ),
+              let command = inputLatch.releasePending(source: .swipe)
+        else {
+            return nil
+        }
+
+        return LatchedInputCommand(command: command, source: .swipe)
     }
 
     private func resetSwipeRecognitionIfNeeded(for event: InputEvent) {
@@ -2845,15 +2971,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         )
     }
 
-    private func shortcutModifiers(for command: SwitchCommand) -> ModifierFlags {
-        switch command {
-        case .previous:
-            settings.shortcutPrevious.modifiers
-        case .next:
-            settings.shortcutNext.modifiers
-        }
-    }
-
     private func modifierSummary(_ modifiers: ModifierFlags) -> String {
         var names: [String] = []
         if modifiers.contains(.shift) { names.append(strings.modifierChoiceTitle(.shift)) }
@@ -2864,20 +2981,8 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         return names.isEmpty ? strings.none : names.joined(separator: "+")
     }
 
-    private static func keyboardShortcutSummary(for settings: AppSettings) -> String {
-        "\(KeyboardShortcutFormatter.shortcutText(settings.shortcutPrevious)) / \(KeyboardShortcutFormatter.shortcutText(settings.shortcutNext))"
-    }
-
     private static func inputHint(for settings: AppSettings, strings: SBSStrings) -> String {
-        let gesture = strings.horizontalScrollGesture(settings.requiredModifiers)
-        guard settings.keyboardShortcutsEnabled else {
-            return strings.useGestureHint(gesture: gesture)
-        }
-
-        return strings.useInputHint(
-            gesture: gesture,
-            keyboard: keyboardShortcutSummary(for: settings)
-        )
+        "\(strings.horizontalScrollGesture(settings.requiredModifiers)) · \(strings.contextKeyboardLayerHint)"
     }
 }
 
@@ -3211,6 +3316,10 @@ private struct ProductMenuContentView: View {
 
     var body: some View {
         let strings = model.strings
+        let diagnosticsSection = FloatingMenuDiagnosticsContent.section(
+            for: model.diagnostics,
+            strings: strings
+        )
 
         VStack(alignment: .leading, spacing: 8) {
             MoveTargetsView(
@@ -3220,6 +3329,10 @@ private struct ProductMenuContentView: View {
             )
 
             contextsSection
+
+            if let diagnosticsSection {
+                ProductMenuDiagnosticsView(section: diagnosticsSection)
+            }
 
             ForEach(FloatingMenuCollapsibleSectionContent.defaultItems, id: \.self) { section in
                 disclosureSection(section, strings: strings)
@@ -3362,6 +3475,62 @@ private struct ProductMenuContentView: View {
             .pointingHandCursor()
             .frame(maxWidth: .infinity, alignment: .trailing)
             .font(.caption)
+    }
+}
+
+private struct ProductMenuDiagnosticsView: View {
+    let section: FloatingMenuDiagnosticsSection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(section.items.enumerated()), id: \.offset) { index, item in
+                if index > 0 {
+                    Divider()
+                }
+
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: systemImage(for: item.severity))
+                        .foregroundStyle(tint(for: item.severity))
+                        .frame(width: 16)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title)
+                            .font(.subheadline.weight(.semibold))
+                        Text(item.message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(10)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.7))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func systemImage(for severity: DiagnosticSeverity) -> String {
+        switch severity {
+        case .info:
+            "info.circle.fill"
+        case .warning:
+            "exclamationmark.triangle.fill"
+        case .blocker:
+            "xmark.octagon.fill"
+        }
+    }
+
+    private func tint(for severity: DiagnosticSeverity) -> Color {
+        switch severity {
+        case .info:
+            .blue
+        case .warning:
+            .orange
+        case .blocker:
+            .red
+        }
     }
 }
 

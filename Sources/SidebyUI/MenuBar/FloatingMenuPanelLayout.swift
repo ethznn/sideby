@@ -158,6 +158,51 @@ public enum FloatingMenuInteractiveCursorPolicy: Sendable {
     }
 }
 
+public struct FloatingMenuDiagnosticItem: Equatable, Sendable {
+    public let severity: DiagnosticSeverity
+    public let title: String
+    public let message: String
+
+    public init(
+        severity: DiagnosticSeverity,
+        title: String,
+        message: String
+    ) {
+        self.severity = severity
+        self.title = title
+        self.message = message
+    }
+}
+
+public struct FloatingMenuDiagnosticsSection: Equatable, Sendable {
+    public let items: [FloatingMenuDiagnosticItem]
+
+    public init(items: [FloatingMenuDiagnosticItem]) {
+        self.items = items
+    }
+}
+
+public enum FloatingMenuDiagnosticsContent: Sendable {
+    public static func section(
+        for diagnostics: [DiagnosticState],
+        strings: SBSStrings
+    ) -> FloatingMenuDiagnosticsSection? {
+        guard !diagnostics.isEmpty else {
+            return nil
+        }
+
+        return FloatingMenuDiagnosticsSection(
+            items: diagnostics.map { diagnostic in
+                FloatingMenuDiagnosticItem(
+                    severity: diagnostic.severity,
+                    title: strings.localizedDiagnosticTitle(diagnostic.title),
+                    message: strings.localizedDiagnosticMessage(diagnostic.message)
+                )
+            }
+        )
+    }
+}
+
 public enum FloatingMenuCollapsibleSection: Equatable, Hashable, Sendable {
     case input
     case permissions

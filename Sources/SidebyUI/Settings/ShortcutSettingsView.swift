@@ -1,4 +1,3 @@
-import AppKit
 import SidebyCore
 import SwiftUI
 
@@ -13,7 +12,7 @@ public enum KeyboardShortcutFormatter {
     }
 
     public static func keyCaps(_ shortcut: SBSKeyboardShortcut) -> [String] {
-        modifierCaps(shortcut.modifiers) + [keyCap(for: shortcut.keyCode)]
+        modifierCaps(shortcut.modifiers) + [keyCap(for: shortcut.keyCode, modifiers: shortcut.modifiers)]
     }
 
     public static func shortcutText(_ shortcut: SBSKeyboardShortcut) -> String {
@@ -35,6 +34,13 @@ public enum KeyboardShortcutFormatter {
         }
 
         return "#\(keyCode)"
+    }
+
+    private static func keyCap(for keyCode: UInt16, modifiers: ModifierFlags) -> String {
+        if modifiers.contains(.shift), let symbol = shiftedKeyCaps[keyCode] {
+            return symbol
+        }
+        return keyCap(for: keyCode)
     }
 
     private static let symbolicKeyCaps: [UInt16: String] = [
@@ -117,11 +123,15 @@ public enum KeyboardShortcutFormatter {
         47: ".",
         50: "`"
     ]
+
+    private static let shiftedKeyCaps: [UInt16: String] = [
+        43: "<",
+        47: ">"
+    ]
 }
 
 public struct ShortcutSettingsView: View {
     @Binding private var settings: AppSettings
-    @State private var recordingRole: KeyboardShortcutRole?
     @State private var statusMessage: String?
     @State private var isErrorStatus = false
 
@@ -181,86 +191,14 @@ public struct ShortcutSettingsView: View {
         let strings = SBSStrings(language: settings.language)
 
         return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(strings.keyboardShortcuts)
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Button(strings.resetDefaults) {
-                    resetDefaults()
-                }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .disabled(!settings.keyboardShortcutsEnabled)
-                .pointingHandCursor(settings.keyboardShortcutsEnabled)
-            }
-
-            Toggle(strings.enableKeyboardShortcuts, isOn: Binding(
-                get: { settings.keyboardShortcutsEnabled },
-                set: { setKeyboardShortcutsEnabled($0) }
-            ))
-            .toggleStyle(.switch)
-            .pointingHandCursor()
-
-            Text(strings.keyboardShortcutsOptionalHint)
+            Text(strings.keyboardShortcuts)
+                .font(.subheadline.weight(.semibold))
+            Text(strings.contextKeyboardNumberHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
-            Group {
-                shortcutRow(
-                    role: .previous,
-                    title: strings.roleTitle(.previous),
-                    shortcut: settings.shortcutPrevious
-                )
-                shortcutRow(
-                    role: .next,
-                    title: strings.roleTitle(.next),
-                    shortcut: settings.shortcutNext
-                )
-            }
-            .disabled(!settings.keyboardShortcutsEnabled)
-            .opacity(settings.keyboardShortcutsEnabled ? 1 : 0.45)
-        }
-    }
-
-    private func shortcutRow(
-        role: KeyboardShortcutRole,
-        title: String,
-        shortcut: SBSKeyboardShortcut
-    ) -> some View {
-        let strings = SBSStrings(language: settings.language)
-
-        return HStack(spacing: 10) {
-            Text(title)
-                .frame(width: 78, alignment: .leading)
-
-            HStack(spacing: 4) {
-                ForEach(KeyboardShortcutFormatter.keyCaps(shortcut), id: \.self) { cap in
-                    Kbd(text: cap)
-                }
-            }
-
-            Spacer()
-
-            Button(recordingRole == role ? strings.pressKeys : strings.change) {
-                recordingRole = role
-                statusMessage = strings.pressNewShortcut(title)
-                isErrorStatus = false
-            }
-            .buttonStyle(.bordered)
-            .pointingHandCursor(settings.keyboardShortcutsEnabled)
-
-            KeyboardShortcutCaptureView(
-                isRecording: recordingRole == role,
-                onCapture: { shortcut in
-                    commit(shortcut: shortcut, role: role)
-                },
-                onCancel: {
-                    recordingRole = nil
-                    statusMessage = nil
-                }
-            )
-            .frame(width: 1, height: 1)
-            .opacity(0.01)
+            Text(strings.contextKeyboardArrowHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -272,69 +210,14 @@ public struct ShortcutSettingsView: View {
             candidate.requiredModifiers.insert(modifier)
         }
 
-        let issues = KeyboardShortcutValidator.issues(
-            previous: candidate.shortcutPrevious,
-            next: candidate.shortcutNext,
-            gestureModifiers: candidate.requiredModifiers
-        )
-        guard issues.isEmpty else {
-            showIssues(issues)
+        guard KeyboardShortcutValidator.isValidGestureModifierSet(candidate.requiredModifiers) else {
+            showIssues([.emptyGestureModifier])
             return
         }
 
         settings = candidate
         statusMessage = SBSStrings(language: settings.language)
             .gestureModifierSaved(SBSStrings(language: settings.language).modifierText(candidate.requiredModifiers))
-        isErrorStatus = false
-    }
-
-    private func commit(shortcut: SBSKeyboardShortcut, role: KeyboardShortcutRole) {
-        var candidate = settings
-        switch role {
-        case .previous:
-            candidate.shortcutPrevious = shortcut
-        case .next:
-            candidate.shortcutNext = shortcut
-        }
-
-        let issues = KeyboardShortcutValidator.issues(
-            previous: candidate.shortcutPrevious,
-            next: candidate.shortcutNext,
-            gestureModifiers: candidate.requiredModifiers
-        )
-        guard issues.isEmpty else {
-            recordingRole = nil
-            showIssues(issues)
-            return
-        }
-
-        settings = candidate
-        recordingRole = nil
-        statusMessage = SBSStrings(language: settings.language)
-            .shortcutSaved(role: role, shortcut: KeyboardShortcutFormatter.shortcutText(shortcut))
-        isErrorStatus = false
-    }
-
-    private func resetDefaults() {
-        var candidate = settings
-        candidate.requiredModifiers = AppSettings.default.requiredModifiers
-        candidate.keyboardShortcutsEnabled = AppSettings.default.keyboardShortcutsEnabled
-        candidate.shortcutPrevious = AppSettings.default.shortcutPrevious
-        candidate.shortcutNext = AppSettings.default.shortcutNext
-        candidate.inputExecutionStrategy = AppSettings.default.inputExecutionStrategy
-        settings = candidate
-        recordingRole = nil
-        statusMessage = SBSStrings(language: settings.language).shortcutSettingsReset
-        isErrorStatus = false
-    }
-
-    private func setKeyboardShortcutsEnabled(_ isEnabled: Bool) {
-        var candidate = settings
-        candidate.keyboardShortcutsEnabled = isEnabled
-        settings = candidate
-        statusMessage = isEnabled
-            ? SBSStrings(language: settings.language).keyboardShortcutsOn
-            : SBSStrings(language: settings.language).keyboardShortcutsOff
         isErrorStatus = false
     }
 
@@ -347,9 +230,6 @@ public struct ShortcutSettingsView: View {
         SBSStrings(language: settings.language).issueMessage(issue)
     }
 
-    private func title(for role: KeyboardShortcutRole) -> String {
-        SBSStrings(language: settings.language).roleTitle(role)
-    }
 }
 
 public struct InputExperimentSettingsView: View {
@@ -418,106 +298,6 @@ private enum GestureModifierChoice: CaseIterable, Identifiable {
             return "Command"
         case .shift:
             return "Shift"
-        }
-    }
-}
-
-private struct KeyboardShortcutCaptureView: NSViewRepresentable {
-    let isRecording: Bool
-    let onCapture: (SBSKeyboardShortcut) -> Void
-    let onCancel: () -> Void
-
-    func makeNSView(context: Context) -> RecorderView {
-        RecorderView(
-            isRecording: isRecording,
-            onCapture: onCapture,
-            onCancel: onCancel
-        )
-    }
-
-    func updateNSView(_ nsView: RecorderView, context: Context) {
-        nsView.isRecording = isRecording
-        nsView.onCapture = onCapture
-        nsView.onCancel = onCancel
-
-        guard isRecording else {
-            return
-        }
-
-        DispatchQueue.main.async {
-            nsView.window?.makeFirstResponder(nsView)
-        }
-    }
-
-    final class RecorderView: NSView {
-        var isRecording: Bool
-        var onCapture: (SBSKeyboardShortcut) -> Void
-        var onCancel: () -> Void
-
-        init(
-            isRecording: Bool,
-            onCapture: @escaping (SBSKeyboardShortcut) -> Void,
-            onCancel: @escaping () -> Void
-        ) {
-            self.isRecording = isRecording
-            self.onCapture = onCapture
-            self.onCancel = onCancel
-            super.init(frame: .zero)
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-
-        override var acceptsFirstResponder: Bool {
-            true
-        }
-
-        override func keyDown(with event: NSEvent) {
-            guard isRecording else {
-                super.keyDown(with: event)
-                return
-            }
-
-            if event.keyCode == 53 {
-                onCancel()
-                return
-            }
-
-            onCapture(
-                SBSKeyboardShortcut(
-                    keyCode: UInt16(event.keyCode),
-                    modifiers: Self.modifierFlags(from: event.modifierFlags)
-                )
-            )
-        }
-
-        override func flagsChanged(with event: NSEvent) {
-            guard isRecording else {
-                super.flagsChanged(with: event)
-                return
-            }
-        }
-
-        private static func modifierFlags(from flags: NSEvent.ModifierFlags) -> ModifierFlags {
-            var modifiers: ModifierFlags = []
-            if flags.contains(.shift) {
-                modifiers.insert(.shift)
-            }
-            if flags.contains(.control) {
-                modifiers.insert(.control)
-            }
-            if flags.contains(.option) {
-                modifiers.insert(.option)
-            }
-            if flags.contains(.command) {
-                modifiers.insert(.command)
-            }
-            if flags.contains(.function) {
-                modifiers.insert(.function)
-            }
-            return modifiers
         }
     }
 }
