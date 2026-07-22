@@ -12,6 +12,38 @@ final class ContextKeyboardCommandCoordinatorTests: XCTestCase {
         currentContextID: "code"
     )
 
+    func testFixedPreviousNextResolveToTargetContextActivation() {
+        let previousPlan = ContextPlan(
+            contexts: plan.contexts,
+            currentContextID: "review"
+        )
+
+        XCTAssertEqual(
+            ContextKeyboardExecutionResolver.execution(
+                for: .move(.next),
+                contextPlan: plan
+            ),
+            .activate(contextID: "review")
+        )
+        XCTAssertEqual(
+            ContextKeyboardExecutionResolver.execution(
+                for: .move(.previous),
+                contextPlan: previousPlan
+            ),
+            .activate(contextID: "code")
+        )
+    }
+
+    func testFixedMoveAtBoundaryFallsBackToRelativeExecution() {
+        XCTAssertEqual(
+            ContextKeyboardExecutionResolver.execution(
+                for: .move(.previous),
+                contextPlan: plan
+            ),
+            .move(.previous)
+        )
+    }
+
     func testExecutableCommandWaitsForMatchingReleaseAndExecutesExactlyOnce() {
         var coordinator = ContextKeyboardCommandCoordinator()
 

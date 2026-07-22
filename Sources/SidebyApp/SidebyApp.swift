@@ -232,6 +232,45 @@ struct ContextKeyboardCommandCoordinator {
     }
 }
 
+enum ContextKeyboardResolvedExecution: Equatable {
+    case activate(contextID: String)
+    case move(SwitchCommand)
+}
+
+enum ContextKeyboardExecutionResolver {
+    static func execution(
+        for action: ContextKeyboardAction,
+        contextPlan: ContextPlan
+    ) -> ContextKeyboardResolvedExecution? {
+        switch action {
+        case .activate(let contextID):
+            return .activate(contextID: contextID)
+        case .move(let command):
+            let intent = contextPlan.switchIntent(for: command)
+            if intent.shouldExecute, let targetContext = intent.targetContext {
+                return .activate(contextID: targetContext.id)
+            }
+            return .move(command)
+        case .ignore, .showSidebyOff, .showMissingContext:
+            return nil
+        }
+    }
+}
+
+enum SpaceCommandExecutionStrategy: Sendable {
+    case ordinary
+    case fixedContextKeyboard
+
+    func baseExecutor() -> any SpaceCommandExecuting {
+        switch self {
+        case .ordinary:
+            MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster())
+        case .fixedContextKeyboard:
+            FixedContextKeyboardSpaceCommandExecutor()
+        }
+    }
+}
+
 @MainActor
 private enum ProductMainWindowPresenter {
     static let windowIdentifier = NSUserInterfaceItemIdentifier("sideby-main-window")
@@ -716,13 +755,29 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             ProductContextHUDController.shared.show(
                 HUDPresenter().stateForMissingContext(position: position, strings: strings)
             )
-        case .activate(let contextID):
-            activateContext(contextID: contextID) { [weak self] _ in
-                self?.finishContextKeyboardExecution()
+        case .activate, .move:
+            guard let execution = ContextKeyboardExecutionResolver.execution(
+                for: action,
+                contextPlan: settings.contextPlan
+            ) else {
+                return
             }
-        case .move(let switchCommand):
-            performSwitch(switchCommand, label: "context-keyboard") { [weak self] _ in
-                self?.finishContextKeyboardExecution()
+            switch execution {
+            case .activate(let contextID):
+                activateContext(
+                    contextID: contextID,
+                    executionStrategy: .fixedContextKeyboard
+                ) { [weak self] _ in
+                    self?.finishContextKeyboardExecution()
+                }
+            case .move(let switchCommand):
+                performSwitch(
+                    switchCommand,
+                    label: "context-keyboard",
+                    executionStrategy: .fixedContextKeyboard
+                ) { [weak self] _ in
+                    self?.finishContextKeyboardExecution()
+                }
             }
         }
     }
@@ -904,6 +959,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     func activateContext(
         contextID: String,
+        executionStrategy: SpaceCommandExecutionStrategy = .ordinary,
         completion: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
         guard isEnabled else {
@@ -938,7 +994,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        performContextActivation(targetContext: targetContext, completion: completion)
+        performContextActivation(
+            targetContext: targetContext,
+            executionStrategy: executionStrategy,
+            completion: completion
+        )
     }
 
     func moveDisplaySpace(displayID: String, spaceIndex: Int, toContextID: String) {
@@ -968,6 +1028,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     private func performContextActivation(
         targetContext: ContextDefinition,
+        executionStrategy: SpaceCommandExecutionStrategy = .ordinary,
         completion: (@MainActor @Sendable (Bool) -> Void)?
     ) {
         let decision = ModePolicy().decision(
@@ -1065,7 +1126,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
             for move in moves {
                 let executor = HiddenCursorDisplaySpaceCommandExecutor(
-                    baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                    baseExecutor: executionStrategy.baseExecutor(),
                     targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: [move.displayID])
                 )
                 var index = move.currentIndex
@@ -2213,6 +2274,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         _ command: SwitchCommand,
         label: String,
         inputMethod: InputMethod = .shortcut,
+        executionStrategy: SpaceCommandExecutionStrategy = .ordinary,
         resumeInputAfterCompletion shouldResumeInput: Bool? = nil,
         completion: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
@@ -2265,6 +2327,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 label: label,
                 inputMethod: inputMethod,
                 intent: intent,
+                executionStrategy: executionStrategy,
                 resumeInputAfterCompletion: shouldResumeInput,
                 completion: completion
             )
@@ -2298,7 +2361,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
         DispatchQueue.global(qos: .userInitiated).async {
             let executor = HiddenCursorDisplaySpaceCommandExecutor(
-                baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                baseExecutor: executionStrategy.baseExecutor(),
                 targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: targetDisplayIDs)
             )
             let engine = ContextSwitchEngine(executor: executor)
@@ -2392,6 +2455,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         label: String,
         inputMethod: InputMethod,
         intent: ContextSwitchIntent,
+        executionStrategy: SpaceCommandExecutionStrategy = .ordinary,
         resumeInputAfterCompletion shouldResumeInput: Bool?,
         completion: (@MainActor @Sendable (Bool) -> Void)?
     ) {
@@ -2515,7 +2579,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
             for move in moves {
                 let executor = HiddenCursorDisplaySpaceCommandExecutor(
-                    baseExecutor: MacSpaceCommandExecutor(poster: AppleScriptKeyEventPoster()),
+                    baseExecutor: executionStrategy.baseExecutor(),
                     targetProvider: CGDisplaySwitchTargetProvider(includedStableIDs: [move.display.displayID])
                 )
                 var index = move.display.currentSpaceIndex
