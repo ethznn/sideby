@@ -228,7 +228,10 @@ public struct SBSStrings: Sendable {
     public var granted: String { text("granted", "허용됨") }
     public var notGranted: String { text("not granted", "허용 안 됨") }
     public var inputPrivacyNote: String {
-        text("Input is used only while Sideby is on. Raw input is not stored.", "입력은 Sideby가 켜져 있을 때만 사용되며 원본 입력은 저장하지 않습니다.")
+        text(
+            "Configured gestures are observed only while Sideby is on. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored.",
+            "설정된 제스처는 Sideby가 켜져 있을 때만 감지합니다. 앱이 실행 중인 동안 꺼짐 상태 안내를 위해 고정 ⌥⇧ 숫자 / < / > 단축키는 등록된 상태로 유지됩니다. 그 밖의 원본 입력은 검사하거나 저장하지 않습니다."
+        )
     }
     public var enablePermissions: String { text("Enable Permissions", "권한 허용") }
     public var enableAccessibility: String { text("Enable Accessibility", "손쉬운 사용 허용") }
@@ -508,7 +511,10 @@ public struct SBSStrings: Sendable {
 
     public var onboardingPermissionTitle: String { text("Allow input and switching", "입력 감지와 화면 전환 허용") }
     public var onboardingPermissionSubtitle: String {
-        text("Used to detect ⌥⇧ swipes and send the requested Space switch. Keystrokes are never read.", "⌥⇧ 스와이프를 감지하고 요청한 화면 전환을 보내는 데만 사용합니다. 키 입력 내용은 읽지 않습니다.")
+        text(
+            "Observes ⌥⇧ swipes only while Sideby is on and sends Space switches. Fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback; other raw input is not inspected or stored.",
+            "⌥⇧ 스와이프는 Sideby가 켜져 있을 때만 감지하고 화면 전환 명령을 보냅니다. 꺼짐 상태 안내를 위해 고정 ⌥⇧ 숫자 / < / > 단축키는 등록된 상태로 유지되며, 그 밖의 원본 입력은 검사하거나 저장하지 않습니다."
+        )
     }
     public var permissionAccessibilitySubtitle: String {
         text("Required to observe ⌥⇧-held swipes.", "⌥⇧를 누른 스와이프를 감지하는 데 필요합니다.")
@@ -677,7 +683,7 @@ public struct SBSStrings: Sendable {
             text("Connect a display or refresh before setting up Sideby.", "Sideby를 설정하기 전에 디스플레이를 연결하거나 새로고침하세요.")
         case "Select at least one display to move.":
             text("Select at least one display to move.", "이동할 디스플레이를 하나 이상 선택하세요.")
-        case "Input is used only while Sideby is on. Raw input is not stored.":
+        case "Configured gestures are observed only while Sideby is on. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored.":
             inputPrivacyNote
         case "Turn on Sideby to enable swipe gestures and test buttons.":
             text("Turn on Sideby to enable swipe gestures and test buttons.", "스와이프 제스처와 테스트 버튼을 사용하려면 Sideby를 켜세요.")

@@ -64,7 +64,7 @@ public struct V1SetupFlow: Sendable {
         if status.accessibilityPermission != .granted {
             return V1SetupViewState(
                 title: "Permission needed",
-                status: "Input is used only while Sideby is on. Raw input is not stored.",
+                status: "Configured gestures are observed only while Sideby is on. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored.",
                 primaryActionTitle: "Enable Accessibility",
                 canCompleteSetup: false
             )
