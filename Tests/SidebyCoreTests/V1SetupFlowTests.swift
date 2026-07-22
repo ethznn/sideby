@@ -31,7 +31,7 @@ final class V1SetupFlowTests: XCTestCase {
         XCTAssertEqual(state.title, "Permission needed")
         XCTAssertEqual(
             state.status,
-            "Configured gestures are observed only while Sideby is on. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored."
+            "Configured gestures are observed only while Sideby is on or during an explicitly active onboarding gesture test. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored."
         )
         XCTAssertEqual(state.primaryActionTitle, "Enable Accessibility")
         XCTAssertFalse(state.canCompleteSetup)

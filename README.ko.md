@@ -85,7 +85,7 @@ open "dist/Sideby.app"
 
 ## 개인정보와 플랫폼 안내
 
-Sideby는 마스터 토글이 켜져 있는 동안 설정된 제스처를 감지하기 위해 Accessibility를 사용합니다. 또한 허용된 전환 또는 캡처 요청 뒤에 Space 명령을 보내고, Context Capture 중 화면에 보이는 앱/윈도우 이름을 가능한 범위에서 제안하기 위해 Accessibility를 사용합니다. 앱이 실행 중일 때는 마스터 토글이 꺼진 상태를 안내할 수 있도록 macOS 전역 hot-key 등록으로 고정 `Option + Shift + 숫자 / < / >` 조합만 감지합니다. 다른 키 입력을 검사하거나 저장하지 않습니다.
+Sideby는 마스터 토글이 켜져 있거나 명시적으로 활성화된 온보딩 제스처 테스트 중에 설정된 제스처를 감지하기 위해 Accessibility를 사용합니다. 또한 허용된 전환 또는 캡처 요청 뒤에 Space 명령을 보내고, Context Capture 중 화면에 보이는 앱/윈도우 이름을 가능한 범위에서 제안하기 위해 Accessibility를 사용합니다. 앱이 실행 중일 때는 마스터 토글이 꺼진 상태를 안내할 수 있도록 macOS 전역 hot-key 등록으로 고정 `Option + Shift + 숫자 / < / >` 조합만 감지합니다. 다른 키 입력을 검사하거나 저장하지 않습니다.
 
 macOS가 제공할 때 현재 디스플레이별 Space layout을 런타임에 읽지만 private Space ID, 숨겨진 Mission Control 상태, 입력 내용, raw input event, 스크린샷, app bundle ID 또는 window ID를 저장하지 않습니다.
 

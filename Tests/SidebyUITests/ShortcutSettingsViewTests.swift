@@ -148,12 +148,12 @@ final class ShortcutSettingsViewTests: XCTestCase {
     func testLocalizesPrivacyBoundaryForSettingsAndSetup() {
         let english = SBSStrings(language: .english)
         let korean = SBSStrings(language: .korean)
-        let setupStatus = "Configured gestures are observed only while Sideby is on. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored."
+        let setupStatus = "Configured gestures are observed only while Sideby is on or during an explicitly active onboarding gesture test. While running, fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback. Other raw input is not inspected or stored."
 
         XCTAssertEqual(english.inputPrivacyNote, setupStatus)
         XCTAssertEqual(
             korean.inputPrivacyNote,
-            "설정된 제스처는 Sideby가 켜져 있을 때만 감지합니다. 앱이 실행 중인 동안 꺼짐 상태 안내를 위해 고정 ⌥⇧ 숫자 / < / > 단축키는 등록된 상태로 유지됩니다. 그 밖의 원본 입력은 검사하거나 저장하지 않습니다."
+            "설정된 제스처는 Sideby가 켜져 있거나 명시적으로 활성화된 온보딩 제스처 테스트 중에만 감지합니다. 앱이 실행 중인 동안 꺼짐 상태 안내를 위해 고정 ⌥⇧ 숫자 / < / > 단축키는 등록된 상태로 유지됩니다. 그 밖의 원본 입력은 검사하거나 저장하지 않습니다."
         )
         XCTAssertEqual(english.setupViewStatus(setupStatus), setupStatus)
         XCTAssertEqual(korean.setupViewStatus(setupStatus), korean.inputPrivacyNote)
@@ -165,11 +165,11 @@ final class ShortcutSettingsViewTests: XCTestCase {
 
         XCTAssertEqual(
             english.onboardingPermissionSubtitle,
-            "Observes ⌥⇧ swipes only while Sideby is on and sends Space switches. Fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback; other raw input is not inspected or stored."
+            "Observes ⌥⇧ swipes only while Sideby is on or during an explicitly active onboarding gesture test, and sends Space switches. Fixed ⌥⇧ number / < / > hot keys remain registered for off-state feedback; other raw input is not inspected or stored."
         )
         XCTAssertEqual(
             korean.onboardingPermissionSubtitle,
-            "⌥⇧ 스와이프는 Sideby가 켜져 있을 때만 감지하고 화면 전환 명령을 보냅니다. 꺼짐 상태 안내를 위해 고정 ⌥⇧ 숫자 / < / > 단축키는 등록된 상태로 유지되며, 그 밖의 원본 입력은 검사하거나 저장하지 않습니다."
+            "⌥⇧ 스와이프는 Sideby가 켜져 있거나 명시적으로 활성화된 온보딩 제스처 테스트 중에만 감지하고 화면 전환 명령을 보냅니다. 꺼짐 상태 안내를 위해 고정 ⌥⇧ 숫자 / < / > 단축키는 등록된 상태로 유지되며, 그 밖의 원본 입력은 검사하거나 저장하지 않습니다."
         )
     }
 }
