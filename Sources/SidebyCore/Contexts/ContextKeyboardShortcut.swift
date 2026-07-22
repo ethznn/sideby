@@ -14,6 +14,8 @@ public struct ContextKeyboardShortcutBinding: Equatable, Sendable {
 }
 
 public enum ContextKeyboardShortcutCatalog: Sendable {
+    public static let triggerModifiers: ModifierFlags = [.option, .shift]
+
     public static let bindings: [ContextKeyboardShortcutBinding] = [
         number(position: 1, keyCode: 18),
         number(position: 2, keyCode: 19),
@@ -57,6 +59,7 @@ public enum ContextKeyboardAction: Equatable, Sendable {
     case ignore
     case showSidebyOff
     case showMissingContext(position: Int)
+    case waitForModifierRelease(ContextKeyboardCommand)
     case activate(contextID: String)
     case move(SwitchCommand)
 }

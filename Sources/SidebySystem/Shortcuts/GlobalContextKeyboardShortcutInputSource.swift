@@ -1,6 +1,58 @@
 import Carbon
+import CoreGraphics
 import Foundation
 import SidebyCore
+
+@MainActor
+public final class ContextKeyboardModifierReleaseWaiter {
+    typealias ScheduledCheck = @MainActor @Sendable () -> Void
+
+    private let currentModifiers: @MainActor @Sendable () -> ModifierFlags
+    private let scheduleNextCheck: @MainActor @Sendable (@escaping ScheduledCheck) -> Void
+
+    public convenience init(pollInterval: TimeInterval = 0.015) {
+        self.init(
+            currentModifiers: {
+                EventTapInputNormalizer.modifierFlags(
+                    from: CGEventSource.flagsState(.combinedSessionState)
+                )
+            },
+            scheduleNextCheck: { check in
+                DispatchQueue.main.asyncAfter(deadline: .now() + pollInterval) {
+                    check()
+                }
+            }
+        )
+    }
+
+    init(
+        currentModifiers: @escaping @MainActor @Sendable () -> ModifierFlags,
+        scheduleNextCheck: @escaping @MainActor @Sendable (@escaping ScheduledCheck) -> Void
+    ) {
+        self.currentModifiers = currentModifiers
+        self.scheduleNextCheck = scheduleNextCheck
+    }
+
+    public func waitUntilReleased(
+        triggerModifiers: ModifierFlags,
+        completion: @escaping @MainActor @Sendable () -> Void
+    ) {
+        guard !InputModifierReleasePolicy.didReleaseAllTriggerModifiers(
+            currentModifiers: currentModifiers(),
+            triggerModifiers: triggerModifiers
+        ) else {
+            completion()
+            return
+        }
+
+        scheduleNextCheck { [weak self] in
+            self?.waitUntilReleased(
+                triggerModifiers: triggerModifiers,
+                completion: completion
+            )
+        }
+    }
+}
 
 public struct ContextKeyboardShortcutStartResult: Equatable, Sendable {
     public let registeredCommands: [ContextKeyboardCommand]

@@ -193,29 +193,43 @@ struct ContextKeyboardCommandCoordinator {
             case .activate, .move:
                 _ = gate.reserve(command, at: timestamp)
                 return .ignore
-            case .ignore, .showSidebyOff, .showMissingContext:
+            case .ignore, .showSidebyOff, .showMissingContext, .waitForModifierRelease:
                 return action
             }
 
         case .released(let command):
-            guard gate.beginExecution(for: command) else {
+            guard gate.state == .pending(command) else {
                 return .ignore
             }
 
-            let action = ContextKeyboardShortcutPolicy.action(
-                command: command,
-                contextPlan: contextPlan,
-                isSidebyEnabled: isSidebyEnabled,
-                isSwitching: isSwitching,
-                isCapturing: isCapturing
-            )
-            switch action {
-            case .activate, .move:
-                return action
-            case .ignore, .showSidebyOff, .showMissingContext:
-                gate.reset()
-                return .ignore
-            }
+            return .waitForModifierRelease(command)
+        }
+    }
+
+    mutating func resumeAfterModifierRelease(
+        _ command: ContextKeyboardCommand,
+        contextPlan: ContextPlan,
+        isSidebyEnabled: Bool,
+        isSwitching: Bool,
+        isCapturing: Bool
+    ) -> ContextKeyboardAction {
+        guard gate.beginExecution(for: command) else {
+            return .ignore
+        }
+
+        let action = ContextKeyboardShortcutPolicy.action(
+            command: command,
+            contextPlan: contextPlan,
+            isSidebyEnabled: isSidebyEnabled,
+            isSwitching: isSwitching,
+            isCapturing: isCapturing
+        )
+        switch action {
+        case .activate, .move:
+            return action
+        case .ignore, .showSidebyOff, .showMissingContext, .waitForModifierRelease:
+            gate.reset()
+            return .ignore
         }
     }
 
@@ -251,7 +265,7 @@ enum ContextKeyboardExecutionResolver {
                 return .activate(contextID: targetContext.id)
             }
             return .move(command)
-        case .ignore, .showSidebyOff, .showMissingContext:
+        case .ignore, .showSidebyOff, .showMissingContext, .waitForModifierRelease:
             return nil
         }
     }
@@ -569,6 +583,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private let visibleAppSuggestionProvider = MacVisibleAppSuggestionProvider()
     private let spaceLayoutReader: any SpaceLayoutReading = SLSSpaceLayoutReader()
     private let contextHUDPolicy = ContextSwitchHUDPolicy()
+    private let contextKeyboardModifierReleaseWaiter = ContextKeyboardModifierReleaseWaiter()
     private let observerTokens = SidebyAppObserverTokens()
     private static let enabledDefaultsKey = "sideby.enabled"
     private static let contextCaptureConfiguration = ContextCaptureConfiguration.automatic
@@ -744,6 +759,10 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             at: ProcessInfo.processInfo.systemUptime
         )
 
+        routeContextKeyboardAction(action)
+    }
+
+    private func routeContextKeyboardAction(_ action: ContextKeyboardAction) {
         switch action {
         case .ignore:
             return
@@ -755,6 +774,20 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             ProductContextHUDController.shared.show(
                 HUDPresenter().stateForMissingContext(position: position, strings: strings)
             )
+        case .waitForModifierRelease(let command):
+            contextKeyboardModifierReleaseWaiter.waitUntilReleased(
+                triggerModifiers: ContextKeyboardShortcutCatalog.triggerModifiers
+            ) { [weak self] in
+                guard let self else { return }
+                let resumedAction = self.contextKeyboardCoordinator.resumeAfterModifierRelease(
+                    command,
+                    contextPlan: self.settings.contextPlan,
+                    isSidebyEnabled: self.isEnabled,
+                    isSwitching: self.isSwitching,
+                    isCapturing: self.contextCaptureSession != nil
+                )
+                self.routeContextKeyboardAction(resumedAction)
+            }
         case .activate, .move:
             guard let execution = ContextKeyboardExecutionResolver.execution(
                 for: action,
@@ -766,7 +799,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             case .activate(let contextID):
                 activateContext(
                     contextID: contextID,
-                    executionStrategy: .fixedContextKeyboard
+                    executionStrategy: .ordinary
                 ) { [weak self] _ in
                     self?.finishContextKeyboardExecution()
                 }
@@ -774,7 +807,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 performSwitch(
                     switchCommand,
                     label: "context-keyboard",
-                    executionStrategy: .fixedContextKeyboard
+                    executionStrategy: .ordinary
                 ) { [weak self] _ in
                     self?.finishContextKeyboardExecution()
                 }
