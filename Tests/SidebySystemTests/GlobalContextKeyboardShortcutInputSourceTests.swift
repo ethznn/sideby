@@ -36,55 +36,118 @@ final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
         XCTAssertTrue(source.isRunning)
     }
 
-    func testPressedDispatchesNumberAndArrowImmediately() {
+    func testFirstPressEmitsPressedCommandEvent() {
         let registrar = RecordingContextKeyboardHotKeyRegistrar()
-        var commands: [ContextKeyboardCommand] = []
+        var events: [ContextKeyboardShortcutInputEvent] = []
         let source = GlobalContextKeyboardShortcutInputSource(
             registrar: registrar,
-            handler: { commands.append($0) }
+            handler: { events.append($0) }
         )
         _ = source.start()
 
         registrar.emit(id: 1, event: .pressed)
+
+        XCTAssertEqual(events, [.pressed(.activate(position: 1))])
+    }
+
+    func testRepeatedPressBeforeReleaseIsSuppressed() {
+        let registrar = RecordingContextKeyboardHotKeyRegistrar()
+        var events: [ContextKeyboardShortcutInputEvent] = []
+        let source = GlobalContextKeyboardShortcutInputSource(
+            registrar: registrar,
+            handler: { events.append($0) }
+        )
+        _ = source.start()
+
+        registrar.emit(id: 1, event: .pressed)
+        registrar.emit(id: 1, event: .pressed)
+
+        XCTAssertEqual(events, [.pressed(.activate(position: 1))])
+    }
+
+    func testReleaseForActiveBindingEmitsReleasedCommandEvent() {
+        let registrar = RecordingContextKeyboardHotKeyRegistrar()
+        var events: [ContextKeyboardShortcutInputEvent] = []
+        let source = GlobalContextKeyboardShortcutInputSource(
+            registrar: registrar,
+            handler: { events.append($0) }
+        )
+        _ = source.start()
+
+        registrar.emit(id: 1, event: .pressed)
+        registrar.emit(id: 1, event: .released)
+
+        XCTAssertEqual(
+            events,
+            [.pressed(.activate(position: 1)), .released(.activate(position: 1))]
+        )
+    }
+
+    func testSecondPressAfterReleaseEmitsPressedCommandEventAgain() {
+        let registrar = RecordingContextKeyboardHotKeyRegistrar()
+        var events: [ContextKeyboardShortcutInputEvent] = []
+        let source = GlobalContextKeyboardShortcutInputSource(
+            registrar: registrar,
+            handler: { events.append($0) }
+        )
+        _ = source.start()
+
+        registrar.emit(id: 1, event: .pressed)
+        registrar.emit(id: 1, event: .released)
+        registrar.emit(id: 1, event: .pressed)
+
+        XCTAssertEqual(
+            events,
+            [
+                .pressed(.activate(position: 1)),
+                .released(.activate(position: 1)),
+                .pressed(.activate(position: 1))
+            ]
+        )
+    }
+
+    func testReleaseWithoutMatchingActivePressIsIgnored() {
+        let registrar = RecordingContextKeyboardHotKeyRegistrar()
+        var events: [ContextKeyboardShortcutInputEvent] = []
+        let source = GlobalContextKeyboardShortcutInputSource(
+            registrar: registrar,
+            handler: { events.append($0) }
+        )
+        _ = source.start()
+
+        registrar.emit(id: 1, event: .released)
+
+        XCTAssertEqual(events, [])
+    }
+
+    func testCommaAndPeriodRegistrationsUseCatalogIDsAndCommands() {
+        let registrar = RecordingContextKeyboardHotKeyRegistrar()
+        var events: [ContextKeyboardShortcutInputEvent] = []
+        let source = GlobalContextKeyboardShortcutInputSource(
+            registrar: registrar,
+            handler: { events.append($0) }
+        )
+        _ = source.start()
+
+        guard let previous = ContextKeyboardShortcutCatalog.binding(for: .move(.previous)),
+              let next = ContextKeyboardShortcutCatalog.binding(for: .move(.next)) else {
+            return XCTFail("The catalog must contain comma and period bindings.")
+        }
+        XCTAssertEqual(registrar.registrations[10], .init(id: 11, shortcut: previous.shortcut))
+        XCTAssertEqual(registrar.registrations[11], .init(id: 12, shortcut: next.shortcut))
+
         registrar.emit(id: 11, event: .pressed)
         registrar.emit(id: 12, event: .pressed)
 
-        XCTAssertEqual(commands, [.activate(position: 1), .move(.previous), .move(.next)])
-    }
-
-    func testRepeatIsPerPhysicalKeyAndResetsOnRelease() {
-        let registrar = RecordingContextKeyboardHotKeyRegistrar()
-        var commands: [ContextKeyboardCommand] = []
-        let source = GlobalContextKeyboardShortcutInputSource(
-            registrar: registrar,
-            handler: { commands.append($0) }
-        )
-        _ = source.start()
-
-        registrar.emit(id: 1, event: .pressed)
-        registrar.emit(id: 1, event: .pressed)
-        registrar.emit(id: 12, event: .pressed)
-        XCTAssertEqual(commands, [.activate(position: 1), .move(.next)])
-
-        registrar.emit(id: 1, event: .released)
-        registrar.emit(id: 12, event: .pressed)
-        registrar.emit(id: 1, event: .pressed)
-        XCTAssertEqual(commands, [.activate(position: 1), .move(.next), .activate(position: 1)])
-
-        registrar.emit(id: 12, event: .released)
-        registrar.emit(id: 12, event: .pressed)
-        XCTAssertEqual(
-            commands,
-            [.activate(position: 1), .move(.next), .activate(position: 1), .move(.next)]
-        )
+        XCTAssertEqual(events, [.pressed(.move(.previous)), .pressed(.move(.next))])
     }
 
     func testPartialFailureKeepsSuccessfulBindings() {
         let registrar = RecordingContextKeyboardHotKeyRegistrar(failingIDs: [2, 11])
-        var commands: [ContextKeyboardCommand] = []
+        var events: [ContextKeyboardShortcutInputEvent] = []
         let source = GlobalContextKeyboardShortcutInputSource(
             registrar: registrar,
-            handler: { commands.append($0) }
+            handler: { events.append($0) }
         )
 
         let result = source.start()
@@ -93,7 +156,7 @@ final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
         registrar.emit(id: 12, event: .pressed)
 
         XCTAssertEqual(result.failedCommands, [.activate(position: 2), .move(.previous)])
-        XCTAssertEqual(commands, [.activate(position: 1), .move(.next)])
+        XCTAssertEqual(events, [.pressed(.activate(position: 1)), .pressed(.move(.next))])
         XCTAssertTrue(source.isRunning)
     }
 
@@ -155,10 +218,10 @@ final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
 
     func testStopIsIdempotentAndRestartResetsPressedKeys() {
         let registrar = RecordingContextKeyboardHotKeyRegistrar()
-        var commands: [ContextKeyboardCommand] = []
+        var events: [ContextKeyboardShortcutInputEvent] = []
         let source = GlobalContextKeyboardShortcutInputSource(
             registrar: registrar,
-            handler: { commands.append($0) }
+            handler: { events.append($0) }
         )
         _ = source.start()
         registrar.emit(id: 1, event: .pressed)
@@ -168,7 +231,7 @@ final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
         _ = source.start()
         registrar.emit(id: 1, event: .pressed)
 
-        XCTAssertEqual(commands, [.activate(position: 1), .activate(position: 1)])
+        XCTAssertEqual(events, [.pressed(.activate(position: 1)), .pressed(.activate(position: 1))])
         XCTAssertEqual(registrar.installCount, 2)
         XCTAssertEqual(registrar.stopCount, 1)
         XCTAssertTrue(source.isRunning)

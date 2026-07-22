@@ -15,6 +15,11 @@ public struct ContextKeyboardShortcutStartResult: Equatable, Sendable {
     }
 }
 
+public enum ContextKeyboardShortcutInputEvent: Equatable, Sendable {
+    case pressed(ContextKeyboardCommand)
+    case released(ContextKeyboardCommand)
+}
+
 enum ContextKeyboardHotKeyEvent: Equatable, Sendable {
     case pressed
     case released
@@ -56,22 +61,30 @@ protocol ContextKeyboardHotKeyRegistering: AnyObject {
 
 @MainActor
 public final class GlobalContextKeyboardShortcutInputSource {
+    public typealias EventHandler = (ContextKeyboardShortcutInputEvent) -> Void
     public typealias CommandHandler = (ContextKeyboardCommand) -> Void
 
     private let registrar: any ContextKeyboardHotKeyRegistering
-    private let handler: CommandHandler
+    private let handler: EventHandler
     private var commandsByID: [UInt32: ContextKeyboardCommand] = [:]
     private var activeIDs: Set<UInt32> = []
     private var currentStartResult: ContextKeyboardShortcutStartResult?
     private var didInstallHandler = false
 
-    public convenience init(handler: @escaping CommandHandler) {
+    public convenience init(handler: @escaping EventHandler) {
         self.init(registrar: CarbonContextKeyboardHotKeyRegistrar(), handler: handler)
+    }
+
+    public convenience init(_ handler: @escaping CommandHandler) {
+        self.init(handler: { event in
+            guard case let .pressed(command) = event else { return }
+            handler(command)
+        })
     }
 
     init(
         registrar: any ContextKeyboardHotKeyRegistering,
-        handler: @escaping CommandHandler
+        handler: @escaping EventHandler
     ) {
         self.registrar = registrar
         self.handler = handler
@@ -146,9 +159,10 @@ public final class GlobalContextKeyboardShortcutInputSource {
         switch event {
         case .pressed:
             guard activeIDs.insert(id).inserted else { return }
-            handler(command)
+            handler(.pressed(command))
         case .released:
-            activeIDs.remove(id)
+            guard activeIDs.remove(id) != nil else { return }
+            handler(.released(command))
         }
     }
 }
