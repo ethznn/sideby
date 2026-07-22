@@ -2,7 +2,7 @@ import XCTest
 @testable import SidebyCore
 
 final class ContextKeyboardShortcutTests: XCTestCase {
-    func testCatalogMapsNumberRowAndArrowsToTwelveCommands() {
+    func testCatalogMapsNumberRowCommaAndPeriodToTwelveCommands() {
         XCTAssertEqual(ContextKeyboardShortcutCatalog.bindings.count, 12)
         XCTAssertEqual(
             Array(ContextKeyboardShortcutCatalog.bindings.prefix(10).map(\.command)),
@@ -12,12 +12,18 @@ final class ContextKeyboardShortcutTests: XCTestCase {
         XCTAssertEqual(ContextKeyboardShortcutCatalog.bindings[11].command, .move(.next))
         XCTAssertEqual(
             ContextKeyboardShortcutCatalog.bindings.map(\.shortcut.keyCode),
-            [18, 19, 20, 21, 23, 22, 26, 28, 25, 29, 123, 124]
+            [18, 19, 20, 21, 23, 22, 26, 28, 25, 29, 43, 47]
         )
         XCTAssertTrue(
             ContextKeyboardShortcutCatalog.bindings.allSatisfy {
                 $0.shortcut.modifiers == [.option, .shift]
             }
+        )
+        XCTAssertFalse(
+            ContextKeyboardShortcutCatalog.bindings.contains { $0.shortcut.keyCode == 123 }
+        )
+        XCTAssertFalse(
+            ContextKeyboardShortcutCatalog.bindings.contains { $0.shortcut.keyCode == 124 }
         )
     }
 
@@ -48,18 +54,84 @@ final class ContextKeyboardShortcutTests: XCTestCase {
         XCTAssertEqual(
             ContextKeyboardShortcutCatalog.binding(for: .move(.previous)),
             ContextKeyboardShortcutBinding(
-                shortcut: KeyboardShortcut(keyCode: 123, modifiers: [.option, .shift]),
+                shortcut: KeyboardShortcut(keyCode: 43, modifiers: [.option, .shift]),
                 command: .move(.previous)
             )
         )
         XCTAssertEqual(
             ContextKeyboardShortcutCatalog.binding(for: .move(.next)),
             ContextKeyboardShortcutBinding(
-                shortcut: KeyboardShortcut(keyCode: 124, modifiers: [.option, .shift]),
+                shortcut: KeyboardShortcut(keyCode: 47, modifiers: [.option, .shift]),
                 command: .move(.next)
             )
         )
         XCTAssertNil(ContextKeyboardShortcutCatalog.binding(for: .activate(position: 11)))
+    }
+
+    func testExecutionGateReservationEntersPending() {
+        var gate = ContextKeyboardExecutionGate()
+
+        XCTAssertTrue(gate.reserve(.move(.next), at: 10))
+        XCTAssertEqual(gate.state, .pending(.move(.next)))
+    }
+
+    func testExecutionGateOnlyBeginsForTheReservedCommand() {
+        var gate = ContextKeyboardExecutionGate()
+        XCTAssertTrue(gate.reserve(.move(.next), at: 10))
+
+        XCTAssertFalse(gate.beginExecution(for: .move(.previous)))
+        XCTAssertEqual(gate.state, .pending(.move(.next)))
+        XCTAssertTrue(gate.beginExecution(for: .move(.next)))
+        XCTAssertEqual(gate.state, .executing)
+    }
+
+    func testExecutionGateRejectsReservationsWhilePendingOrExecuting() {
+        var gate = ContextKeyboardExecutionGate()
+        XCTAssertTrue(gate.reserve(.move(.next), at: 10))
+
+        XCTAssertFalse(gate.reserve(.move(.previous), at: 11))
+        XCTAssertTrue(gate.beginExecution(for: .move(.next)))
+        XCTAssertFalse(gate.reserve(.move(.previous), at: 12))
+    }
+
+    func testExecutionGateFinishingExecutionSettlesForDefaultDuration() {
+        var gate = ContextKeyboardExecutionGate()
+        XCTAssertTrue(gate.reserve(.move(.next), at: 10))
+        XCTAssertTrue(gate.beginExecution(for: .move(.next)))
+
+        gate.finishExecution(at: 12)
+
+        XCTAssertEqual(gate.state, .settling(until: 12.75))
+    }
+
+    func testExecutionGateSupportsAnInjectedSettlingDuration() {
+        var gate = ContextKeyboardExecutionGate(settlingDuration: 1.5)
+        XCTAssertTrue(gate.reserve(.move(.next), at: 10))
+        XCTAssertTrue(gate.beginExecution(for: .move(.next)))
+
+        gate.finishExecution(at: 12)
+
+        XCTAssertEqual(gate.state, .settling(until: 13.5))
+    }
+
+    func testExecutionGateAcceptsReservationsAtOrAfterSettlingDeadline() {
+        var gate = ContextKeyboardExecutionGate()
+        XCTAssertTrue(gate.reserve(.move(.next), at: 10))
+        XCTAssertTrue(gate.beginExecution(for: .move(.next)))
+        gate.finishExecution(at: 12)
+
+        XCTAssertFalse(gate.reserve(.move(.previous), at: 12.749))
+        XCTAssertTrue(gate.reserve(.move(.previous), at: 12.75))
+        XCTAssertEqual(gate.state, .pending(.move(.previous)))
+    }
+
+    func testExecutionGateResetReturnsToIdle() {
+        var gate = ContextKeyboardExecutionGate()
+        XCTAssertTrue(gate.reserve(.move(.next), at: 10))
+
+        gate.reset()
+
+        XCTAssertEqual(gate.state, .idle)
     }
 
     func testPolicyActivatesContextAtLatestDisplayPosition() {

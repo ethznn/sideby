@@ -25,8 +25,8 @@ public enum ContextKeyboardShortcutCatalog: Sendable {
         number(position: 8, keyCode: 28),
         number(position: 9, keyCode: 25),
         number(position: 10, keyCode: 29),
-        binding(keyCode: 123, command: .move(.previous)),
-        binding(keyCode: 124, command: .move(.next))
+        binding(keyCode: 43, command: .move(.previous)),
+        binding(keyCode: 47, command: .move(.next))
     ]
 
     public static func binding(
@@ -59,6 +59,66 @@ public enum ContextKeyboardAction: Equatable, Sendable {
     case showMissingContext(position: Int)
     case activate(contextID: String)
     case move(SwitchCommand)
+}
+
+public struct ContextKeyboardExecutionGate: Equatable, Sendable {
+    public enum State: Equatable, Sendable {
+        case idle
+        case pending(ContextKeyboardCommand)
+        case executing
+        case settling(until: Double)
+    }
+
+    public private(set) var state: State
+    public let settlingDuration: Double
+
+    public init(settlingDuration: Double = 0.75) {
+        self.state = .idle
+        self.settlingDuration = settlingDuration
+    }
+
+    public mutating func reserve(
+        _ command: ContextKeyboardCommand,
+        at timestamp: Double
+    ) -> Bool {
+        expireSettling(at: timestamp)
+
+        guard case .idle = state else {
+            return false
+        }
+
+        state = .pending(command)
+        return true
+    }
+
+    public mutating func beginExecution(for command: ContextKeyboardCommand) -> Bool {
+        guard case .pending(command) = state else {
+            return false
+        }
+
+        state = .executing
+        return true
+    }
+
+    public mutating func finishExecution(at timestamp: Double) {
+        guard case .executing = state else {
+            return
+        }
+
+        state = .settling(until: timestamp + settlingDuration)
+    }
+
+    public mutating func reset() {
+        state = .idle
+    }
+
+    private mutating func expireSettling(at timestamp: Double) {
+        guard case let .settling(until) = state, timestamp >= until else {
+            return
+        }
+
+        state = .idle
+    }
 }
 
 public enum ContextKeyboardShortcutPolicy: Sendable {
