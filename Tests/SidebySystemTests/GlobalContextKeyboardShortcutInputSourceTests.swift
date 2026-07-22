@@ -41,6 +41,33 @@ final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
         XCTAssertFalse(harness.hasScheduledCheck)
     }
 
+    func testModifierReleaseWaiterCoalescesRepeatedStartsWhileWaiting() {
+        let harness = ModifierReleaseWaiterHarness(
+            readings: [[.option, .shift], [.option, .shift], []]
+        )
+        let waiter = ContextKeyboardModifierReleaseWaiter(
+            currentModifiers: { harness.nextReading() },
+            scheduleNextCheck: { harness.schedule($0) }
+        )
+
+        waiter.waitUntilReleased(triggerModifiers: [.option, .shift]) {
+            harness.recordCompletion()
+        }
+        waiter.waitUntilReleased(triggerModifiers: [.option, .shift]) {
+            harness.recordCompletion()
+        }
+
+        guard harness.scheduledCheckCount == 1 else {
+            return XCTFail("Expected one active polling chain, got \(harness.scheduledCheckCount).")
+        }
+        harness.runNextScheduledCheck()
+        XCTAssertEqual(harness.completionCount, 0)
+        XCTAssertEqual(harness.scheduledCheckCount, 1)
+        harness.runNextScheduledCheck()
+        XCTAssertEqual(harness.completionCount, 1)
+        XCTAssertEqual(harness.scheduledCheckCount, 0)
+    }
+
     func testCarbonEventDecoderRejectsForeignHotKeySignatures() {
         XCTAssertNil(
             ContextKeyboardCarbonEventDecoder.event(
@@ -286,6 +313,10 @@ private final class ModifierReleaseWaiterHarness {
 
     var hasScheduledCheck: Bool {
         !scheduledChecks.isEmpty
+    }
+
+    var scheduledCheckCount: Int {
+        scheduledChecks.count
     }
 
     func nextReading() -> ModifierFlags {

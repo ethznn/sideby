@@ -1125,6 +1125,55 @@ public struct HiddenCursorDisplaySpaceCommandExecutor: SpaceCommandExecuting {
     }
 }
 
+public struct ModifierReleaseWaitingSpaceCommandExecutor: SpaceCommandExecuting {
+    private let baseExecutor: any SpaceCommandExecuting
+    private let triggerModifiers: ModifierFlags
+    private let currentModifiers: @Sendable () -> ModifierFlags
+    private let waitForNextCheck: @Sendable () -> Void
+
+    public init(
+        baseExecutor: any SpaceCommandExecuting,
+        triggerModifiers: ModifierFlags,
+        pollInterval: TimeInterval = 0.015
+    ) {
+        self.init(
+            baseExecutor: baseExecutor,
+            triggerModifiers: triggerModifiers,
+            currentModifiers: {
+                EventTapInputNormalizer.modifierFlags(
+                    from: CGEventSource.flagsState(.combinedSessionState)
+                )
+            },
+            waitForNextCheck: {
+                Thread.sleep(forTimeInterval: pollInterval)
+            }
+        )
+    }
+
+    init(
+        baseExecutor: any SpaceCommandExecuting,
+        triggerModifiers: ModifierFlags,
+        currentModifiers: @escaping @Sendable () -> ModifierFlags,
+        waitForNextCheck: @escaping @Sendable () -> Void
+    ) {
+        self.baseExecutor = baseExecutor
+        self.triggerModifiers = triggerModifiers
+        self.currentModifiers = currentModifiers
+        self.waitForNextCheck = waitForNextCheck
+    }
+
+    public func execute(_ command: SwitchCommand) -> Bool {
+        while !InputModifierReleasePolicy.didReleaseAllTriggerModifiers(
+            currentModifiers: currentModifiers(),
+            triggerModifiers: triggerModifiers
+        ) {
+            waitForNextCheck()
+        }
+
+        return baseExecutor.execute(command)
+    }
+}
+
 public struct MacSpaceCommandExecutor<Poster: KeyEventPosting>: SpaceCommandExecuting {
     private let poster: Poster
 

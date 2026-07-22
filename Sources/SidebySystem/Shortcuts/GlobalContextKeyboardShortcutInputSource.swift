@@ -9,6 +9,7 @@ public final class ContextKeyboardModifierReleaseWaiter {
 
     private let currentModifiers: @MainActor @Sendable () -> ModifierFlags
     private let scheduleNextCheck: @MainActor @Sendable (@escaping ScheduledCheck) -> Void
+    private var isWaiting = false
 
     public convenience init(pollInterval: TimeInterval = 0.015) {
         self.init(
@@ -37,16 +38,29 @@ public final class ContextKeyboardModifierReleaseWaiter {
         triggerModifiers: ModifierFlags,
         completion: @escaping @MainActor @Sendable () -> Void
     ) {
+        guard !isWaiting else { return }
+        isWaiting = true
+        checkUntilReleased(
+            triggerModifiers: triggerModifiers,
+            completion: completion
+        )
+    }
+
+    private func checkUntilReleased(
+        triggerModifiers: ModifierFlags,
+        completion: @escaping @MainActor @Sendable () -> Void
+    ) {
         guard !InputModifierReleasePolicy.didReleaseAllTriggerModifiers(
             currentModifiers: currentModifiers(),
             triggerModifiers: triggerModifiers
         ) else {
+            isWaiting = false
             completion()
             return
         }
 
         scheduleNextCheck { [weak self] in
-            self?.waitUntilReleased(
+            self?.checkUntilReleased(
                 triggerModifiers: triggerModifiers,
                 completion: completion
             )

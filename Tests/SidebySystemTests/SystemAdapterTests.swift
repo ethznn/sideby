@@ -15,6 +15,28 @@ final class SystemAdapterTests: XCTestCase {
         XCTAssertEqual(poster.recordedFlags, [.maskControl])
     }
 
+    func testModifierReleaseWaitingExecutorRechecksBeforeEveryDelegatedCommand() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let harness = ModifierReleaseWaitingExecutorHarness(
+            readings: [[], [.option, .shift], [.shift], []]
+        )
+        let executor = ModifierReleaseWaitingSpaceCommandExecutor(
+            baseExecutor: baseExecutor,
+            triggerModifiers: [.option, .shift],
+            currentModifiers: { harness.nextReading() },
+            waitForNextCheck: {
+                harness.recordWait(baseCallCount: baseExecutor.commands.count)
+            }
+        )
+
+        XCTAssertTrue(executor.execute(.previous))
+        XCTAssertEqual(baseExecutor.commands, [.previous])
+
+        XCTAssertTrue(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [.previous, .next])
+        XCTAssertEqual(harness.baseCallCountsDuringWait, [1, 1])
+    }
+
     func testAppleScriptKeyEventPosterBuildsControlArrowScript() {
         let runner = RecordingAppleScriptRunner()
         let poster = AppleScriptKeyEventPoster(runner: runner)
@@ -1239,6 +1261,23 @@ private final class RecordingSpaceCommandExecutor: SpaceCommandExecuting, @unche
     func execute(_ command: SwitchCommand) -> Bool {
         commands.append(command)
         return true
+    }
+}
+
+private final class ModifierReleaseWaitingExecutorHarness: @unchecked Sendable {
+    private var readings: [ModifierFlags]
+    private(set) var baseCallCountsDuringWait: [Int] = []
+
+    init(readings: [ModifierFlags]) {
+        self.readings = readings
+    }
+
+    func nextReading() -> ModifierFlags {
+        readings.removeFirst()
+    }
+
+    func recordWait(baseCallCount: Int) {
+        baseCallCountsDuringWait.append(baseCallCount)
     }
 }
 
