@@ -495,7 +495,21 @@ public struct ContextPlan: Equatable, Codable, Sendable {
     }
 
     public mutating func applyFailedNavigation(_ command: SwitchCommand) {
+        applyFailedNavigation(command, mayHaveMoved: false)
+    }
+
+    public mutating func applyFailedNavigation(
+        _ command: SwitchCommand,
+        mayHaveMoved: Bool
+    ) {
         _ = command
+        if mayHaveMoved {
+            syncState = .needsSync
+        }
+    }
+
+    public mutating func applyFailedCaptureRestoration() {
+        syncState = .needsSync
     }
 
     private func blockedNavigation(command: SwitchCommand) -> ContextPlanNavigation {

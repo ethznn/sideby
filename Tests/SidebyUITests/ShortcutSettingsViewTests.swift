@@ -63,12 +63,18 @@ final class ShortcutSettingsViewTests: XCTestCase {
         XCTAssertEqual(SBSStrings(language: .korean).enablePostEvents, "화면 전환 권한 확인")
     }
 
-    func testLocalizesAutomationPermissionFeedbackAction() {
-        let english = SBSStrings(language: .english)
-        let korean = SBSStrings(language: .korean)
+    func testPostEventDenialPresentsAccessibilityFallbackAction() {
+        let presentation = PermissionRequestFeedbackPresentation(
+            feedback: .postEventsDenied,
+            language: .english
+        )
 
-        XCTAssertEqual(english.permissionRequestActionTitle(.openAutomationSettings), "Automation Settings")
-        XCTAssertEqual(korean.permissionRequestActionTitle(.openAutomationSettings), "자동화 설정")
+        XCTAssertEqual(
+            presentation.message,
+            "macOS did not grant Post Events. If no prompt appears, open Accessibility Settings and re-enable Sideby."
+        )
+        XCTAssertEqual(presentation.action, .openAccessibilitySettings)
+        XCTAssertEqual(presentation.actionTitle, "Accessibility Settings")
     }
 
     func testOnboardingCompletionActionOpensSettings() {

@@ -835,6 +835,192 @@ final class SystemAdapterTests: XCTestCase {
         ])
     }
 
+    func testDisplayOnlyCursorVisibilityBalancesOneGlobalHideWithItsMatchingShow() {
+        let applier = RecordingCursorVisibilityApplier()
+        let controller = CGDisplayOnlyCursorVisibilityController(
+            displayProvider: StaticCursorVisibilityDisplayProvider(ids: [11, 22]),
+            applier: applier
+        )
+
+        XCTAssertTrue(controller.hide())
+        XCTAssertTrue(controller.show())
+        XCTAssertEqual(applier.actions, ["hide 11", "show 11"])
+    }
+
+    func testDisplayOnlyCursorVisibilityRetriesTheSameHideAfterShowFailureDespiteTopologyChange() {
+        let provider = SequencedCursorVisibilityDisplayProvider(ids: [[11, 22], [33]])
+        let applier = SequencedCursorVisibilityApplier(results: [
+            "hide 11": [true],
+            "show 11": [false, true]
+        ])
+        let controller = CGDisplayOnlyCursorVisibilityController(
+            displayProvider: provider,
+            applier: applier
+        )
+
+        XCTAssertTrue(controller.hide())
+        XCTAssertFalse(controller.show())
+        XCTAssertTrue(controller.show())
+        XCTAssertEqual(applier.actions, ["hide 11", "show 11", "show 11"])
+    }
+
+    func testDisplayOnlyCursorVisibilityDoesNotCreateShowDebtWhenHideFails() {
+        let applier = SequencedCursorVisibilityApplier(results: ["hide 11": [false]])
+        let controller = CGDisplayOnlyCursorVisibilityController(
+            displayProvider: StaticCursorVisibilityDisplayProvider(ids: [11]),
+            applier: applier
+        )
+
+        XCTAssertFalse(controller.hide())
+        XCTAssertTrue(controller.show())
+        XCTAssertEqual(applier.actions, ["hide 11"])
+    }
+
+    func testHiddenCursorExecutorFailsBeforeCursorLifecycleWhenOriginalLocationIsUnavailable() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let cursor = RecordingCursorPositioner(originalLocation: nil)
+        let visibility = RecordingCursorVisibilityController()
+        let shield = RecordingCursorShield()
+        let association = RecordingMouseCursorAssociationController()
+        let executor = hiddenCursorExecutor(
+            baseExecutor: baseExecutor,
+            cursor: cursor,
+            visibility: visibility,
+            shield: shield,
+            association: association
+        )
+
+        XCTAssertFalse(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [])
+        XCTAssertEqual(cursor.movedPoints, [])
+        XCTAssertEqual(visibility.actions, [])
+        XCTAssertEqual(shield.actions, [])
+        XCTAssertEqual(association.actions, [])
+    }
+
+    func testHiddenCursorExecutorAvoidsMouseAssociationChangesWhenInitialHideFails() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let association = RecordingMouseCursorAssociationController()
+        let executor = hiddenCursorExecutor(
+            baseExecutor: baseExecutor,
+            visibility: SequencedCursorVisibilityController(hideResults: [false]),
+            association: association
+        )
+
+        XCTAssertFalse(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [])
+        XCTAssertEqual(association.actions, [])
+    }
+
+    func testHiddenCursorExecutorFailsAndReconnectsWhenDisconnectFails() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let association = RecordingMouseCursorAssociationController(disconnectResult: false)
+        let executor = hiddenCursorExecutor(baseExecutor: baseExecutor, association: association)
+
+        XCTAssertFalse(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [])
+        XCTAssertEqual(association.actions, ["disconnect", "connect"])
+    }
+
+    func testHiddenCursorExecutorDoesNotPostWhenTargetCursorMoveFails() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let cursor = RecordingCursorPositioner(
+            originalLocation: CGPoint(x: 12, y: 34),
+            moveResults: [false, true]
+        )
+        let executor = hiddenCursorExecutor(baseExecutor: baseExecutor, cursor: cursor)
+
+        XCTAssertFalse(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [])
+        XCTAssertEqual(cursor.movedPoints, [CGPoint(x: 100, y: 100), CGPoint(x: 12, y: 34)])
+    }
+
+    func testHiddenCursorExecutorFailsAfterPostingWhenOriginalCursorRestoreFails() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let cursor = RecordingCursorPositioner(
+            originalLocation: CGPoint(x: 12, y: 34),
+            moveResults: [true, false]
+        )
+        let executor = hiddenCursorExecutor(baseExecutor: baseExecutor, cursor: cursor)
+
+        XCTAssertFalse(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [.next])
+        XCTAssertEqual(cursor.movedPoints, [CGPoint(x: 100, y: 100), CGPoint(x: 12, y: 34)])
+    }
+
+    func testHiddenCursorExecutorRetriesTransientReconnectFailure() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let association = RecordingMouseCursorAssociationController(
+            disconnectResult: true,
+            connectResults: [false, true]
+        )
+        let executor = hiddenCursorExecutor(baseExecutor: baseExecutor, association: association)
+
+        XCTAssertTrue(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [.next])
+        XCTAssertEqual(association.actions, ["disconnect", "connect", "connect"])
+    }
+
+    func testHiddenCursorExecutorStopsAfterBoundedReconnectFailures() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let association = RecordingMouseCursorAssociationController(
+            disconnectResult: true,
+            connectResults: [false, false, false]
+        )
+        let executor = hiddenCursorExecutor(baseExecutor: baseExecutor, association: association)
+
+        XCTAssertFalse(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [.next])
+        XCTAssertEqual(association.actions, ["disconnect", "connect", "connect", "connect"])
+    }
+
+    func testHiddenCursorExecutorRetriesTransientShowFailureWithoutOverShowing() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let visibility = SequencedCursorVisibilityController(showResults: [false, true])
+        let executor = hiddenCursorExecutor(baseExecutor: baseExecutor, visibility: visibility)
+
+        XCTAssertTrue(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [.next])
+        XCTAssertEqual(visibility.successfulShowCount, visibility.successfulHideCount)
+        XCTAssertEqual(visibility.showAttemptCount, visibility.successfulShowCount + 1)
+    }
+
+    func testHiddenCursorExecutorStopsAfterBoundedShowFailures() {
+        let baseExecutor = RecordingSpaceCommandExecutor()
+        let visibility = SequencedCursorVisibilityController(showResults: [false, false, false])
+        let executor = hiddenCursorExecutor(baseExecutor: baseExecutor, visibility: visibility)
+
+        XCTAssertFalse(executor.execute(.next))
+        XCTAssertEqual(baseExecutor.commands, [.next])
+        XCTAssertEqual(visibility.showAttemptCount, 3)
+        XCTAssertEqual(visibility.successfulShowCount, 0)
+    }
+
+    private func hiddenCursorExecutor(
+        baseExecutor: any SpaceCommandExecuting,
+        cursor: any CursorPositioning = RecordingCursorPositioner(
+            originalLocation: CGPoint(x: 12, y: 34)
+        ),
+        visibility: any CursorVisibilityControlling = RecordingCursorVisibilityController(),
+        shield: any CursorShielding = RecordingCursorShield(),
+        association: any MouseCursorAssociationControlling = RecordingMouseCursorAssociationController()
+    ) -> HiddenCursorDisplaySpaceCommandExecutor {
+        HiddenCursorDisplaySpaceCommandExecutor(
+            baseExecutor: baseExecutor,
+            targetProvider: StaticDisplaySwitchTargetProvider(points: [CGPoint(x: 100, y: 100)]),
+            cursor: cursor,
+            visibilityController: visibility,
+            cursorShield: shield,
+            cursorAssociationController: association,
+            postEventAccessChecker: AllowingPostEventAccessChecker(),
+            hideSettleDelay: 0,
+            focusDelay: 0,
+            switchDelay: 0,
+            transitionSettleDelay: 0,
+            restoreDelay: 0
+        )
+    }
+
     func testOverlayClickExecutorClicksTargetsBeforeSwitching() {
         let baseExecutor = RecordingSpaceCommandExecutor()
         let targetProvider = StaticDisplaySwitchTargetProvider(points: [
@@ -1387,18 +1573,24 @@ private struct StaticDisplaySwitchTargetProvider: DisplaySwitchTargetProviding {
 
 private final class RecordingCursorPositioner: CursorPositioning, @unchecked Sendable {
     private let originalLocation: CGPoint?
+    private var moveResults: [Bool]
     private(set) var movedPoints: [CGPoint] = []
 
-    init(originalLocation: CGPoint?) {
+    init(originalLocation: CGPoint?, moveResults: [Bool] = []) {
         self.originalLocation = originalLocation
+        self.moveResults = moveResults
     }
 
     func currentLocation() -> CGPoint? {
         originalLocation
     }
 
-    func move(to point: CGPoint) {
+    func move(to point: CGPoint) -> Bool {
         movedPoints.append(point)
+        guard !moveResults.isEmpty else {
+            return true
+        }
+        return moveResults.removeFirst()
     }
 }
 
@@ -1415,8 +1607,9 @@ private final class LoggingCursorPositioner: CursorPositioning, @unchecked Senda
         originalLocation
     }
 
-    func move(to point: CGPoint) {
+    func move(to point: CGPoint) -> Bool {
         log.append("move \(Int(point.x)),\(Int(point.y))")
+        return true
     }
 }
 
@@ -1452,6 +1645,36 @@ private final class LoggingCursorVisibilityController: CursorVisibilityControlli
     }
 }
 
+private final class SequencedCursorVisibilityController: CursorVisibilityControlling, @unchecked Sendable {
+    private var hideResults: [Bool]
+    private var showResults: [Bool]
+    private(set) var showAttemptCount = 0
+    private(set) var successfulHideCount = 0
+    private(set) var successfulShowCount = 0
+
+    init(hideResults: [Bool] = [], showResults: [Bool] = []) {
+        self.hideResults = hideResults
+        self.showResults = showResults
+    }
+
+    func hide() -> Bool {
+        let result = hideResults.isEmpty ? true : hideResults.removeFirst()
+        if result {
+            successfulHideCount += 1
+        }
+        return result
+    }
+
+    func show() -> Bool {
+        showAttemptCount += 1
+        let result = showResults.isEmpty ? true : showResults.removeFirst()
+        if result {
+            successfulShowCount += 1
+        }
+        return result
+    }
+}
+
 private final class RecordingCursorShield: CursorShielding, @unchecked Sendable {
     private(set) var actions: [String] = []
 
@@ -1483,16 +1706,32 @@ private final class LoggingCursorShield: CursorShielding, @unchecked Sendable {
 }
 
 private final class RecordingMouseCursorAssociationController: MouseCursorAssociationControlling, @unchecked Sendable {
+    private let disconnectResult: Bool
+    private let connectResult: Bool
+    private var connectResults: [Bool]
     private(set) var actions: [String] = []
+
+    init(
+        disconnectResult: Bool = true,
+        connectResult: Bool = true,
+        connectResults: [Bool] = []
+    ) {
+        self.disconnectResult = disconnectResult
+        self.connectResult = connectResult
+        self.connectResults = connectResults
+    }
 
     func disconnect() -> Bool {
         actions.append("disconnect")
-        return true
+        return disconnectResult
     }
 
     func connect() -> Bool {
         actions.append("connect")
-        return true
+        guard !connectResults.isEmpty else {
+            return connectResult
+        }
+        return connectResults.removeFirst()
     }
 }
 
@@ -1522,6 +1761,21 @@ private struct StaticCursorVisibilityDisplayProvider: CursorVisibilityDisplayPro
     }
 }
 
+private final class SequencedCursorVisibilityDisplayProvider: CursorVisibilityDisplayProviding, @unchecked Sendable {
+    private var displayIDSequences: [[CGDirectDisplayID]]
+
+    init(ids: [[CGDirectDisplayID]]) {
+        self.displayIDSequences = ids
+    }
+
+    func displayIDs() -> [CGDirectDisplayID] {
+        guard !displayIDSequences.isEmpty else {
+            return []
+        }
+        return displayIDSequences.removeFirst()
+    }
+}
+
 private final class RecordingCursorVisibilityApplier: CursorVisibilityApplying, @unchecked Sendable {
     private(set) var actions: [String] = []
 
@@ -1533,6 +1787,33 @@ private final class RecordingCursorVisibilityApplier: CursorVisibilityApplying, 
     func show(displayID: CGDirectDisplayID) -> Bool {
         actions.append("show \(displayID)")
         return true
+    }
+}
+
+private final class SequencedCursorVisibilityApplier: CursorVisibilityApplying, @unchecked Sendable {
+    private var results: [String: [Bool]]
+    private(set) var actions: [String] = []
+
+    init(results: [String: [Bool]]) {
+        self.results = results
+    }
+
+    func hide(displayID: CGDirectDisplayID) -> Bool {
+        result(for: "hide \(displayID)")
+    }
+
+    func show(displayID: CGDirectDisplayID) -> Bool {
+        result(for: "show \(displayID)")
+    }
+
+    private func result(for action: String) -> Bool {
+        actions.append(action)
+        guard var actionResults = results[action], !actionResults.isEmpty else {
+            return true
+        }
+        let result = actionResults.removeFirst()
+        results[action] = actionResults
+        return result
     }
 }
 

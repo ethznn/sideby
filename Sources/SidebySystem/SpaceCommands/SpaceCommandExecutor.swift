@@ -578,7 +578,7 @@ public struct CGDisplaySwitchTargetProvider: DisplaySwitchTargetProviding {
 
 public protocol CursorPositioning: Sendable {
     func currentLocation() -> CGPoint?
-    func move(to point: CGPoint)
+    func move(to point: CGPoint) -> Bool
 }
 
 public struct CGCursorPositioner: CursorPositioning {
@@ -588,10 +588,9 @@ public struct CGCursorPositioner: CursorPositioning {
         CGEvent(source: nil)?.location
     }
 
-    public func move(to point: CGPoint) {
+    public func move(to point: CGPoint) -> Bool {
         guard let displayID = displayID(containing: point) else {
-            CGWarpMouseCursorPosition(point)
-            return
+            return CGWarpMouseCursorPosition(point) == .success
         }
 
         let bounds = CGDisplayBounds(displayID)
@@ -599,10 +598,11 @@ public struct CGCursorPositioner: CursorPositioning {
             x: point.x - bounds.origin.x,
             y: point.y - bounds.origin.y
         )
-        guard CGDisplayMoveCursorToPoint(displayID, localPoint) == .success else {
-            CGWarpMouseCursorPosition(point)
-            return
+        if CGDisplayMoveCursorToPoint(displayID, localPoint) == .success {
+            return true
         }
+
+        return CGWarpMouseCursorPosition(point) == .success
     }
 
     private func displayID(containing point: CGPoint) -> CGDirectDisplayID? {
@@ -806,6 +806,55 @@ public struct CGCursorVisibilityApplier: CursorVisibilityApplying {
     }
 }
 
+public final class CGDisplayOnlyCursorVisibilityController: CursorVisibilityControlling, @unchecked Sendable {
+    private let displayProvider: any CursorVisibilityDisplayProviding
+    private let applier: any CursorVisibilityApplying
+    private let lock = NSLock()
+    private var hiddenDisplayIDs: [CGDirectDisplayID] = []
+
+    public init(
+        displayProvider: any CursorVisibilityDisplayProviding = CGActiveDisplayIDProvider(),
+        applier: any CursorVisibilityApplying = CGCursorVisibilityApplier()
+    ) {
+        self.displayProvider = displayProvider
+        self.applier = applier
+    }
+
+    public func hide() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let displayID = targetDisplayID()
+        guard applier.hide(displayID: displayID) else {
+            return false
+        }
+
+        hiddenDisplayIDs.append(displayID)
+        return true
+    }
+
+    public func show() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let displayID = hiddenDisplayIDs.last else {
+            return true
+        }
+
+        guard applier.show(displayID: displayID) else {
+            return false
+        }
+
+        hiddenDisplayIDs.removeLast()
+        return true
+    }
+
+    private func targetDisplayID() -> CGDirectDisplayID {
+        // Core Graphics ignores this parameter and keeps one global hide count.
+        displayProvider.displayIDs().first ?? CGMainDisplayID()
+    }
+}
+
 public struct CGCursorVisibilityController: CursorVisibilityControlling {
     private let displayProvider: any CursorVisibilityDisplayProviding
     private let applier: any CursorVisibilityApplying
@@ -926,14 +975,14 @@ public struct CoordinatedDisplaySpaceCommandExecutor: SpaceCommandExecuting {
         var didExecuteAll = true
 
         for point in points {
-            cursor.move(to: point)
+            _ = cursor.move(to: point)
             Thread.sleep(forTimeInterval: focusDelay)
             didExecuteAll = baseExecutor.execute(command) && didExecuteAll
             Thread.sleep(forTimeInterval: switchDelay)
         }
 
         if let originalLocation {
-            cursor.move(to: originalLocation)
+            _ = cursor.move(to: originalLocation)
         }
 
         return didExecuteAll
@@ -946,6 +995,7 @@ public struct HiddenCursorDisplaySpaceCommandExecutor: SpaceCommandExecuting {
     public static let defaultSwitchDelay: TimeInterval = 0.20
     public static let defaultTransitionSettleDelay: TimeInterval = 0.10
     public static let defaultRestoreDelay: TimeInterval = 0.04
+    private static let maximumCleanupAttempts = 3
 
     private let baseExecutor: any SpaceCommandExecuting
     private let targetProvider: any DisplaySwitchTargetProviding
@@ -998,61 +1048,101 @@ public struct HiddenCursorDisplaySpaceCommandExecutor: SpaceCommandExecuting {
             return false
         }
 
-        let originalLocation = cursor.currentLocation()
-        var hiddenCursorRequestCount = 0
-        func hideCursor() {
-            _ = visibilityController.hide()
-            hiddenCursorRequestCount += 1
+        guard let originalLocation = cursor.currentLocation() else {
+            return false
         }
-        func showCursor() {
+
+        var hiddenCursorRequestCount = 0
+        var didHideCursor = true
+        func hideCursor() -> Bool {
+            guard visibilityController.hide() else {
+                didHideCursor = false
+                return false
+            }
+            hiddenCursorRequestCount += 1
+            return true
+        }
+        func retryCleanup(_ action: () -> Bool) -> Bool {
+            for _ in 0..<Self.maximumCleanupAttempts {
+                if action() {
+                    return true
+                }
+            }
+            return false
+        }
+        func showCursor() -> Bool {
             while hiddenCursorRequestCount > 0 {
-                _ = visibilityController.show()
+                guard retryCleanup({ visibilityController.show() }) else {
+                    return false
+                }
                 hiddenCursorRequestCount -= 1
             }
+            return true
         }
 
         _ = cursorShield.begin()
-        hideCursor()
+        _ = hideCursor()
         Thread.sleep(forTimeInterval: hideSettleDelay)
-        _ = cursorAssociationController.disconnect()
-        hideCursor()
-        defer {
-            restoreCursor(to: originalLocation, hideCursor: hideCursor)
-            hideCursor()
-            _ = cursorAssociationController.connect()
-            hideCursor()
-            cursorShield.end()
-            showCursor()
+        let didAttemptDisconnect = didHideCursor
+        let didDisconnect = didAttemptDisconnect && cursorAssociationController.disconnect()
+        var didExecuteAll = didDisconnect && didHideCursor
+
+        if didDisconnect && didHideCursor {
+            _ = hideCursor()
+            let orderedPoints = targetPointsForCurrentCursorFirst(points, originalLocation: originalLocation)
+            for point in orderedPoints {
+                guard moveCursorWhileHidden(to: point, hideCursor: hideCursor), didHideCursor else {
+                    didExecuteAll = false
+                    break
+                }
+                Thread.sleep(forTimeInterval: focusDelay)
+                guard hideCursor() else {
+                    didExecuteAll = false
+                    break
+                }
+                didExecuteAll = baseExecutor.execute(command) && didExecuteAll
+                guard hideCursor() else {
+                    didExecuteAll = false
+                    break
+                }
+                Thread.sleep(forTimeInterval: switchDelay)
+            }
         }
 
-        let orderedPoints = targetPointsForCurrentCursorFirst(points, originalLocation: originalLocation)
-        var didExecuteAll = true
-        for point in orderedPoints {
-            moveCursorWhileHidden(to: point, hideCursor: hideCursor)
-            Thread.sleep(forTimeInterval: focusDelay)
-            hideCursor()
-            didExecuteAll = baseExecutor.execute(command) && didExecuteAll
-            hideCursor()
-            Thread.sleep(forTimeInterval: switchDelay)
+        if didExecuteAll {
+            Thread.sleep(forTimeInterval: transitionSettleDelay)
         }
 
-        Thread.sleep(forTimeInterval: transitionSettleDelay)
-        return didExecuteAll
+        let didRestore = didDisconnect
+            ? restoreCursor(to: originalLocation, hideCursor: hideCursor)
+            : true
+        let didConnect: Bool
+        if didAttemptDisconnect {
+            _ = hideCursor()
+            didConnect = retryCleanup({ cursorAssociationController.connect() })
+            _ = hideCursor()
+        } else {
+            didConnect = true
+        }
+        cursorShield.end()
+        let didShowCursor = showCursor()
+
+        return didExecuteAll && didRestore && didConnect && didHideCursor && didShowCursor
     }
 
-    private func restoreCursor(to originalLocation: CGPoint?, hideCursor: () -> Void) {
-        guard let originalLocation else {
-            return
-        }
-
-        moveCursorWhileHidden(to: originalLocation, hideCursor: hideCursor)
+    private func restoreCursor(to originalLocation: CGPoint, hideCursor: () -> Bool) -> Bool {
+        let didMove = moveCursorWhileHidden(to: originalLocation, hideCursor: hideCursor)
         Thread.sleep(forTimeInterval: restoreDelay)
+        return didMove
     }
 
-    private func moveCursorWhileHidden(to point: CGPoint, hideCursor: () -> Void) {
-        hideCursor()
-        cursor.move(to: point)
-        hideCursor()
+    private func moveCursorWhileHidden(to point: CGPoint, hideCursor: () -> Bool) -> Bool {
+        guard hideCursor() else {
+            return false
+        }
+        let didMove = cursor.move(to: point)
+        let didHideAfterMove = hideCursor()
+        return didMove && didHideAfterMove
     }
 
     private func targetPointsForCurrentCursorFirst(

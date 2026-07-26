@@ -1,6 +1,32 @@
 import SidebyCore
 import SwiftUI
 
+struct PermissionCardPresentation: Equatable, Sendable {
+    let title: String
+    let subtitle: String
+}
+
+struct PermissionStepPresentation: Equatable, Sendable {
+    let accessibilityCard: PermissionCardPresentation
+    let postEventsCard: PermissionCardPresentation
+
+    var cards: [PermissionCardPresentation] {
+        [accessibilityCard, postEventsCard]
+    }
+
+    init(language: AppLanguage) {
+        let strings = SBSStrings(language: language)
+        accessibilityCard = PermissionCardPresentation(
+            title: strings.accessibility,
+            subtitle: strings.permissionAccessibilitySubtitle
+        )
+        postEventsCard = PermissionCardPresentation(
+            title: strings.postEvents,
+            subtitle: strings.permissionPostEventsSubtitle
+        )
+    }
+}
+
 public struct PermissionStepView: View {
     private let hasAccessibilityPermission: Bool
     private let hasSwitchingAccess: Bool
@@ -18,6 +44,7 @@ public struct PermissionStepView: View {
 
     public var body: some View {
         let strings = SBSStrings(language: language)
+        let presentation = PermissionStepPresentation(language: language)
 
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 7) {
@@ -33,8 +60,8 @@ public struct PermissionStepView: View {
             VStack(spacing: 8) {
                 PermissionStatusCard(
                     symbolName: "lock.fill",
-                    title: strings.accessibility,
-                    subtitle: strings.permissionAccessibilitySubtitle,
+                    title: presentation.accessibilityCard.title,
+                    subtitle: presentation.accessibilityCard.subtitle,
                     chipText: hasAccessibilityPermission ? strings.grantedChip : strings.notGrantedChip,
                     chipTone: hasAccessibilityPermission ? .ok : .warn,
                     tint: Tokens.accent
@@ -42,8 +69,8 @@ public struct PermissionStepView: View {
 
                 PermissionStatusCard(
                     symbolName: "arrow.left.arrow.right",
-                    title: strings.switchingAccess,
-                    subtitle: strings.permissionSwitchingAccessSubtitle,
+                    title: presentation.postEventsCard.title,
+                    subtitle: presentation.postEventsCard.subtitle,
                     chipText: hasSwitchingAccess ? strings.grantedChip : strings.notGrantedChip,
                     chipTone: hasSwitchingAccess ? .ok : .warn,
                     tint: Color(nsColor: .systemGreen)

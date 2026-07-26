@@ -773,6 +773,24 @@ final class ContextPlanTests: XCTestCase {
         XCTAssertEqual(plan.currentContext?.name, "Context 2")
     }
 
+    func testFailedNavigationAfterPossibleMovementKeepsCurrentContextAndRequiresSync() {
+        var plan = ContextPlan.default
+
+        plan.applyFailedNavigation(.next, mayHaveMoved: true)
+
+        XCTAssertEqual(plan.currentContext?.name, "Context 1")
+        XCTAssertEqual(plan.syncState, .needsSync)
+    }
+
+    func testFailedCaptureRestorationKeepsCurrentContextAndRequiresSync() {
+        var plan = ContextPlan.default
+
+        plan.applyFailedCaptureRestoration()
+
+        XCTAssertEqual(plan.currentContext?.name, "Context 1")
+        XCTAssertEqual(plan.syncState, .needsSync)
+    }
+
     func testSuccessfulUnknownNavigationMarksPlanNeedsSync() {
         var plan = ContextPlan.default
         plan.setCurrentContext(id: "context-3")

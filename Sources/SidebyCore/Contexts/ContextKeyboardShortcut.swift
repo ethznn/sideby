@@ -59,7 +59,6 @@ public enum ContextKeyboardAction: Equatable, Sendable {
     case ignore
     case showSidebyOff
     case showMissingContext(position: Int)
-    case waitForModifierRelease(ContextKeyboardCommand)
     case activate(contextID: String)
     case move(SwitchCommand)
 }
@@ -69,22 +68,19 @@ public struct ContextKeyboardExecutionGate: Equatable, Sendable {
         case idle
         case pending(ContextKeyboardCommand)
         case executing
-        case settling(until: Double)
     }
 
     public private(set) var state: State
-    public let settlingDuration: Double
 
-    public init(settlingDuration: Double = 0.75) {
+    public init() {
         self.state = .idle
-        self.settlingDuration = settlingDuration
     }
 
     public mutating func reserve(
         _ command: ContextKeyboardCommand,
         at timestamp: Double
     ) -> Bool {
-        expireSettling(at: timestamp)
+        _ = timestamp
 
         guard case .idle = state else {
             return false
@@ -108,20 +104,14 @@ public struct ContextKeyboardExecutionGate: Equatable, Sendable {
             return
         }
 
-        state = .settling(until: timestamp + settlingDuration)
+        _ = timestamp
+        state = .idle
     }
 
     public mutating func reset() {
         state = .idle
     }
 
-    private mutating func expireSettling(at timestamp: Double) {
-        guard case let .settling(until) = state, timestamp >= until else {
-            return
-        }
-
-        state = .idle
-    }
 }
 
 public enum ContextKeyboardShortcutPolicy: Sendable {

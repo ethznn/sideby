@@ -26,6 +26,12 @@ public struct ContextCaptureDisplayMovementObservation: Equatable, Sendable {
         didObserveActiveSpaceChange || didChangeVisibleFingerprint
     }
 
+    /// Product capture supplies this from the verified Space-index runner.
+    /// A visible app fingerprint remains diagnostic only for that path.
+    public var didMoveByStableIndex: Bool {
+        didObserveActiveSpaceChange
+    }
+
     private static func normalizedFingerprint(_ fingerprint: String?) -> String? {
         guard let fingerprint else {
             return nil
@@ -48,11 +54,29 @@ public enum ContextCaptureMovementPolicy: Sendable {
         )
     }
 
+    public static func productMovedDisplayIDs(
+        from observations: [ContextCaptureDisplayMovementObservation]
+    ) -> Set<String> {
+        Set(
+            observations
+                .filter(\.didMoveByStableIndex)
+                .map(\.displayID)
+                .filter { !$0.isEmpty }
+        )
+    }
+
     public static func didObserveAnyMovement(
         didObserveActiveSpaceChange: Bool,
         observations: [ContextCaptureDisplayMovementObservation]
     ) -> Bool {
         didObserveActiveSpaceChange || observations.contains(where: \.didMove)
+    }
+
+    public static func didObserveAnyProductMovement(
+        didObserveActiveSpaceChange: Bool,
+        observations: [ContextCaptureDisplayMovementObservation]
+    ) -> Bool {
+        didObserveActiveSpaceChange || observations.contains(where: \.didMoveByStableIndex)
     }
 
     private static let maxConsecutiveNoMoves = 2

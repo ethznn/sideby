@@ -2,7 +2,7 @@ import XCTest
 @testable import SidebyCore
 
 final class ContextCaptureSessionTests: XCTestCase {
-    func testMovementPolicyTreatsFingerprintChangeAsMovementWhenSpaceNotificationIsMissing() {
+    func testMovementPolicyKeepsFingerprintChangeDiagnosticWhenStableIndexDidNotMove() {
         let observation = ContextCaptureDisplayMovementObservation(
             displayID: "built-in",
             didObserveActiveSpaceChange: false,
@@ -11,8 +11,8 @@ final class ContextCaptureSessionTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            ContextCaptureMovementPolicy.movedDisplayIDs(from: [observation]),
-            ["built-in"]
+            ContextCaptureMovementPolicy.productMovedDisplayIDs(from: [observation]),
+            []
         )
     }
 
@@ -46,14 +46,14 @@ final class ContextCaptureSessionTests: XCTestCase {
 
     func testAnyMovementPolicyTreatsGlobalSpaceNotificationAsMovement() {
         XCTAssertTrue(
-            ContextCaptureMovementPolicy.didObserveAnyMovement(
+            ContextCaptureMovementPolicy.didObserveAnyProductMovement(
                 didObserveActiveSpaceChange: true,
                 observations: []
             )
         )
     }
 
-    func testAnyMovementPolicyTreatsFingerprintChangeAsMovementWhenNotificationIsMissing() {
+    func testAnyMovementPolicyIgnoresFingerprintChangeWhenStableIndexDidNotMove() {
         let observation = ContextCaptureDisplayMovementObservation(
             displayID: "external-lg",
             didObserveActiveSpaceChange: false,
@@ -61,8 +61,8 @@ final class ContextCaptureSessionTests: XCTestCase {
             visibleFingerprintAfter: "Arc - Docs"
         )
 
-        XCTAssertTrue(
-            ContextCaptureMovementPolicy.didObserveAnyMovement(
+        XCTAssertFalse(
+            ContextCaptureMovementPolicy.didObserveAnyProductMovement(
                 didObserveActiveSpaceChange: false,
                 observations: [observation]
             )

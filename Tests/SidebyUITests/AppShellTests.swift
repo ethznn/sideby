@@ -802,6 +802,22 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(state.step, .completed)
     }
 
+    func testPermissionStepPresentsOnlyAccessibilityAndPostEventsCards() {
+        XCTAssertEqual(
+            PermissionStepPresentation(language: .english).cards,
+            [
+                PermissionCardPresentation(
+                    title: "Accessibility",
+                    subtitle: "Required to observe ⌥⇧-held swipes."
+                ),
+                PermissionCardPresentation(
+                    title: "Post Events",
+                    subtitle: "Required to send the requested Space switch."
+                )
+            ]
+        )
+    }
+
     func testOnboardingViewModelStartsWithDisplayCount() {
         let viewModel = OnboardingViewModel()
         let viewState = viewModel.viewState(
