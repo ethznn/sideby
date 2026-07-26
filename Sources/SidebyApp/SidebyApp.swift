@@ -295,13 +295,15 @@ private final class ProductContextHUDController {
 
     private init() {}
 
-    func show(_ state: HUDPresentationState, screen: NSScreen? = NSScreen.main) {
+    @discardableResult
+    func show(_ state: HUDPresentationState, screen: NSScreen? = NSScreen.main) -> Int {
         show(state, screens: [screen ?? NSScreen.main ?? NSScreen.screens.first].compactMap(\.self))
     }
 
-    func show(_ state: HUDPresentationState, displayIDs: Set<String>, displayLayout: DisplayLayout) {
+    @discardableResult
+    func show(_ state: HUDPresentationState, displayIDs: Set<String>, displayLayout: DisplayLayout) -> Int {
         let screens = screens(for: displayIDs, displayLayout: displayLayout)
-        show(screenStates: screens.map { ($0, state) }, timing: state)
+        return show(screenStates: screens.map { ($0, state) }, timing: state)
     }
 
     func show(
@@ -317,17 +319,17 @@ private final class ProductContextHUDController {
             }
             return (screen, state)
         }
-        show(screenStates: screenStates, timing: timing)
+        _ = show(screenStates: screenStates, timing: timing)
     }
 
-    private func show(_ state: HUDPresentationState, screens requestedScreens: [NSScreen]) {
+    private func show(_ state: HUDPresentationState, screens requestedScreens: [NSScreen]) -> Int {
         show(screenStates: requestedScreens.map { ($0, state) }, timing: state)
     }
 
     private func show(
         screenStates requestedScreenStates: [(NSScreen, HUDPresentationState)],
         timing: HUDPresentationState
-    ) {
+    ) -> Int {
         let generation = presentationGeneration.advance()
         hideWorkItem?.cancel()
 
@@ -335,7 +337,7 @@ private final class ProductContextHUDController {
             ? [NSScreen.main ?? NSScreen.screens.first].compactMap(\.self).map { ($0, timing) }
             : requestedScreenStates
         guard !screenStates.isEmpty else {
-            return
+            return generation
         }
 
         while panels.count < screenStates.count {
@@ -362,7 +364,23 @@ private final class ProductContextHUDController {
             activePanels.append(panel)
         }
 
-        scheduleFadeOut(activePanels, state: timing, generation: generation)
+        if timing.dismissalMode == .automatic {
+            scheduleFadeOut(activePanels, state: timing, generation: generation)
+        }
+
+        return generation
+    }
+
+    func dismissImmediately(generation: Int) {
+        guard presentationGeneration.consumeCurrent(generation) else {
+            return
+        }
+        hideWorkItem?.cancel()
+        hideWorkItem = nil
+        panels.forEach { panel in
+            panel.orderOut(nil)
+            panel.alphaValue = 1
+        }
     }
 
     private func screen(forDisplayID displayID: String) -> NSScreen? {
@@ -951,8 +969,16 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
+        let hudIntent = ContextSwitchIntent(
+            command: .next,
+            targetContext: intent.targetContext,
+            targetDisplayIDs: intent.targetDisplayIDs,
+            diagnostic: intent.diagnostic,
+            shouldExecute: intent.shouldExecute
+        )
         performContextActivation(
             targetContext: targetContext,
+            intent: hudIntent,
             completion: completion
         )
     }
@@ -984,6 +1010,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     private func performContextActivation(
         targetContext: ContextDefinition,
+        intent: ContextSwitchIntent,
         completion: (@MainActor @Sendable (Bool) -> Void)?
     ) {
         let decision = ModePolicy().decision(
@@ -1054,6 +1081,21 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             snapshots: displayObserver.currentSnapshots(),
             uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
         )
+        let hudGeneration: Int?
+        if moves.isEmpty {
+            hudGeneration = nil
+        } else if let presentation = contextHUDPolicy.inProgressPresentation(
+            for: intent,
+            executedDisplayIDs: targetMemberDisplayIDs
+        ) {
+            hudGeneration = ProductContextHUDController.shared.show(
+                presentation.state,
+                displayIDs: presentation.displayIDs,
+                displayLayout: displayLayout
+            )
+        } else {
+            hudGeneration = nil
+        }
 
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Self.productRunner(
@@ -1077,8 +1119,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     completion?(false)
                     return
                 }
-                self.isSwitching = false
-                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
 
                 if didMoveAll {
                     self.diagnostics = modeDiagnostics
@@ -1087,11 +1127,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     }
                     self.lastSwitchResult = self.strings.alignedToContext(
                         self.settings.contextPlan.currentContext?.name ?? targetContext.name
-                    )
-                    ProductContextHUDController.shared.show(
-                        HUDPresenter().stateForContextSwitch(contextName: targetContext.name),
-                        displayIDs: targetMemberDisplayIDs,
-                        displayLayout: self.displayLayout
                     )
                 } else {
                     self.updateContextPlan { plan in
@@ -1107,6 +1142,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     ]
                     self.lastSwitchResult = self.strings.alignFailed
                 }
+                if let hudGeneration {
+                    ProductContextHUDController.shared.dismissImmediately(generation: hudGeneration)
+                }
+                self.isSwitching = false
+                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
                 Self.contextCaptureLog.notice(
                     "context-activate target=\(targetContext.id, privacy: .public) moved=\(moves.count, privacy: .public) success=\(didMoveAll, privacy: .public)"
                 )
@@ -2601,6 +2641,19 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             snapshots: displayObserver.currentSnapshots(),
             uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
         )
+        let hudGeneration: Int?
+        if let presentation = contextHUDPolicy.inProgressPresentation(
+            for: intent,
+            executedDisplayIDs: targetDisplayIDs
+        ) {
+            hudGeneration = ProductContextHUDController.shared.show(
+                presentation.state,
+                displayIDs: presentation.displayIDs,
+                displayLayout: displayLayout
+            )
+        } else {
+            hudGeneration = nil
+        }
 
         DispatchQueue.global(qos: .userInitiated).async {
             let decision = ModePolicy().decision(
@@ -2643,10 +2696,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     command: command,
                     label: label,
                     intent: intent,
-                    executedDisplayIDs: targetDisplayIDs,
                     navigationDiagnostic: intent.diagnostic,
                     mayHaveMoved: mayHaveMoved
                 )
+                if let hudGeneration {
+                    ProductContextHUDController.shared.dismissImmediately(generation: hudGeneration)
+                }
                 self.isSwitching = false
                 self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
                 if let shouldResumeInput {
@@ -2662,7 +2717,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         command: SwitchCommand,
         label: String,
         intent: ContextSwitchIntent,
-        executedDisplayIDs: Set<String>,
         navigationDiagnostic: DiagnosticState?,
         mayHaveMoved: Bool
     ) {
@@ -2680,17 +2734,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 diagnostics = result.diagnostics + [navigationDiagnostic]
             }
             lastSwitchResult = strings.postedSwitch(label: label, command: command)
-            if let presentation = contextHUDPolicy.presentation(
-                for: intent,
-                didExecute: result.didExecute,
-                executedDisplayIDs: executedDisplayIDs
-            ) {
-                ProductContextHUDController.shared.show(
-                    presentation.state,
-                    displayIDs: presentation.displayIDs,
-                    displayLayout: displayLayout
-                )
-            }
         } else {
             updateContextPlan { plan in
                 plan.applyFailedNavigation(command, mayHaveMoved: mayHaveMoved)
@@ -2801,6 +2844,21 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             snapshots: displayObserver.currentSnapshots(),
             uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
         )
+        let hudGeneration: Int?
+        if moves.isEmpty {
+            hudGeneration = nil
+        } else if let presentation = contextHUDPolicy.inProgressPresentation(
+            for: intent,
+            executedDisplayIDs: targetMemberDisplayIDs
+        ) {
+            hudGeneration = ProductContextHUDController.shared.show(
+                presentation.state,
+                displayIDs: presentation.displayIDs,
+                displayLayout: displayLayout
+            )
+        } else {
+            hudGeneration = nil
+        }
 
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Self.productRunner(
@@ -2824,8 +2882,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     completion?(false)
                     return
                 }
-                self.isSwitching = false
-                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
 
                 if didMoveAll {
                     self.diagnostics = modeDiagnostics
@@ -2833,17 +2889,6 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                         _ = plan.setCurrentContext(id: targetContext.id)
                     }
                     self.lastSwitchResult = self.strings.postedSwitch(label: label, command: command)
-                    if let presentation = self.contextHUDPolicy.presentation(
-                        for: intent,
-                        didExecute: true,
-                        executedDisplayIDs: targetMemberDisplayIDs
-                    ) {
-                        ProductContextHUDController.shared.show(
-                            presentation.state,
-                            displayIDs: presentation.displayIDs,
-                            displayLayout: self.displayLayout
-                        )
-                    }
                 } else {
                     self.updateContextPlan { plan in
                         plan.markNeedsSync()
@@ -2862,6 +2907,11 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                         reason: self.strings.systemEventsFailedReason
                     )
                 }
+                if let hudGeneration {
+                    ProductContextHUDController.shared.dismissImmediately(generation: hudGeneration)
+                }
+                self.isSwitching = false
+                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
                 Self.contextCaptureLog.notice(
                     "context-switch-indexed target=\(targetContext.id, privacy: .public) moved=\(moves.count, privacy: .public) success=\(didMoveAll, privacy: .public)"
                 )

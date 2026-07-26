@@ -348,6 +348,16 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(hud.backgroundOpacity, 0.66)
     }
 
+    func testHUDPresenterCreatesManualTargetContextState() {
+        let hud = HUDPresenter().stateForContextTransition(contextName: "Context 4")
+
+        XCTAssertEqual(hud.text, "Context 4")
+        XCTAssertEqual(hud.dismissalMode, .manual)
+        XCTAssertFalse(hud.isCompact)
+        XCTAssertEqual(hud.visualScale, 4.0)
+        XCTAssertEqual(hud.backgroundOpacity, 0.66)
+    }
+
     func testHUDPanelLayoutCentersAgainstFullScreenFrame() {
         let origin = HUDPanelLayout.centeredOrigin(
             panelSize: NSSize(width: 400, height: 200),
@@ -379,6 +389,16 @@ final class AppShellTests: XCTestCase {
         XCTAssertTrue(generation.isCurrent(secondPresentation))
     }
 
+    func testHUDPresentationGenerationConsumesCurrentDismissalOnlyOnce() {
+        var generation = HUDPresentationGeneration()
+
+        let first = generation.advance()
+
+        XCTAssertTrue(generation.consumeCurrent(first))
+        XCTAssertFalse(generation.consumeCurrent(first))
+        XCTAssertFalse(generation.isCurrent(first))
+    }
+
     func testContextSwitchHUDPolicyShowsTargetContextNameForExecutedContextMove() {
         let intent = ContextSwitchIntent(
             command: .next,
@@ -401,6 +421,70 @@ final class AppShellTests: XCTestCase {
 
         XCTAssertEqual(presentation?.state.text, "Review")
         XCTAssertEqual(presentation?.displayIDs, ["built-in", "external"])
+    }
+
+    func testContextSwitchHUDPolicyBuildsTargetPresentationBeforeExecution() {
+        let intent = ContextSwitchIntent(
+            command: .next,
+            targetContext: ContextDefinition(
+                id: "context-4",
+                order: 4,
+                name: "Context 4",
+                displayIDs: ["built-in"]
+            ),
+            targetDisplayIDs: ["built-in"],
+            diagnostic: nil,
+            shouldExecute: true
+        )
+
+        let presentation = ContextSwitchHUDPolicy().inProgressPresentation(
+            for: intent,
+            executedDisplayIDs: ["built-in", "external"]
+        )
+
+        XCTAssertEqual(presentation?.state.text, "Context 4")
+        XCTAssertEqual(presentation?.state.dismissalMode, .manual)
+        XCTAssertEqual(presentation?.displayIDs, ["built-in", "external"])
+    }
+
+    func testContextSwitchHUDPolicyUsesIntentDisplaysWhenExecutedSetIsEmpty() {
+        let intent = ContextSwitchIntent(
+            command: .next,
+            targetContext: ContextDefinition(
+                id: "context-4",
+                order: 4,
+                name: "Context 4",
+                displayIDs: ["built-in"]
+            ),
+            targetDisplayIDs: ["built-in"],
+            diagnostic: nil,
+            shouldExecute: true
+        )
+
+        let presentation = ContextSwitchHUDPolicy().inProgressPresentation(
+            for: intent,
+            executedDisplayIDs: []
+        )
+
+        XCTAssertEqual(presentation?.displayIDs, ["built-in"])
+        XCTAssertEqual(presentation?.state.dismissalMode, .manual)
+    }
+
+    func testContextSwitchHUDPolicyRejectsMissingTargetBeforePresentation() {
+        let intent = ContextSwitchIntent(
+            command: .next,
+            targetContext: nil,
+            targetDisplayIDs: ["built-in"],
+            diagnostic: nil,
+            shouldExecute: true
+        )
+
+        XCTAssertNil(
+            ContextSwitchHUDPolicy().inProgressPresentation(
+                for: intent,
+                executedDisplayIDs: ["built-in"]
+            )
+        )
     }
 
     func testContextSwitchHUDPolicySkipsGeneralMovementWithoutTargetContext() {
