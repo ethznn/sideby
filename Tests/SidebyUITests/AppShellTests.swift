@@ -926,6 +926,34 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(korean.localizedActionLabel("Align Displays"), "컨텍스트 맞추기")
         XCTAssertEqual(english.contextNeedsAlignment, "Displays need alignment")
         XCTAssertEqual(korean.contextNeedsAlignment, "디스플레이 정렬이 필요합니다")
+        XCTAssertEqual(
+            english.contextCaptureLayoutUnavailable,
+            "Couldn't read the current Space layout. Try capturing again."
+        )
+        XCTAssertEqual(
+            korean.contextCaptureLayoutUnavailable,
+            "현재 Space 구성을 읽지 못했습니다. 다시 캡처해 주세요."
+        )
+        XCTAssertEqual(
+            english.contextCaptureNoCommonAlignmentTarget,
+            "No Context is shared by all selected displays. The capture was kept and needs sync."
+        )
+        XCTAssertEqual(
+            korean.contextCaptureNoCommonAlignmentTarget,
+            "선택한 모든 디스플레이에 공통인 컨텍스트가 없습니다. 캡처는 유지되며 동기화가 필요합니다."
+        )
+        XCTAssertEqual(english.contextCaptureAlignmentTitle, "Align captured Contexts")
+        XCTAssertEqual(korean.contextCaptureAlignmentTitle, "캡처한 컨텍스트 맞추기")
+        XCTAssertEqual(
+            english.contextCaptureAlignmentMessage,
+            "Choose a Context shared by all selected displays."
+        )
+        XCTAssertEqual(
+            korean.contextCaptureAlignmentMessage,
+            "선택한 모든 디스플레이에 공통인 컨텍스트를 선택하세요."
+        )
+        XCTAssertEqual(english.contextCaptureAlignmentOption(order: 2, name: "Context 2"), "C2 · Context 2")
+        XCTAssertEqual(korean.contextCaptureAlignmentOption(order: 2, name: "컨텍스트 2"), "C2 · 컨텍스트 2")
     }
 
     func testUpdateCheckStringsLocalize() {

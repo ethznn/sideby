@@ -145,6 +145,30 @@ public struct SBSStrings: Sendable {
             "캡처가 중지되었습니다. 기존 컨텍스트는 유지되었습니다."
         )
     }
+    public var contextCaptureLayoutUnavailable: String {
+        text(
+            "Couldn't read the current Space layout. Try capturing again.",
+            "현재 Space 구성을 읽지 못했습니다. 다시 캡처해 주세요."
+        )
+    }
+    public var contextCaptureNoCommonAlignmentTarget: String {
+        text(
+            "No Context is shared by all selected displays. The capture was kept and needs sync.",
+            "선택한 모든 디스플레이에 공통인 컨텍스트가 없습니다. 캡처는 유지되며 동기화가 필요합니다."
+        )
+    }
+    public var contextCaptureAlignmentTitle: String {
+        text("Align captured Contexts", "캡처한 컨텍스트 맞추기")
+    }
+    public var contextCaptureAlignmentMessage: String {
+        text(
+            "Choose a Context shared by all selected displays.",
+            "선택한 모든 디스플레이에 공통인 컨텍스트를 선택하세요."
+        )
+    }
+    public func contextCaptureAlignmentOption(order: Int, name: String) -> String {
+        "C\(order) · \(name)"
+    }
     public func detectedApp(_ label: String) -> String {
         text("Detected: \(label)", "감지됨: \(label)")
     }
