@@ -544,6 +544,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var visibleContextSuggestionsByOrder: [Int: [VisibleAppSuggestion]] = [:]
     @Published var contextCaptureSession: ContextCaptureSession?
     @Published var contextCaptureStatus: String?
+    @Published private var contextCaptureAlignmentCoordinator = ProductContextCaptureAlignmentCoordinator()
     @Published private(set) var contextDeletionMinimumCount: Int? = nil
 
     private let settingsStore = UserDefaultsSettingsStore()
@@ -652,6 +653,13 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     var strings: SBSStrings {
         SBSStrings(language: settings.language)
+    }
+
+    var pendingContextCaptureAlignment: ProductContextCaptureAlignmentRequest? {
+        guard case let .choosing(request) = contextCaptureAlignmentCoordinator.state else {
+            return nil
+        }
+        return request
     }
 
     var setupViewState: V1SetupViewState {
@@ -1415,22 +1423,27 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         )
     }
 
-    /// Builds the context plan directly from the Space layout. Returns false
-    /// when the layout is unavailable so the caller can fall back to the
-    /// walk-based capture.
+    /// Builds the context plan directly from a complete live Space layout.
     private func startInstantContextCapture() -> Bool {
-        guard let captureDisplays = selectedDisplaySpaces(), !captureDisplays.isEmpty else {
+        guard let instantPlan = ProductInstantContextCaptureStartPolicy.plan(
+            for: selectedDisplaySpaces(),
+            selectedDisplayIDs: selectedDisplayIDs
+        ) else {
+            contextCaptureStatus = strings.contextCaptureLayoutUnavailable
             return false
         }
 
-        guard let instantPlan = InstantContextCapturePlanner.plan(for: captureDisplays) else {
-            return false
+        contextCaptureAlignmentCoordinator.invalidate()
+        let contexts: [ContextDefinition]
+        if instantPlan.isSynchronized {
+            let currentOrder = instantPlan.contexts
+                .first { $0.id == instantPlan.currentContextID }?.order ?? 1
+            contexts = instantPlan.contextsApplyingSuggestedCurrentName(
+                suggestedContextName(order: currentOrder)
+            )
+        } else {
+            contexts = instantPlan.contexts
         }
-
-        let currentOrder = instantPlan.contexts
-            .first { $0.id == instantPlan.currentContextID }?.order ?? 1
-        let currentName = suggestedContextName(order: currentOrder)
-        let contexts = instantPlan.contextsRenamingCurrentContext(to: currentName)
 
         updateContextPlan { plan in
             plan.replaceContexts(
@@ -1441,12 +1454,26 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 plan.markNeedsSync()
             }
         }
-        contextCaptureStatus = strings.contextCaptureReadySummary(
-            count: contexts.count,
-            currentName: settings.contextPlan.currentContext?.name ?? currentName
-        )
+        if instantPlan.isSynchronized {
+            contextCaptureStatus = strings.contextCaptureReadySummary(
+                count: contexts.count,
+                currentName: settings.contextPlan.currentContext?.name ?? "Context 1"
+            )
+        } else {
+            let candidates = ContextCaptureAlignmentPolicy.candidates(
+                contexts: contexts,
+                selectedDisplayIDs: selectedDisplayIDs
+            )
+            contextCaptureAlignmentCoordinator.present(candidates: candidates, requestID: UUID())
+            contextCaptureStatus = candidates.isEmpty
+                ? strings.contextCaptureNoCommonAlignmentTarget
+                : strings.contextCaptureReadySummary(
+                    count: contexts.count,
+                    currentName: settings.contextPlan.currentContext?.name ?? "Context 1"
+                )
+        }
         Self.contextCaptureLog.notice(
-            "instant-capture displays=\(captureDisplays.count, privacy: .public) contexts=\(contexts.count, privacy: .public) synchronized=\(instantPlan.isSynchronized, privacy: .public)"
+            "instant-capture displays=\(self.selectedDisplayIDs.count, privacy: .public) contexts=\(contexts.count, privacy: .public) synchronized=\(instantPlan.isSynchronized, privacy: .public)"
         )
         return true
     }
@@ -1468,35 +1495,28 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        if startInstantContextCapture() {
+        _ = startInstantContextCapture()
+    }
+
+    func cancelContextCaptureAlignment() {
+        contextCaptureAlignmentCoordinator.cancel()
+    }
+
+    func chooseContextCaptureAlignment(contextID: String) {
+        guard case let .activate(contextID, requestID) = contextCaptureAlignmentCoordinator.choose(contextID: contextID) else {
             return
         }
-        // Instant capture unavailable — fall back to the walk-based capture below.
-        guard let captureDisplays = selectedDisplaySpaces(),
-              !captureDisplays.isEmpty,
-              Set(captureDisplays.map(\.displayID)) == selectedDisplayIDs
+        guard let targetContext = settings.contextPlan.contexts.first(where: { $0.id == contextID }),
+              selectedDisplayIDs.isSubset(of: Set(targetContext.displayIDs))
         else {
-            contextCaptureStatus = strings.alignFailed
+            contextCaptureAlignmentCoordinator.invalidate()
+            contextCaptureStatus = strings.contextCaptureNoCommonAlignmentTarget
             return
         }
 
-        contextCaptureSessionID += 1
-        let sessionID = contextCaptureSessionID
-        contextCaptureActiveDisplayIDs = selectedDisplayIDs
-        contextCaptureMemberDisplayIDs = selectedDisplayIDs
-        contextCaptureNoMoveStreaks = [:]
-        contextCaptureInitialIndexes = Dictionary(
-            uniqueKeysWithValues: captureDisplays.map {
-                ($0.displayID, $0.currentSpaceIndex)
-            }
-        )
-        contextCaptureTransitionProgress = ProductCaptureTransitionProgress()
-        isRestoringContextCapture = false
-        contextCaptureSession = ContextCaptureSession(
-            maxAlignmentAttempts: Self.contextCaptureConfiguration.maxAlignmentAttempts
-        )
-        updateContextCaptureStatus()
-        continueContextCaptureAlignment(sessionID: sessionID)
+        activateContext(contextID: contextID) { [weak self] _ in
+            self?.contextCaptureAlignmentCoordinator.finish(requestID: requestID)
+        }
     }
 
     func stopContextCapture() {
@@ -4362,6 +4382,21 @@ private struct ContextCaptureControlsView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .sheet(item: Binding(
+            get: { model.pendingContextCaptureAlignment },
+            set: { request in
+                if request == nil {
+                    model.cancelContextCaptureAlignment()
+                }
+            }
+        )) { request in
+            ContextCaptureAlignmentPicker(
+                request: request,
+                strings: model.strings,
+                choose: { model.chooseContextCaptureAlignment(contextID: $0) },
+                cancel: { model.cancelContextCaptureAlignment() }
+            )
+        }
     }
 }
 
