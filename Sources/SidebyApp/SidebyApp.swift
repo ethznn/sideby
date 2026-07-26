@@ -524,7 +524,17 @@ private final class ProductContextHUDController {
 }
 
 @MainActor
-private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
+final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
+    private struct DiscardingSettingsStore: SettingsStoring {
+        func load() -> AppSettings {
+            .default
+        }
+
+        func save(_ settings: AppSettings) {
+            _ = settings
+        }
+    }
+
     @Published var settings: AppSettings
     @Published var displayLayout = DisplayLayout(displays: [])
     @Published var permissionState: PermissionState = .notDetermined
@@ -547,7 +557,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published private var contextCaptureAlignmentCoordinator = ProductContextCaptureAlignmentCoordinator()
     @Published private(set) var contextDeletionMinimumCount: Int? = nil
 
-    private let settingsStore = UserDefaultsSettingsStore()
+    private var settingsStore: any SettingsStoring = UserDefaultsSettingsStore()
     private let permissionService = AccessibilityPermissionService()
     private let displayObserver = MacDisplayObserver()
     private let loginItemService = MacLoginItemService()
@@ -590,6 +600,8 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var lastScrollStatusUpdate = 0.0
     private var isOnboardingGestureTestActive = false
     private var ignoresExternalSpaceChangesUntil: Date?
+    private var selectedDisplaySpacesOverride: (() -> [InstantCaptureDisplay]?)?
+    private var postEventAccessOverride: Bool?
 
     var diagnostics: [DiagnosticState] {
         get {
@@ -622,6 +634,26 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 self.resumeEnabledInputIfNeeded()
             }
         }
+    }
+
+    init(
+        testSettings: AppSettings,
+        selectedDisplayIDs: Set<String>,
+        selectedDisplaySpaces: @escaping () -> [InstantCaptureDisplay]?,
+        postEventAccessGranted: Bool
+    ) {
+        self.settings = testSettings
+        self.settingsStore = DiscardingSettingsStore()
+        self.selectedDisplayIDs = selectedDisplayIDs
+        self.selectedDisplaySpacesOverride = selectedDisplaySpaces
+        self.postEventAccessOverride = postEventAccessGranted
+        self.isEnabled = true
+        self.postEventAccessGranted = postEventAccessGranted
+        let strings = SBSStrings(language: testSettings.language)
+        self.lastSwitchResult = strings.noSwitchAttempted
+        self.inputStatus = strings.sidebyOff
+        self.lastInputEvent = Self.inputHint(for: testSettings, strings: strings)
+        self.loginItemStatus = strings.startAtLoginStatus(isEnabled: false)
     }
 
     var selectedDisplaySummary: String {
@@ -1335,6 +1367,9 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     /// independent Spaces, in layout order. Mirrored displays can be present
     /// as screens without independent Space layout, so they are skipped.
     private func selectedDisplaySpaces() -> [InstantCaptureDisplay]? {
+        if let selectedDisplaySpacesOverride {
+            return selectedDisplaySpacesOverride()
+        }
         guard let layouts = spaceLayoutReader.readLayout(), !layouts.isEmpty else {
             return nil
         }
@@ -1432,7 +1467,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     /// Builds the context plan directly from a complete live Space layout.
-    private func startInstantContextCapture() -> Bool {
+    func startInstantContextCapture() -> Bool {
         guard let instantPlan = ProductInstantContextCaptureStartPolicy.plan(
             for: selectedDisplaySpaces(),
             selectedDisplayIDs: selectedDisplayIDs
@@ -3006,6 +3041,9 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func hasPostEventAccess(command: SwitchCommand, label: String) -> Bool {
+        if let postEventAccessOverride {
+            return postEventAccessOverride
+        }
         guard CGPreflightPostEventAccess() || CGRequestPostEventAccess() else {
             postEventAccessGranted = false
             diagnostics = [
