@@ -943,6 +943,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     func activateContext(
         contextID: String,
+        requiresCompleteSelectedLayout: Bool = false,
         completion: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
         guard isEnabled else {
@@ -987,6 +988,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         performContextActivation(
             targetContext: targetContext,
             intent: hudIntent,
+            requiresCompleteSelectedLayout: requiresCompleteSelectedLayout,
             completion: completion
         )
     }
@@ -1019,6 +1021,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private func performContextActivation(
         targetContext: ContextDefinition,
         intent: ContextSwitchIntent,
+        requiresCompleteSelectedLayout: Bool,
         completion: (@MainActor @Sendable (Bool) -> Void)?
     ) {
         let decision = ModePolicy().decision(
@@ -1036,7 +1039,12 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        guard let displays = selectedDisplaySpaces(), !displays.isEmpty else {
+        let displays = selectedDisplaySpaces()
+        guard ProductContextActivationLayoutPolicy.isAdmitted(
+            displays,
+            selectedDisplayIDs: selectedDisplayIDs,
+            requiresCompleteSelectedLayout: requiresCompleteSelectedLayout
+        ), let displays else {
             updateContextPlan { plan in
                 plan.markNeedsSync()
             }
@@ -1514,7 +1522,7 @@ private final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        activateContext(contextID: contextID) { [weak self] _ in
+        activateContext(contextID: contextID, requiresCompleteSelectedLayout: true) { [weak self] _ in
             self?.contextCaptureAlignmentCoordinator.finish(requestID: requestID)
         }
     }
