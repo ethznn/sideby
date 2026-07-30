@@ -1,6 +1,5 @@
 public enum PermissionRequestAction: Equatable, Sendable {
     case openAccessibilitySettings
-    case openAutomationSettings
 }
 
 public struct PermissionRequestFeedback: Equatable, Sendable {
@@ -11,8 +10,6 @@ public struct PermissionRequestFeedback: Equatable, Sendable {
         case postEventsRequesting
         case switchingAccessRequesting
         case postEventsDenied
-        case automationDenied
-        case automationNotRegistered
     }
 
     public init(kind: Kind, action: PermissionRequestAction?) {
@@ -35,15 +32,6 @@ public struct PermissionRequestFeedback: Equatable, Sendable {
         action: nil
     )
 
-    public static let automationDenied = PermissionRequestFeedback(
-        kind: .automationDenied,
-        action: .openAutomationSettings
-    )
-
-    public static let automationNotRegistered = PermissionRequestFeedback(
-        kind: .automationNotRegistered,
-        action: nil
-    )
 }
 
 public struct PermissionRequestFeedbackResolver: Sendable {
@@ -54,31 +42,8 @@ public struct PermissionRequestFeedbackResolver: Sendable {
     }
 
     public func switchingAccessFeedback(
-        postEventsGranted: Bool,
-        automationGranted: Bool
+        postEventsGranted: Bool
     ) -> PermissionRequestFeedback? {
-        if !postEventsGranted {
-            return .postEventsDenied
-        }
-        if !automationGranted {
-            return .automationDenied
-        }
-        return nil
-    }
-
-    public func switchingAccessFeedback(
-        postEventsGranted: Bool,
-        automationStatusCode: Int32
-    ) -> PermissionRequestFeedback? {
-        if !postEventsGranted {
-            return .postEventsDenied
-        }
-        if automationStatusCode == 0 {
-            return nil
-        }
-        if automationStatusCode == -600 {
-            return .automationNotRegistered
-        }
-        return .automationDenied
+        postEventsGranted ? nil : .postEventsDenied
     }
 }

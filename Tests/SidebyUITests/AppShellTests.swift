@@ -348,6 +348,16 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(hud.backgroundOpacity, 0.66)
     }
 
+    func testHUDPresenterCreatesManualTargetContextState() {
+        let hud = HUDPresenter().stateForContextTransition(contextName: "Context 4")
+
+        XCTAssertEqual(hud.text, "Context 4")
+        XCTAssertEqual(hud.dismissalMode, .manual)
+        XCTAssertFalse(hud.isCompact)
+        XCTAssertEqual(hud.visualScale, 4.0)
+        XCTAssertEqual(hud.backgroundOpacity, 0.66)
+    }
+
     func testHUDPanelLayoutCentersAgainstFullScreenFrame() {
         let origin = HUDPanelLayout.centeredOrigin(
             panelSize: NSSize(width: 400, height: 200),
@@ -379,6 +389,16 @@ final class AppShellTests: XCTestCase {
         XCTAssertTrue(generation.isCurrent(secondPresentation))
     }
 
+    func testHUDPresentationGenerationConsumesCurrentDismissalOnlyOnce() {
+        var generation = HUDPresentationGeneration()
+
+        let first = generation.advance()
+
+        XCTAssertTrue(generation.consumeCurrent(first))
+        XCTAssertFalse(generation.consumeCurrent(first))
+        XCTAssertFalse(generation.isCurrent(first))
+    }
+
     func testContextSwitchHUDPolicyShowsTargetContextNameForExecutedContextMove() {
         let intent = ContextSwitchIntent(
             command: .next,
@@ -401,6 +421,70 @@ final class AppShellTests: XCTestCase {
 
         XCTAssertEqual(presentation?.state.text, "Review")
         XCTAssertEqual(presentation?.displayIDs, ["built-in", "external"])
+    }
+
+    func testContextSwitchHUDPolicyBuildsTargetPresentationBeforeExecution() {
+        let intent = ContextSwitchIntent(
+            command: .next,
+            targetContext: ContextDefinition(
+                id: "context-4",
+                order: 4,
+                name: "Context 4",
+                displayIDs: ["built-in"]
+            ),
+            targetDisplayIDs: ["built-in"],
+            diagnostic: nil,
+            shouldExecute: true
+        )
+
+        let presentation = ContextSwitchHUDPolicy().inProgressPresentation(
+            for: intent,
+            executedDisplayIDs: ["built-in", "external"]
+        )
+
+        XCTAssertEqual(presentation?.state.text, "Context 4")
+        XCTAssertEqual(presentation?.state.dismissalMode, .manual)
+        XCTAssertEqual(presentation?.displayIDs, ["built-in", "external"])
+    }
+
+    func testContextSwitchHUDPolicyUsesIntentDisplaysWhenExecutedSetIsEmpty() {
+        let intent = ContextSwitchIntent(
+            command: .next,
+            targetContext: ContextDefinition(
+                id: "context-4",
+                order: 4,
+                name: "Context 4",
+                displayIDs: ["built-in"]
+            ),
+            targetDisplayIDs: ["built-in"],
+            diagnostic: nil,
+            shouldExecute: true
+        )
+
+        let presentation = ContextSwitchHUDPolicy().inProgressPresentation(
+            for: intent,
+            executedDisplayIDs: []
+        )
+
+        XCTAssertEqual(presentation?.displayIDs, ["built-in"])
+        XCTAssertEqual(presentation?.state.dismissalMode, .manual)
+    }
+
+    func testContextSwitchHUDPolicyRejectsMissingTargetBeforePresentation() {
+        let intent = ContextSwitchIntent(
+            command: .next,
+            targetContext: nil,
+            targetDisplayIDs: ["built-in"],
+            diagnostic: nil,
+            shouldExecute: true
+        )
+
+        XCTAssertNil(
+            ContextSwitchHUDPolicy().inProgressPresentation(
+                for: intent,
+                executedDisplayIDs: ["built-in"]
+            )
+        )
     }
 
     func testContextSwitchHUDPolicySkipsGeneralMovementWithoutTargetContext() {
@@ -802,6 +886,22 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(state.step, .completed)
     }
 
+    func testPermissionStepPresentsOnlyAccessibilityAndPostEventsCards() {
+        XCTAssertEqual(
+            PermissionStepPresentation(language: .english).cards,
+            [
+                PermissionCardPresentation(
+                    title: "Accessibility",
+                    subtitle: "Required to observe ⌥⇧-held swipes."
+                ),
+                PermissionCardPresentation(
+                    title: "Post Events",
+                    subtitle: "Required to send the requested Space switch."
+                )
+            ]
+        )
+    }
+
     func testOnboardingViewModelStartsWithDisplayCount() {
         let viewModel = OnboardingViewModel()
         let viewState = viewModel.viewState(
@@ -826,6 +926,34 @@ final class AppShellTests: XCTestCase {
         XCTAssertEqual(korean.localizedActionLabel("Align Displays"), "컨텍스트 맞추기")
         XCTAssertEqual(english.contextNeedsAlignment, "Displays need alignment")
         XCTAssertEqual(korean.contextNeedsAlignment, "디스플레이 정렬이 필요합니다")
+        XCTAssertEqual(
+            english.contextCaptureLayoutUnavailable,
+            "Couldn't read the current Space layout. Try capturing again."
+        )
+        XCTAssertEqual(
+            korean.contextCaptureLayoutUnavailable,
+            "현재 Space 구성을 읽지 못했습니다. 다시 캡처해 주세요."
+        )
+        XCTAssertEqual(
+            english.contextCaptureNoCommonAlignmentTarget,
+            "No Context is shared by all selected displays. The capture was kept and needs sync."
+        )
+        XCTAssertEqual(
+            korean.contextCaptureNoCommonAlignmentTarget,
+            "선택한 모든 디스플레이에 공통인 컨텍스트가 없습니다. 캡처는 유지되며 동기화가 필요합니다."
+        )
+        XCTAssertEqual(english.contextCaptureAlignmentTitle, "Align captured Contexts")
+        XCTAssertEqual(korean.contextCaptureAlignmentTitle, "캡처한 컨텍스트 맞추기")
+        XCTAssertEqual(
+            english.contextCaptureAlignmentMessage,
+            "Choose a Context shared by all selected displays."
+        )
+        XCTAssertEqual(
+            korean.contextCaptureAlignmentMessage,
+            "선택한 모든 디스플레이에 공통인 컨텍스트를 선택하세요."
+        )
+        XCTAssertEqual(english.contextCaptureAlignmentOption(order: 2, name: "Context 2"), "C2 · Context 2")
+        XCTAssertEqual(korean.contextCaptureAlignmentOption(order: 2, name: "컨텍스트 2"), "C2 · 컨텍스트 2")
     }
 
     func testUpdateCheckStringsLocalize() {

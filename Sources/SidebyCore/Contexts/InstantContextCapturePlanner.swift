@@ -34,6 +34,11 @@ public struct InstantCapturePlan: Equatable, Sendable {
             context.id == currentContextID ? context.renamed(name) : context
         }
     }
+
+    public func contextsApplyingSuggestedCurrentName(_ name: String) -> [ContextDefinition] {
+        guard isSynchronized else { return contexts }
+        return contextsRenamingCurrentContext(to: name)
+    }
 }
 
 public enum InstantContextCapturePlanner {
@@ -48,23 +53,13 @@ public enum InstantContextCapturePlanner {
         }
 
         let contextCount = displays.map(\.spaceCount).max() ?? 1
-        let maxCurrentIndex = displays.map(\.currentSpaceIndex).max() ?? 0
-        let currentOrder = min(maxCurrentIndex + 1, contextCount)
-        let indexesByDisplay = Dictionary(
-            uniqueKeysWithValues: displays.map {
-                ($0.displayID, displaySpaceIndexesByContextOrder(
-                    for: $0,
-                    currentOrder: currentOrder,
-                    contextCount: contextCount
-                ))
-            }
-        )
+        let currentOrder = displays[0].currentSpaceIndex + 1
         let contexts = (1...contextCount).map { order in
-            let displaySpaceIndexes = Dictionary(
+            let spaceIndex = order - 1
+            let displaySpaceIndexes: [String: Int] = Dictionary(
                 uniqueKeysWithValues: displays.compactMap { display in
-                    indexesByDisplay[display.displayID]?[order].map {
-                        (display.displayID, $0)
-                    }
+                    guard spaceIndex < display.spaceCount else { return nil }
+                    return (display.displayID, spaceIndex)
                 }
             )
             return ContextDefinition(
@@ -76,39 +71,13 @@ public enum InstantContextCapturePlanner {
             )
         }
 
-        let currentContext = contexts.first { $0.order == currentOrder }
-        let isSynchronized = displays.allSatisfy { display in
-            currentContext?.spaceIndex(for: display.displayID) == display.currentSpaceIndex
-        }
+        let referenceIndex = displays[0].currentSpaceIndex
+        let isSynchronized = displays.allSatisfy { $0.currentSpaceIndex == referenceIndex }
 
         return InstantCapturePlan(
             contexts: contexts,
             currentContextID: "context-\(currentOrder)",
             isSynchronized: isSynchronized
         )
-    }
-
-    private static func displaySpaceIndexesByContextOrder(
-        for display: InstantCaptureDisplay,
-        currentOrder: Int,
-        contextCount: Int
-    ) -> [Int: Int] {
-        guard display.currentSpaceIndex < contextCount else {
-            return Dictionary(
-                uniqueKeysWithValues: (0..<min(display.spaceCount, contextCount)).map { ($0 + 1, $0) }
-            )
-        }
-
-        var indexesByOrder: [Int: Int] = [:]
-        for spaceIndex in 0..<display.spaceCount {
-            let order = spaceIndex < display.currentSpaceIndex
-                ? spaceIndex + 1
-                : currentOrder + (spaceIndex - display.currentSpaceIndex)
-            guard order >= 1, order <= contextCount else {
-                continue
-            }
-            indexesByOrder[order] = spaceIndex
-        }
-        return indexesByOrder
     }
 }

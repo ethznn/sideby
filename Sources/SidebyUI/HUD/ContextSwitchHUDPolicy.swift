@@ -17,6 +17,26 @@ public struct ContextSwitchHUDPolicy: Sendable {
         self.presenter = presenter
     }
 
+    public func inProgressPresentation(
+        for intent: ContextSwitchIntent,
+        executedDisplayIDs: Set<String>
+    ) -> ContextSwitchHUDPresentation? {
+        guard let targetContext = intent.targetContext else {
+            return nil
+        }
+
+        let displayIDs = executedDisplayIDs.isEmpty
+            ? Set(intent.targetDisplayIDs)
+            : executedDisplayIDs
+
+        return ContextSwitchHUDPresentation(
+            state: presenter.stateForContextTransition(
+                contextName: targetContext.name
+            ),
+            displayIDs: displayIDs
+        )
+    }
+
     public func presentation(
         for intent: ContextSwitchIntent,
         didExecute: Bool,

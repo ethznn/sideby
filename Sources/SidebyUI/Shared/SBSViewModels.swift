@@ -10,7 +10,6 @@ public protocol SBSOnboardingViewModel: ObservableObject {
     var displayCount: Int { get }
 
     func openSystemSettingsAccessibility()
-    func openSystemSettingsAutomation()
     func requestSwitchingAccess()
     func skipGestureTest()
     func finish()

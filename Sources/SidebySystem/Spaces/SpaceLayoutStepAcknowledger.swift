@@ -28,4 +28,30 @@ public struct SpaceLayoutStepAcknowledger: Sendable {
             Thread.sleep(forTimeInterval: min(pollInterval, remaining))
         }
     }
+
+    public func waitForExpectedIndex(
+        of displayID: String,
+        from previousIndex: Int,
+        expectedIndex: Int,
+        timeout: TimeInterval,
+        readIndexes: () -> [String: Int]?
+    ) -> SpaceLayoutVerificationResult {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while true {
+            guard let indexes = readIndexes(), let index = indexes[displayID] else {
+                return .failure(.unreadableLayout)
+            }
+            if index == expectedIndex {
+                return .success(indexes)
+            }
+            if index != previousIndex {
+                return .failure(.wrongDirection)
+            }
+            guard deadline.timeIntervalSinceNow > 0 else {
+                return .failure(.timeout)
+            }
+            Thread.sleep(forTimeInterval: min(pollInterval, deadline.timeIntervalSinceNow))
+        }
+    }
 }

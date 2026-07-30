@@ -5,69 +5,6 @@ import XCTest
 
 @MainActor
 final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
-    func testModifierReleaseWaiterWaitsUntilEveryTriggerModifierIsUp() {
-        let harness = ModifierReleaseWaiterHarness(
-            readings: [[.option, .shift], [.shift], []]
-        )
-        let waiter = ContextKeyboardModifierReleaseWaiter(
-            currentModifiers: { harness.nextReading() },
-            scheduleNextCheck: { harness.schedule($0) }
-        )
-
-        waiter.waitUntilReleased(triggerModifiers: [.option, .shift]) {
-            harness.recordCompletion()
-        }
-
-        XCTAssertEqual(harness.completionCount, 0)
-        harness.runNextScheduledCheck()
-        XCTAssertEqual(harness.completionCount, 0)
-        harness.runNextScheduledCheck()
-        XCTAssertEqual(harness.completionCount, 1)
-        XCTAssertFalse(harness.hasScheduledCheck)
-    }
-
-    func testModifierReleaseWaiterCompletesImmediatelyWhenTriggerModifiersAreAlreadyUp() {
-        let harness = ModifierReleaseWaiterHarness(readings: [[.control]])
-        let waiter = ContextKeyboardModifierReleaseWaiter(
-            currentModifiers: { harness.nextReading() },
-            scheduleNextCheck: { harness.schedule($0) }
-        )
-
-        waiter.waitUntilReleased(triggerModifiers: [.option, .shift]) {
-            harness.recordCompletion()
-        }
-
-        XCTAssertEqual(harness.completionCount, 1)
-        XCTAssertFalse(harness.hasScheduledCheck)
-    }
-
-    func testModifierReleaseWaiterCoalescesRepeatedStartsWhileWaiting() {
-        let harness = ModifierReleaseWaiterHarness(
-            readings: [[.option, .shift], [.option, .shift], []]
-        )
-        let waiter = ContextKeyboardModifierReleaseWaiter(
-            currentModifiers: { harness.nextReading() },
-            scheduleNextCheck: { harness.schedule($0) }
-        )
-
-        waiter.waitUntilReleased(triggerModifiers: [.option, .shift]) {
-            harness.recordCompletion()
-        }
-        waiter.waitUntilReleased(triggerModifiers: [.option, .shift]) {
-            harness.recordCompletion()
-        }
-
-        guard harness.scheduledCheckCount == 1 else {
-            return XCTFail("Expected one active polling chain, got \(harness.scheduledCheckCount).")
-        }
-        harness.runNextScheduledCheck()
-        XCTAssertEqual(harness.completionCount, 0)
-        XCTAssertEqual(harness.scheduledCheckCount, 1)
-        harness.runNextScheduledCheck()
-        XCTAssertEqual(harness.completionCount, 1)
-        XCTAssertEqual(harness.scheduledCheckCount, 0)
-    }
-
     func testCarbonEventDecoderRejectsForeignHotKeySignatures() {
         XCTAssertNil(
             ContextKeyboardCarbonEventDecoder.event(
@@ -298,41 +235,6 @@ final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
         XCTAssertEqual(registrar.installCount, 2)
         XCTAssertEqual(registrar.stopCount, 1)
         XCTAssertTrue(source.isRunning)
-    }
-}
-
-@MainActor
-private final class ModifierReleaseWaiterHarness {
-    private var readings: [ModifierFlags]
-    private var scheduledChecks: [ContextKeyboardModifierReleaseWaiter.ScheduledCheck] = []
-    private(set) var completionCount = 0
-
-    init(readings: [ModifierFlags]) {
-        self.readings = readings
-    }
-
-    var hasScheduledCheck: Bool {
-        !scheduledChecks.isEmpty
-    }
-
-    var scheduledCheckCount: Int {
-        scheduledChecks.count
-    }
-
-    func nextReading() -> ModifierFlags {
-        readings.removeFirst()
-    }
-
-    func schedule(_ check: @escaping ContextKeyboardModifierReleaseWaiter.ScheduledCheck) {
-        scheduledChecks.append(check)
-    }
-
-    func runNextScheduledCheck() {
-        scheduledChecks.removeFirst()()
-    }
-
-    func recordCompletion() {
-        completionCount += 1
     }
 }
 

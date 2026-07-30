@@ -1,5 +1,10 @@
 import SidebyCore
 
+public enum HUDDismissalMode: Equatable, Sendable {
+    case automatic
+    case manual
+}
+
 public struct HUDPresentationState: Equatable, Sendable {
     public let text: String
     public let isCompact: Bool
@@ -7,6 +12,7 @@ public struct HUDPresentationState: Equatable, Sendable {
     public let fadeOutDuration: Double
     public let visualScale: Double
     public let backgroundOpacity: Double
+    public let dismissalMode: HUDDismissalMode
 
     public init(
         text: String,
@@ -14,7 +20,8 @@ public struct HUDPresentationState: Equatable, Sendable {
         duration: Double = 0.8,
         fadeOutDuration: Double = 0.24,
         visualScale: Double = 1.0,
-        backgroundOpacity: Double = 0.0
+        backgroundOpacity: Double = 0.0,
+        dismissalMode: HUDDismissalMode = .automatic
     ) {
         self.text = text
         self.isCompact = isCompact
@@ -22,6 +29,7 @@ public struct HUDPresentationState: Equatable, Sendable {
         self.fadeOutDuration = fadeOutDuration
         self.visualScale = visualScale
         self.backgroundOpacity = backgroundOpacity
+        self.dismissalMode = dismissalMode
     }
 }
 
@@ -41,6 +49,19 @@ public struct HUDPresenter: Sendable {
             fadeOutDuration: 0.28,
             visualScale: 4.0,
             backgroundOpacity: 0.66
+        )
+    }
+
+    public func stateForContextTransition(
+        contextName: String
+    ) -> HUDPresentationState {
+        HUDPresentationState(
+            text: contextName,
+            duration: 0,
+            fadeOutDuration: 0,
+            visualScale: 4.0,
+            backgroundOpacity: 0.66,
+            dismissalMode: .manual
         )
     }
 

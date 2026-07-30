@@ -94,34 +94,34 @@ final class ContextKeyboardShortcutTests: XCTestCase {
         XCTAssertFalse(gate.reserve(.move(.previous), at: 12))
     }
 
-    func testExecutionGateFinishingExecutionSettlesForDefaultDuration() {
+    func testExecutionGateFinishingExecutionReturnsToIdle() {
         var gate = ContextKeyboardExecutionGate()
         XCTAssertTrue(gate.reserve(.move(.next), at: 10))
         XCTAssertTrue(gate.beginExecution(for: .move(.next)))
 
         gate.finishExecution(at: 12)
 
-        XCTAssertEqual(gate.state, .settling(until: 12.75))
+        XCTAssertEqual(gate.state, .idle)
     }
 
-    func testExecutionGateSupportsAnInjectedSettlingDuration() {
-        var gate = ContextKeyboardExecutionGate(settlingDuration: 1.5)
+    func testExecutionGateReleasesImmediatelyAfterVerifiedExecutionCompletes() {
+        var gate = ContextKeyboardExecutionGate()
         XCTAssertTrue(gate.reserve(.move(.next), at: 10))
         XCTAssertTrue(gate.beginExecution(for: .move(.next)))
 
         gate.finishExecution(at: 12)
 
-        XCTAssertEqual(gate.state, .settling(until: 13.5))
+        XCTAssertEqual(gate.state, .idle)
+        XCTAssertTrue(gate.reserve(.move(.previous), at: 12))
     }
 
-    func testExecutionGateAcceptsReservationsAtOrAfterSettlingDeadline() {
+    func testExecutionGateAcceptsReservationImmediatelyAfterCompletion() {
         var gate = ContextKeyboardExecutionGate()
         XCTAssertTrue(gate.reserve(.move(.next), at: 10))
         XCTAssertTrue(gate.beginExecution(for: .move(.next)))
         gate.finishExecution(at: 12)
 
-        XCTAssertFalse(gate.reserve(.move(.previous), at: 12.749))
-        XCTAssertTrue(gate.reserve(.move(.previous), at: 12.75))
+        XCTAssertTrue(gate.reserve(.move(.previous), at: 12))
         XCTAssertEqual(gate.state, .pending(.move(.previous)))
     }
 

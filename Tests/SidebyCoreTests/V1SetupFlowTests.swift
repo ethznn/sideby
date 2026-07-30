@@ -103,25 +103,17 @@ final class V1SetupFlowTests: XCTestCase {
         XCTAssertNil(feedback.action)
     }
 
-    func testSwitchingAccessDeniedByAutomationProvidesAutomationSettingsFeedback() {
+    func testPostEventDenialRoutesOnlyToAccessibilitySettings() {
         let feedback = PermissionRequestFeedbackResolver()
-            .switchingAccessFeedback(postEventsGranted: true, automationGranted: false)
+            .switchingAccessFeedback(postEventsGranted: false)
 
-        XCTAssertEqual(feedback, PermissionRequestFeedback.automationDenied)
-        XCTAssertEqual(feedback?.action, .openAutomationSettings)
-    }
-
-    func testSwitchingAccessWhenSystemEventsIsNotRegisteredAvoidsDeadSettingsFallback() {
-        let feedback = PermissionRequestFeedbackResolver()
-            .switchingAccessFeedback(postEventsGranted: true, automationStatusCode: -600)
-
-        XCTAssertEqual(feedback, PermissionRequestFeedback.automationNotRegistered)
-        XCTAssertNil(feedback?.action)
+        XCTAssertEqual(feedback, PermissionRequestFeedback.postEventsDenied)
+        XCTAssertEqual(feedback?.action, .openAccessibilitySettings)
     }
 
     func testSwitchingAccessGrantedClearsFeedback() {
         let feedback = PermissionRequestFeedbackResolver()
-            .switchingAccessFeedback(postEventsGranted: true, automationGranted: true)
+            .switchingAccessFeedback(postEventsGranted: true)
 
         XCTAssertNil(feedback)
     }

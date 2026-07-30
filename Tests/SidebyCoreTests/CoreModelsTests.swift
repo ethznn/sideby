@@ -84,7 +84,7 @@ final class CoreModelsTests: XCTestCase {
         )
     }
 
-    func testInputControlStartPolicyStartsOnlyWhenPermissionsAreReady() {
+    func testInputStartsWithAccessibilityAndPostEventAccessOnly() {
         XCTAssertEqual(
             InputControlStartPolicy.decision(
                 hasAccessibilityPermission: true,

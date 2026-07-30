@@ -145,6 +145,30 @@ public struct SBSStrings: Sendable {
             "캡처가 중지되었습니다. 기존 컨텍스트는 유지되었습니다."
         )
     }
+    public var contextCaptureLayoutUnavailable: String {
+        text(
+            "Couldn't read the current Space layout. Try capturing again.",
+            "현재 Space 구성을 읽지 못했습니다. 다시 캡처해 주세요."
+        )
+    }
+    public var contextCaptureNoCommonAlignmentTarget: String {
+        text(
+            "No Context is shared by all selected displays. The capture was kept and needs sync.",
+            "선택한 모든 디스플레이에 공통인 컨텍스트가 없습니다. 캡처는 유지되며 동기화가 필요합니다."
+        )
+    }
+    public var contextCaptureAlignmentTitle: String {
+        text("Align captured Contexts", "캡처한 컨텍스트 맞추기")
+    }
+    public var contextCaptureAlignmentMessage: String {
+        text(
+            "Choose a Context shared by all selected displays.",
+            "선택한 모든 디스플레이에 공통인 컨텍스트를 선택하세요."
+        )
+    }
+    public func contextCaptureAlignmentOption(order: Int, name: String) -> String {
+        "C\(order) · \(name)"
+    }
     public func detectedApp(_ label: String) -> String {
         text("Detected: \(label)", "감지됨: \(label)")
     }
@@ -241,7 +265,6 @@ public struct SBSStrings: Sendable {
         text("Open Accessibility Settings", "손쉬운 사용 설정 열기")
     }
     public var accessibilitySettings: String { text("Accessibility Settings", "손쉬운 사용 설정") }
-    public var automationSettings: String { text("Automation Settings", "자동화 설정") }
 
     public var screenSwitching: String { text("Screen Switching", "화면 전환") }
     public var previous: String { text("Previous", "이전") }
@@ -389,8 +412,8 @@ public struct SBSStrings: Sendable {
     public var spaceCommandNotAcceptedTitle: String { text("Space command was not accepted", "Space 전환 명령이 처리되지 않았습니다") }
     public var spaceCommandNotAcceptedMessage: String {
         text(
-            "The selected-display Control+Arrow command was not accepted. Check Accessibility, Post Events, and System Events Automation permissions, then try again.",
-            "선택한 디스플레이의 Control+화살표 명령이 처리되지 않았습니다. 손쉬운 사용, 이벤트 전송, System Events 자동화 권한을 확인한 뒤 다시 시도하세요."
+            "The selected-display Space transition was not accepted. Check Accessibility and Post Events permissions, then try again.",
+            "선택한 디스플레이의 Space 전환 요청이 처리되지 않았습니다. 손쉬운 사용 및 이벤트 전송 권한을 확인한 뒤 다시 시도하세요."
         )
     }
     public var noMoveTargetsTitle: String { text("No move targets selected", "이동 대상이 선택되지 않았습니다") }
@@ -418,16 +441,6 @@ public struct SBSStrings: Sendable {
                 "macOS did not grant Post Events. If no prompt appears, open Accessibility Settings and re-enable Sideby.",
                 "macOS가 이벤트 전송 권한을 허용하지 않았습니다. 안내 창이 뜨지 않으면 손쉬운 사용 설정에서 Sideby를 다시 허용하세요."
             )
-        case .automationDenied:
-            text(
-                "macOS did not grant System Events Automation. Open Automation Settings and allow Sideby to control System Events.",
-                "macOS가 System Events 자동화를 허용하지 않았습니다. 자동화 설정에서 Sideby가 System Events를 제어하도록 허용하세요."
-            )
-        case .automationNotRegistered:
-            text(
-                "macOS did not register the System Events permission request. Try Check Switching Access again; if the prompt still does not appear, quit and reopen Sideby.",
-                "macOS가 System Events 권한 요청을 등록하지 않았습니다. 화면 전환 권한 확인을 다시 누르세요. 안내가 계속 뜨지 않으면 Sideby를 종료한 뒤 다시 여세요."
-            )
         }
     }
 
@@ -435,14 +448,12 @@ public struct SBSStrings: Sendable {
         switch action {
         case .openAccessibilitySettings:
             accessibilitySettings
-        case .openAutomationSettings:
-            automationSettings
         }
     }
     public var noMoveTargetsReason: String { text("no move targets", "이동 대상 없음") }
     public var sidebyOffReason: String { text("Sideby is off", "Sideby 꺼짐") }
     public var postEventsOffReason: String { text("Post Events permission off", "이벤트 전송 권한 꺼짐") }
-    public var systemEventsFailedReason: String { text("System Events Space command failed", "System Events Space 명령 실패") }
+    public var systemEventsFailedReason: String { text("Space command failed", "Space 명령 실패") }
     public func contextBoundaryReason(command: SwitchCommand) -> String {
         switch command {
         case .previous:

@@ -11,4 +11,13 @@ public struct HUDPresentationGeneration: Equatable, Sendable {
     public func isCurrent(_ generation: Int) -> Bool {
         value == generation
     }
+
+    @discardableResult
+    public mutating func consumeCurrent(_ generation: Int) -> Bool {
+        guard value == generation else {
+            return false
+        }
+        value += 1
+        return true
+    }
 }

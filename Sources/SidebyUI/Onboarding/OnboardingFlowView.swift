@@ -75,8 +75,6 @@ public struct OnboardingFlowView<ViewModel: SBSOnboardingViewModel>: View {
                             switch action {
                             case .openAccessibilitySettings:
                                 vm.openSystemSettingsAccessibility()
-                            case .openAutomationSettings:
-                                vm.openSystemSettingsAutomation()
                             }
                         }
                     )
@@ -204,28 +202,45 @@ public struct OnboardingFlowView<ViewModel: SBSOnboardingViewModel>: View {
     }
 }
 
+struct PermissionRequestFeedbackPresentation: Equatable, Sendable {
+    let message: String
+    let action: PermissionRequestAction?
+    let actionTitle: String?
+
+    init(feedback: PermissionRequestFeedback, language: AppLanguage) {
+        let strings = SBSStrings(language: language)
+        message = strings.permissionRequestFeedback(feedback)
+        action = feedback.action
+        actionTitle = feedback.action.map(strings.permissionRequestActionTitle)
+    }
+}
+
 private struct PermissionRequestFeedbackView: View {
     let feedback: PermissionRequestFeedback
     let language: AppLanguage
     let action: (PermissionRequestAction) -> Void
 
     var body: some View {
-        let strings = SBSStrings(language: language)
+        let presentation = PermissionRequestFeedbackPresentation(
+            feedback: feedback,
+            language: language
+        )
 
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(.orange)
                 .font(.system(size: 13, weight: .semibold))
 
-            Text(strings.permissionRequestFeedback(feedback))
+            Text(presentation.message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 8)
 
-            if let requestAction = feedback.action {
-                Button(strings.permissionRequestActionTitle(requestAction)) {
+            if let requestAction = presentation.action,
+               let actionTitle = presentation.actionTitle {
+                Button(actionTitle) {
                     action(requestAction)
                 }
                 .buttonStyle(.bordered)
@@ -272,12 +287,8 @@ private final class OnboardingPreviewViewModel: SBSOnboardingViewModel {
         hasAccessibilityPermission = true
     }
 
-    func openSystemSettingsAutomation() {
-        hasSwitchingAccess = true
-    }
-
     func requestSwitchingAccess() {
-        permissionRequestFeedback = .automationDenied
+        permissionRequestFeedback = .postEventsDenied
     }
 
     func skipGestureTest() {

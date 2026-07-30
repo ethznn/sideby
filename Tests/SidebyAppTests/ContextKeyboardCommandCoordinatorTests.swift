@@ -44,41 +44,34 @@ final class ContextKeyboardCommandCoordinatorTests: XCTestCase {
         )
     }
 
-    func testMatchingTriggerReleaseWaitsForModifierReleaseThenExecutesExactlyOnce() {
+    func testMatchingPressBeginsExecutionExactlyOnce() {
         var coordinator = ContextKeyboardCommandCoordinator()
         let command = ContextKeyboardCommand.activate(position: 2)
 
-        XCTAssertEqual(route(.pressed(command), through: &coordinator, at: 10), .ignore)
+        XCTAssertEqual(
+            route(.pressed(command), through: &coordinator, at: 10),
+            .activate(contextID: "review")
+        )
+        XCTAssertEqual(coordinator.gate.state, .executing)
         XCTAssertEqual(
             route(.released(command), through: &coordinator, at: 10.1),
-            .waitForModifierRelease(command)
+            .ignore
         )
-        XCTAssertEqual(coordinator.gate.state, .pending(command))
-        XCTAssertEqual(resume(command, through: &coordinator), .activate(contextID: "review"))
-        XCTAssertEqual(resume(command, through: &coordinator), .ignore)
     }
 
-    func testSecondCommandIsIgnoredWhilePendingExecutingAndSettling() {
+    func testSecondPressIsIgnoredWhileExecutingThenAcceptedOnCompletion() {
         var coordinator = ContextKeyboardCommandCoordinator()
 
-        XCTAssertEqual(route(.pressed(.move(.next)), through: &coordinator, at: 10), .ignore)
+        XCTAssertEqual(route(.pressed(.move(.next)), through: &coordinator, at: 10), .move(.next))
         XCTAssertEqual(route(.pressed(.move(.previous)), through: &coordinator, at: 10.1), .ignore)
-        XCTAssertEqual(
-            route(.released(.move(.next)), through: &coordinator, at: 10.2),
-            .waitForModifierRelease(.move(.next))
-        )
-        XCTAssertEqual(resume(.move(.next), through: &coordinator), .move(.next))
-        XCTAssertEqual(route(.pressed(.move(.previous)), through: &coordinator, at: 10.3), .ignore)
+        XCTAssertEqual(route(.released(.move(.next)), through: &coordinator, at: 10.2), .ignore)
 
         coordinator.finishExecution(at: 11)
 
-        XCTAssertEqual(route(.pressed(.move(.previous)), through: &coordinator, at: 11.749), .ignore)
-        XCTAssertEqual(route(.pressed(.move(.previous)), through: &coordinator, at: 11.75), .ignore)
         XCTAssertEqual(
-            route(.released(.move(.previous)), through: &coordinator, at: 11.76),
-            .waitForModifierRelease(.move(.previous))
+            route(.pressed(.move(.previous)), through: &coordinator, at: 11),
+            .move(.previous)
         )
-        XCTAssertEqual(resume(.move(.previous), through: &coordinator), .move(.previous))
     }
 
     func testFeedbackHappensOnPressWithoutOccupyingExecutionGate() {
@@ -93,24 +86,17 @@ final class ContextKeyboardCommandCoordinatorTests: XCTestCase {
             ),
             .showSidebyOff
         )
-        XCTAssertEqual(route(.pressed(.move(.next)), through: &coordinator, at: 10), .ignore)
-        XCTAssertEqual(
-            route(.released(.move(.next)), through: &coordinator, at: 10.1),
-            .waitForModifierRelease(.move(.next))
-        )
-        XCTAssertEqual(resume(.move(.next), through: &coordinator), .move(.next))
+        XCTAssertEqual(route(.pressed(.move(.next)), through: &coordinator, at: 10), .move(.next))
 
         coordinator.finishExecution(at: 11)
         XCTAssertEqual(
-            route(.pressed(.activate(position: 10)), through: &coordinator, at: 11.75),
+            route(.pressed(.activate(position: 10)), through: &coordinator, at: 11),
             .showMissingContext(position: 10)
         )
-        XCTAssertEqual(route(.pressed(.move(.previous)), through: &coordinator, at: 11.75), .ignore)
         XCTAssertEqual(
-            route(.released(.move(.previous)), through: &coordinator, at: 11.8),
-            .waitForModifierRelease(.move(.previous))
+            route(.pressed(.move(.previous)), through: &coordinator, at: 11),
+            .move(.previous)
         )
-        XCTAssertEqual(resume(.move(.previous), through: &coordinator), .move(.previous))
     }
 
     func testCaptureAndSwitchBusyPressesCannotExecuteAfterBusyEnds() {
@@ -128,19 +114,6 @@ final class ContextKeyboardCommandCoordinatorTests: XCTestCase {
         XCTAssertEqual(route(.released(.move(.previous)), through: &coordinator, at: 11.1), .ignore)
     }
 
-    func testSecondCommandCannotReplaceCommandWaitingForModifierRelease() {
-        var coordinator = ContextKeyboardCommandCoordinator(settlingDuration: 0)
-
-        XCTAssertEqual(route(.pressed(.move(.next)), through: &coordinator, at: 10), .ignore)
-        XCTAssertEqual(
-            route(.released(.move(.next)), through: &coordinator, at: 10.1),
-            .waitForModifierRelease(.move(.next))
-        )
-        XCTAssertEqual(route(.pressed(.move(.previous)), through: &coordinator, at: 10.2), .ignore)
-        XCTAssertEqual(resume(.move(.previous), through: &coordinator), .ignore)
-        XCTAssertEqual(resume(.move(.next), through: &coordinator), .move(.next))
-    }
-
     private func route(
         _ event: ContextKeyboardShortcutInputEvent,
         through coordinator: inout ContextKeyboardCommandCoordinator,
@@ -156,19 +129,6 @@ final class ContextKeyboardCommandCoordinatorTests: XCTestCase {
             isSwitching: isSwitching,
             isCapturing: isCapturing,
             at: timestamp
-        )
-    }
-
-    private func resume(
-        _ command: ContextKeyboardCommand,
-        through coordinator: inout ContextKeyboardCommandCoordinator
-    ) -> ContextKeyboardAction {
-        coordinator.resumeAfterModifierRelease(
-            command,
-            contextPlan: plan,
-            isSidebyEnabled: true,
-            isSwitching: false,
-            isCapturing: false
         )
     }
 }
