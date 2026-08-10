@@ -53,6 +53,10 @@ public protocol DockSwipeEventPosting: Sendable {
     func post(_ descriptor: DockSwipeGestureDescriptor) -> Bool
 }
 
+public protocol LocatedDockSwipeEventPosting: Sendable {
+    func post(_ descriptor: DockSwipeGestureDescriptor, at location: CGPoint) -> Bool
+}
+
 struct AnyDockSwipeEventPoster: DockSwipeEventPosting {
     private let poster: any DockSwipeEventPosting
 
@@ -62,6 +66,18 @@ struct AnyDockSwipeEventPoster: DockSwipeEventPosting {
 
     func post(_ descriptor: DockSwipeGestureDescriptor) -> Bool {
         poster.post(descriptor)
+    }
+}
+
+struct AnyLocatedDockSwipeEventPoster: LocatedDockSwipeEventPosting {
+    private let poster: any LocatedDockSwipeEventPosting
+
+    init(_ poster: any LocatedDockSwipeEventPosting) {
+        self.poster = poster
+    }
+
+    func post(_ descriptor: DockSwipeGestureDescriptor, at location: CGPoint) -> Bool {
+        poster.post(descriptor, at: location)
     }
 }
 
@@ -77,6 +93,31 @@ public struct DockSwipeSpaceCommandExecutor<Poster: DockSwipeEventPosting>: Spac
     }
 }
 
+public struct TargetedDockSwipeSpaceCommandExecutor<Poster: LocatedDockSwipeEventPosting>: SpaceCommandExecuting {
+    private let poster: Poster
+    private let targetProvider: any DisplaySwitchTargetProviding
+
+    public init(
+        poster: Poster,
+        targetProvider: any DisplaySwitchTargetProviding
+    ) {
+        self.poster = poster
+        self.targetProvider = targetProvider
+    }
+
+    public func execute(_ command: SwitchCommand) -> Bool {
+        let points = targetProvider.targetPoints()
+        guard !points.isEmpty else {
+            return false
+        }
+
+        let descriptor = DockSwipeGestureDescriptor.make(for: command)
+        return points.reduce(true) { result, point in
+            poster.post(descriptor, at: point) && result
+        }
+    }
+}
+
 enum DockSwipeEventTap: Equatable, Sendable {
     case session
 }
@@ -86,6 +127,7 @@ protocol CGDockSwipeEventWriting: Sendable {
 }
 
 protocol CGDockSwipeEventWritingEvent: Sendable {
+    func setLocation(_ location: CGPoint) -> Bool
     func setIntegerValue(field: UInt32, value: Int64) -> Bool
     func setDoubleValue(field: UInt32, value: Double) -> Bool
     func post(tap: DockSwipeEventTap) -> Bool
@@ -105,6 +147,11 @@ private final class CGDockSwipeWritableEvent: CGDockSwipeEventWritingEvent, @unc
 
     init(event: CGEvent) {
         self.event = event
+    }
+
+    func setLocation(_ location: CGPoint) -> Bool {
+        event.location = location
+        return event.location == location
     }
 
     func setIntegerValue(field: UInt32, value: Int64) -> Bool {
@@ -134,7 +181,7 @@ private final class CGDockSwipeWritableEvent: CGDockSwipeEventWritingEvent, @unc
     }
 }
 
-public struct CGDockSwipeEventPoster: DockSwipeEventPosting {
+public struct CGDockSwipeEventPoster: DockSwipeEventPosting, LocatedDockSwipeEventPosting {
     private let writer: any CGDockSwipeEventWriting
     private let hasOrRequestPostEventAccess: @Sendable () -> Bool
 
@@ -156,9 +203,25 @@ public struct CGDockSwipeEventPoster: DockSwipeEventPosting {
     }
 
     public func post(_ descriptor: DockSwipeGestureDescriptor) -> Bool {
+        postConfigured(descriptor, location: nil)
+    }
+
+    public func post(_ descriptor: DockSwipeGestureDescriptor, at location: CGPoint) -> Bool {
+        postConfigured(descriptor, location: location)
+    }
+
+    private func postConfigured(
+        _ descriptor: DockSwipeGestureDescriptor,
+        location: CGPoint?
+    ) -> Bool {
         guard hasOrRequestPostEventAccess(),
               let event = writer.makeEvent()
         else {
+            return false
+        }
+
+        if let location,
+           !event.setLocation(location) {
             return false
         }
 
