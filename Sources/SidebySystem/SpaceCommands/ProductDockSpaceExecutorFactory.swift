@@ -1,4 +1,3 @@
-import Foundation
 import SidebyCore
 
 public struct ProductSpaceExecutorRecipe: Equatable, Sendable {
@@ -8,6 +7,7 @@ public struct ProductSpaceExecutorRecipe: Equatable, Sendable {
 
     public enum CursorVisibility: Equatable, Sendable {
         case coreGraphicsOnly
+        case none
     }
 
     public enum CursorShield: Equatable, Sendable {
@@ -30,45 +30,15 @@ public struct ProductSpaceExecutorRecipe: Equatable, Sendable {
 }
 
 struct ProductDockSpaceExecutorDependencies: Sendable {
-    let poster: any DockSwipeEventPosting
+    let poster: any LocatedDockSwipeEventPosting
     let targetProvider: any DisplaySwitchTargetProviding
-    let cursor: any CursorPositioning
-    let visibilityController: any CursorVisibilityControlling
-    let cursorShield: any CursorShielding
-    let cursorAssociationController: any MouseCursorAssociationControlling
-    let postEventAccessChecker: any PostEventAccessChecking
-    let hideSettleDelay: TimeInterval
-    let focusDelay: TimeInterval
-    let switchDelay: TimeInterval
-    let transitionSettleDelay: TimeInterval
-    let restoreDelay: TimeInterval
 
     init(
-        poster: any DockSwipeEventPosting,
-        targetProvider: any DisplaySwitchTargetProviding,
-        cursor: any CursorPositioning,
-        visibilityController: any CursorVisibilityControlling,
-        cursorShield: any CursorShielding,
-        cursorAssociationController: any MouseCursorAssociationControlling,
-        postEventAccessChecker: any PostEventAccessChecking,
-        hideSettleDelay: TimeInterval = HiddenCursorDisplaySpaceCommandExecutor.defaultHideSettleDelay,
-        focusDelay: TimeInterval = HiddenCursorDisplaySpaceCommandExecutor.defaultFocusDelay,
-        switchDelay: TimeInterval = HiddenCursorDisplaySpaceCommandExecutor.defaultSwitchDelay,
-        transitionSettleDelay: TimeInterval = HiddenCursorDisplaySpaceCommandExecutor.defaultTransitionSettleDelay,
-        restoreDelay: TimeInterval = HiddenCursorDisplaySpaceCommandExecutor.defaultRestoreDelay
+        poster: any LocatedDockSwipeEventPosting,
+        targetProvider: any DisplaySwitchTargetProviding
     ) {
         self.poster = poster
         self.targetProvider = targetProvider
-        self.cursor = cursor
-        self.visibilityController = visibilityController
-        self.cursorShield = cursorShield
-        self.cursorAssociationController = cursorAssociationController
-        self.postEventAccessChecker = postEventAccessChecker
-        self.hideSettleDelay = hideSettleDelay
-        self.focusDelay = focusDelay
-        self.switchDelay = switchDelay
-        self.transitionSettleDelay = transitionSettleDelay
-        self.restoreDelay = restoreDelay
     }
 
     static func live(includedStableIDs: Set<String>) -> Self {
@@ -76,12 +46,7 @@ struct ProductDockSpaceExecutorDependencies: Sendable {
             poster: CGDockSwipeEventPoster(),
             targetProvider: CGDisplaySwitchTargetProvider(
                 includedStableIDs: includedStableIDs
-            ),
-            cursor: CGCursorPositioner(),
-            visibilityController: CGDisplayOnlyCursorVisibilityController(),
-            cursorShield: NoopCursorShield(),
-            cursorAssociationController: CGMouseCursorAssociationController(),
-            postEventAccessChecker: CGPostEventAccessChecker()
+            )
         )
     }
 }
@@ -89,7 +54,7 @@ struct ProductDockSpaceExecutorDependencies: Sendable {
 public enum ProductDockSpaceExecutorFactory {
     public static let recipe = ProductSpaceExecutorRecipe(
         backend: .dockSwipe,
-        cursorVisibility: .coreGraphicsOnly,
+        cursorVisibility: .none,
         cursorShield: .none
     )
 
@@ -107,21 +72,9 @@ public enum ProductDockSpaceExecutorFactory {
         dependencies: ProductDockSpaceExecutorDependencies
     ) -> any SpaceCommandExecuting {
         _ = includedStableIDs
-        return HiddenCursorDisplaySpaceCommandExecutor(
-            baseExecutor: DockSwipeSpaceCommandExecutor(
-                poster: AnyDockSwipeEventPoster(dependencies.poster)
-            ),
-            targetProvider: dependencies.targetProvider,
-            cursor: dependencies.cursor,
-            visibilityController: dependencies.visibilityController,
-            cursorShield: dependencies.cursorShield,
-            cursorAssociationController: dependencies.cursorAssociationController,
-            postEventAccessChecker: dependencies.postEventAccessChecker,
-            hideSettleDelay: dependencies.hideSettleDelay,
-            focusDelay: dependencies.focusDelay,
-            switchDelay: dependencies.switchDelay,
-            transitionSettleDelay: dependencies.transitionSettleDelay,
-            restoreDelay: dependencies.restoreDelay
+        return TargetedDockSwipeSpaceCommandExecutor(
+            poster: AnyLocatedDockSwipeEventPoster(dependencies.poster),
+            targetProvider: dependencies.targetProvider
         )
     }
 }

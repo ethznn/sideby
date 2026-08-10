@@ -4,47 +4,41 @@ import CoreGraphics
 @testable import SidebySystem
 
 final class ProductDockSpaceExecutorFactoryTests: XCTestCase {
-    func testProductFactoryRecipeIsDockAndAppKitFree() {
+    func testProductFactoryRecipeUsesEventLocationWithoutCursorLifecycle() {
         XCTAssertEqual(
             ProductDockSpaceExecutorFactory.recipe,
             ProductSpaceExecutorRecipe(
                 backend: .dockSwipe,
-                cursorVisibility: .coreGraphicsOnly,
+                cursorVisibility: .none,
                 cursorShield: .none
             )
         )
     }
 
-    func testFactoryAssemblesInjectedDockPosterInsideCoreGraphicsCursorLifecycle() {
-        let poster = RecordingFactoryDockPoster()
+    func testFactoryPostsDockGestureAtInjectedTargetPoint() {
+        let poster = RecordingFactoryLocatedDockPoster()
+        let point = CGPoint(x: 900, y: 100)
         let executor = ProductDockSpaceExecutorFactory.make(
             includedStableIDs: ["main"],
             dependencies: .init(
                 poster: poster,
-                targetProvider: StaticFactoryTargetProvider(points: [CGPoint(x: 100, y: 100)]),
-                cursor: FactoryCursor(),
-                visibilityController: FactoryVisibilityController(),
-                cursorShield: NoopCursorShield(),
-                cursorAssociationController: FactoryCursorAssociationController(),
-                postEventAccessChecker: FactoryPostEventAccessChecker(),
-                hideSettleDelay: 0,
-                focusDelay: 0,
-                switchDelay: 0,
-                transitionSettleDelay: 0,
-                restoreDelay: 0
+                targetProvider: StaticFactoryTargetProvider(points: [point])
             )
         )
 
         XCTAssertTrue(executor.execute(.previous))
         XCTAssertEqual(poster.descriptors, [.make(for: .previous)])
+        XCTAssertEqual(poster.locations, [point])
     }
 }
 
-private final class RecordingFactoryDockPoster: DockSwipeEventPosting, @unchecked Sendable {
+private final class RecordingFactoryLocatedDockPoster: LocatedDockSwipeEventPosting, @unchecked Sendable {
     private(set) var descriptors: [DockSwipeGestureDescriptor] = []
+    private(set) var locations: [CGPoint] = []
 
-    func post(_ descriptor: DockSwipeGestureDescriptor) -> Bool {
+    func post(_ descriptor: DockSwipeGestureDescriptor, at location: CGPoint) -> Bool {
         descriptors.append(descriptor)
+        locations.append(location)
         return true
     }
 }
@@ -55,28 +49,4 @@ private struct StaticFactoryTargetProvider: DisplaySwitchTargetProviding {
     func targetPoints() -> [CGPoint] {
         points
     }
-}
-
-private struct FactoryCursor: CursorPositioning {
-    func currentLocation() -> CGPoint? {
-        CGPoint(x: 10, y: 10)
-    }
-
-    func move(to point: CGPoint) -> Bool {
-        true
-    }
-}
-
-private struct FactoryVisibilityController: CursorVisibilityControlling {
-    func hide() -> Bool { true }
-    func show() -> Bool { true }
-}
-
-private struct FactoryCursorAssociationController: MouseCursorAssociationControlling {
-    func disconnect() -> Bool { true }
-    func connect() -> Bool { true }
-}
-
-private struct FactoryPostEventAccessChecker: PostEventAccessChecking {
-    func hasOrRequestAccess() -> Bool { true }
 }
