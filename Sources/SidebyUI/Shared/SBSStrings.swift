@@ -48,7 +48,7 @@ public struct SBSStrings: Sendable {
     public var openSystemSettings: String { text("Open System Settings…", "시스템 설정 열기…") }
     public var openMenuBar: String { text("Open menu bar", "메뉴바 열기") }
     public var openSettings: String { text("Open Settings", "설정 열기") }
-    public var onboardingCompletionActionTitle: String { openSettings }
+    public var onboardingCompletionActionTitle: String { workspaceStartGuide }
     public var replayOnboarding: String { text("Replay Onboarding", "온보딩 다시 보기") }
     public var customizeShortcuts: String { text("Customize Shortcuts", "단축키 설정") }
     public var sideby: String { SidebyCore.productName }
@@ -552,8 +552,8 @@ public struct SBSStrings: Sendable {
     public var onboardingDoneTitle: String { text("You're set.", "준비됐습니다.") }
     public var onboardingDoneBody: String {
         text(
-            "Sideby now lives in your menu bar. Click the icon to choose which displays move together.",
-            "Sideby가 메뉴바에 표시됩니다. 아이콘을 눌러 함께 이동할 디스플레이를 선택하세요."
+            "Next, choose the displays that should move together, name your workspaces, and try moving there and back.",
+            "이제 함께 움직일 화면을 선택하고 작업에 이름을 붙인 뒤, 다른 작업으로 갔다가 돌아와 보세요."
         )
     }
     public func stepAccessibilityLabel(current: Int, total: Int) -> String {
@@ -571,6 +571,9 @@ public struct SBSStrings: Sendable {
     }
     public var contextKeyboardArrowHint: String {
         text("Previous / Next Context: ⌥⇧< / ⌥⇧>", "이전 / 다음 Context: ⌥⇧< / ⌥⇧>")
+    }
+    public var contextKeyboardPreviousWorkspaceHint: String {
+        text("Return to last workspace: ⌥⇧Tab · press again to switch back", "직전 작업으로 돌아가기: ⌥⇧Tab · 다시 누르면 두 작업 사이를 왕복합니다")
     }
     public var contextKeyboardLayerHint: String {
         text(

@@ -164,20 +164,20 @@ public struct ShortcutSettingsView: View {
             Text(strings.gestureModifier)
                 .font(.subheadline.weight(.semibold))
 
-            HStack(spacing: 8) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 135), alignment: .leading)], alignment: .leading, spacing: 10) {
                 ForEach(GestureModifierChoice.allCases) { choice in
-                    Button {
-                        toggleGestureModifier(choice.flag)
-                    } label: {
-                        HStack(spacing: 5) {
-                            Text(choice.symbol)
-                                .font(.system(.caption, design: .monospaced).weight(.semibold))
-                            Text(strings.modifierChoiceTitle(choice.flag))
+                    Toggle(isOn: Binding(
+                        get: { settings.requiredModifiers.contains(choice.flag) },
+                        set: { requested in
+                            if requested != settings.requiredModifiers.contains(choice.flag) {
+                                toggleGestureModifier(choice.flag)
+                            }
                         }
+                    )) {
+                        Text("\(choice.symbol) \(strings.modifierChoiceTitle(choice.flag))")
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(settings.requiredModifiers.contains(choice.flag) ? .accentColor : .secondary)
-                    .pointingHandCursor()
+                    .toggleStyle(.checkbox).pointingHandCursor()
                 }
             }
 
@@ -194,6 +194,9 @@ public struct ShortcutSettingsView: View {
             Text(strings.keyboardShortcuts)
                 .font(.subheadline.weight(.semibold))
             Text(strings.contextKeyboardNumberHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(strings.contextKeyboardPreviousWorkspaceHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(strings.contextKeyboardArrowHint)

@@ -40,6 +40,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
     public var contextPlan: ContextPlan
     public var displaySpacePlan: DisplaySpacePlan
     public var displayRowOrder: [String]
+    public var displaySelection: DisplaySelection
 
     public init(
         version: Int,
@@ -54,7 +55,8 @@ public struct AppSettings: Equatable, Codable, Sendable {
         launchAtLogin: Bool,
         contextPlan: ContextPlan,
         displaySpacePlan: DisplaySpacePlan,
-        displayRowOrder: [String] = []
+        displayRowOrder: [String] = [],
+        displaySelection: DisplaySelection = DisplaySelection()
     ) {
         self.version = version
         self.mode = mode
@@ -69,6 +71,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         self.contextPlan = contextPlan
         self.displaySpacePlan = displaySpacePlan
         self.displayRowOrder = displayRowOrder
+        self.displaySelection = displaySelection
     }
 
     public static let `default` = AppSettings(
@@ -101,6 +104,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         case contextPlan
         case displaySpacePlan
         case displayRowOrder
+        case displaySelection
     }
 
     public init(from decoder: Decoder) throws {
@@ -124,6 +128,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         self.contextPlan = try container.decodeIfPresent(ContextPlan.self, forKey: .contextPlan) ?? .default
         self.displaySpacePlan = try container.decodeIfPresent(DisplaySpacePlan.self, forKey: .displaySpacePlan) ?? .default
         self.displayRowOrder = try container.decodeIfPresent([String].self, forKey: .displayRowOrder) ?? []
+        self.displaySelection = try container.decodeIfPresent(DisplaySelection.self, forKey: .displaySelection) ?? DisplaySelection()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -140,6 +145,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         try container.encode(launchAtLogin, forKey: .launchAtLogin)
         try container.encode(contextPlan, forKey: .contextPlan)
         try container.encode(displayRowOrder, forKey: .displayRowOrder)
+        try container.encode(displaySelection, forKey: .displaySelection)
     }
 }
 

@@ -1,163 +1,142 @@
 # Sideby
 
-[English](README.md) | [한국어](README.ko.md)
+English | [한국어](README.ko.md)
 
-Sideby is a native macOS menu bar app that lets multiple displays move together as one work Context.
+**Back to your work, in one action.**
 
-Choose the displays that belong together, capture their current Spaces, and switch the whole setup with a gesture, shortcut, button, or direct Context selection. Sideby stays focused on this workflow instead of trying to replace Mission Control or become a full window manager.
+Keep code and reference material together as **Checkout**, then switch to **PR review** when a review comes in. Sideby groups the desktops on your Mac and external displays into named workspaces, so you can return without switching every screen yourself. It also works with a single display.
 
-## Preview
+See [what’s new in Sideby 0.11.0](docs/releases/0.11.0.md).
 
 <p align="center">
-  <img src="./docs/images/sideby-demo-en.gif" width="720" alt="Sideby switching a multi-display workspace between Contexts" />
+  <img src="./docs/images/sideby-demo-en.gif" width="720" alt="Simulated demo: Checkout code and API docs change to PR review and a preview, then Option-Shift-Tab switches back and forth." />
 </p>
 
-## Why Sideby
+Checkout → PR review → Checkout, using the same `⌥⇧Tab` shortcut to go back and forth. The demo uses sample desktops and a capture of Sideby’s actual matrix; the animated desktop transitions are a simulation, not a hardware recording. [View the still image](docs/images/sideby-demo-poster-en.png).
 
-A single task often spans several displays: code on one screen, references on another, and communication on a third. Moving to the next task should move that workspace as a set instead of making you switch each display separately.
+[Download Sideby](https://github.com/ethznn/sideby/releases) · macOS 14 or later · English and Korean
 
-Sideby turns those per-display Spaces into named Contexts. It keeps the scope intentionally small and reports permission or Space limitations clearly when macOS cannot complete a requested move safely.
+## What you can do
 
-## How It Works
+- **Switch a whole task.** Choose a workspace’s **Go** button to move its assigned desktops on the selected displays.
+- **Return with the same shortcut.** Press `⌥⇧Tab` to return to the previous workspace. Press it again to switch back.
+- **Arrange work from the menu.** Open Sideby in the menu bar to see the matrix immediately. Rename workspaces, change assignments, or refresh desktops there.
 
-1. **Choose displays.** Select the displays that should move together.
-2. **Capture a Context.** Build named Contexts from the current Space arrangement, then adjust membership in the matrix when needed.
-3. **Switch together.** Use a gesture, shortcut, Previous/Next button, or direct Context selection to move the workspace.
+<p align="center">
+  <img src="./docs/images/sideby-context-capture-en.png" width="680" alt="Sideby’s dark menu with display selection and a matrix: Checkout.swift and Checkout API assigned to Checkout; PR #42 and its preview assigned to PR review." />
+</p>
 
-## Features
+*Actual Sideby interface rendered with sample workspaces and display data.*
 
-### Contexts
+## Make the matrix yours
 
-- Capture the current multi-display Space arrangement instantly, with a walk-based fallback when the layout query is unavailable.
-- Capture every discovered Space without a fixed Context-count limit.
-- Add empty Contexts, then arrange display Space membership in the Context matrix.
-- Delete Contexts without removing physical macOS Spaces. Empty Contexts are removed immediately; mapped Contexts require confirmation.
-- Prevent deletion below the smallest live Space count among the selected displays and fail closed when the live layout cannot be trusted.
-- Preserve gaps when displays start at different Space positions, so membership does not have to be contiguous.
+Columns are workspaces. Rows are displays. Each cell shows that display’s assigned desktop, including a content label when one is available.
 
-### Switching
+| Action | Result |
+| --- | --- |
+| Edit the name at the top of a column | Rename that workspace. Use **Go** below it to switch. |
+| Drag a cell to an empty cell in the same display row | Move the desktop assignment. |
+| Drag a cell onto an occupied cell in the same row | Swap the two assignments. |
+| Hold Option and drag to an empty cell in the same row | Keep the original assignment and use that desktop in another workspace too. |
+| Drag a display’s name or up/down icon | Reorder display rows. |
+| Open a cell’s menu | Assign a desktop without dragging, including with the keyboard. |
 
-- Move selected displays to the previous or next captured Context using per-display target Space indexes.
-- Activate a named Context directly from the matrix.
-- Align selected displays with the Context represented by the reference display.
-- Fall back to general movement when external Space changes make Context matching unsafe.
-- See a compact center-screen Context HUD after a successful move.
-- Press `1...9`, `0`, `<`, or `>` with `Option + Shift`, then release both modifiers to switch Contexts.
+**Refresh desktops** is at the top of the menu. It rereads desktop changes and attempts to update content labels for each display’s desktops, including desktops you are not currently viewing. These labels come from available app/window metadata; they are not native macOS Space names, and some may be unavailable. Sideby falls back to a desktop number and preserves names you edited yourself.
 
-### Customization
+Display connection changes are checked automatically. Disconnected display choices and assignments are retained for reconnection; you can continue working with the selected displays that are currently available.
 
-- Choose Move Targets for general previous/next Space movement.
-- Drag display Space positions to adjust captured membership.
-- Reorder display rows and resize the display-name column.
-- Use the default `Option + Shift + horizontal swipe`, the fixed Context keyboard layer, or inline controls.
-- Add names and best-effort visible app/window suggestions to captured Spaces.
+<details>
+<summary>See the full Workspaces & Displays settings</summary>
 
-### Native macOS Experience
+The same matrix is available in **All settings → Workspaces & Displays**. Input, Permissions, and General settings have their own panes.
 
-- Menu bar-only interface with a resizable popover and no persistent Dock icon.
-- Clear onboarding and diagnostics for Accessibility and Screen Switching access.
-- English and Korean interface copy.
-- Signed in-app update checks, downloads, and user-approved installation through Sparkle 2.
+<p align="center">
+  <img src="./docs/images/sideby-settings-workspaces-en.png" width="720" alt="Light Workspaces & Displays settings with a display diagram, desktop import action, and the same editable workspace matrix." />
+</p>
 
-## Install & Quick Start
+</details>
 
-Sideby requires macOS 14 or later.
+## Your first round trip
 
-Download the latest signed and notarized DMG from [GitHub Releases](https://github.com/ethznn/sideby/releases), move Sideby to Applications, and open it. Sideby stays in the menu bar; use its menu bar item to reopen the controls.
+1. **Install and allow access.** Download the DMG from [GitHub Releases](https://github.com/ethznn/sideby/releases), move Sideby to Applications, and open it. Follow the guide for Accessibility and Screen Switching access.
+2. **Choose your displays.** Click the display diagram or checkboxes. One display is enough; a round trip needs two different desktop arrangements. The guide points you to Mission Control if more desktops are needed.
+3. **Name your workspaces.** Read the desktop arrangement, name two workspaces, and check which content belongs to each display.
+4. **Go there, then come back.** Follow the guide’s buttons to visit the other workspace and return. Finish with **Open Sideby menu**. You can use shortcuts or gestures afterward.
 
-On first launch, macOS asks for the permissions needed to detect the configured gesture and send the requested Space switch command:
+You can continue the guide later. Its completion is based on a successful round trip; a skipped step or a failed move does not count.
 
-- **Accessibility** for global gesture detection.
-- **Screen Switching access** for the previous/next Space command.
-- **System Events Automation** when the current command path requires it.
+<details>
+<summary>See workspace preparation and the completed round trip</summary>
 
-Sideby does not request Screen Recording for switching, Context Capture, or Align Displays.
+<p align="center">
+  <img src="./docs/images/sideby-onboarding-workspaces-en.png" width="640" alt="Onboarding workspace preparation with editable Checkout and PR review names and content labels for both displays." />
+</p>
 
-To build from source, install Xcode with a Swift 6 toolchain, then run:
+<p align="center">
+  <img src="./docs/images/sideby-onboarding-roundtrip-en.png" width="640" alt="Completed round-trip guide with the Option-Shift-Tab hint and Open Sideby menu button." />
+</p>
 
-```bash
-swift test
-scripts/build_app_bundle.sh
-open "dist/Sideby.app"
-```
+These are production views rendered with sample data, including a simulated completed guide.
 
-If macOS still reports a rebuilt local app as denied, remove the old Sideby entry from System Settings and add the rebuilt app again.
+</details>
 
-## Privacy & Platform Notes
+## Shortcuts and gestures
 
-Sideby uses Accessibility to detect the configured gesture while its master toggle is on or during an explicitly active onboarding gesture test. It also uses Accessibility to send a Space command after an allowed switching or capture request and to make best-effort visible app/window name suggestions during Context Capture. While the app is running, macOS global hot-key registration listens only for the fixed `Option + Shift + number / < / >` combinations so Sideby can explain when its master toggle is off. Sideby does not inspect or store other typed input.
+| Input | Action |
+| --- | --- |
+| `⌥⇧Tab` | Return to the previous workspace; repeat to alternate between the last two. |
+| `⌥⇧1` … `⌥⇧9`, `⌥⇧0` | Go to workspace positions 1–10. |
+| `⌥⇧<` / `⌥⇧>` | Previous / next workspace. |
+| Option + Shift + horizontal swipe | Switch with the default gesture. |
 
-Sideby reads the current per-display Space layout at runtime when macOS makes it available. It does not store private Space IDs, hidden Mission Control state, typed input, raw input events, screenshots, app bundle IDs, or window IDs.
+For keyboard switching, press the combination, then release Option and Shift to execute the move. Input settings explain the available gesture options.
 
-The following user configuration stays local on the Mac:
+## When your setup changes
 
-- Context names and definitions
-- Display membership and captured per-display Space indexes
-- Display row order
-- Shortcut and input settings
-- User-authored labels
+Sideby reads the live desktop layout and checks requested moves. Opening the menu or using **Refresh desktops** updates the workspace arrangement without a trip to the full Settings window. A relaunch does not normally require you to confirm every saved assignment again.
 
-Deleting a Context removes only Sideby's saved mapping. It never deletes a macOS Space.
+If a move is incomplete, Sideby can retry the displays that have not reached the destination. If a required desktop is missing or its layout cannot be read, the menu provides a refresh or assignment-review action.
 
-The current direct-distribution build runs with App Sandbox off. Context Capture and Align Displays use a read-only SkyLight layout query when available, with a public-command fallback for capture. Sideby is therefore not targeting Mac App Store distribution.
+Workspaces refer to existing macOS desktops. Sideby does not reopen documents or restore window contents and positions. Deleting a workspace removes its Sideby assignments, never the macOS desktops themselves.
+
+## Privacy and platform notes
+
+Sideby uses Accessibility for its configured global gesture and, when available, app/window title suggestions. Screen Switching access allows it to send the requested desktop-switch commands. Some command paths also need System Events Automation. Switching and desktop discovery do not request Screen Recording permission.
+
+The fixed global keyboard registrations cover only `Option + Shift + number / < / > / Tab`. Sideby does not inspect or store other typed input. Runtime desktop discovery uses read-only macOS layout queries. Private Space IDs, window IDs, raw input events, and screenshots are not saved.
+
+Workspace names and assignments, display choices and row order, remembered display names, input preferences, and guide progress stay locally on your Mac. A content suggestion used as a workspace name becomes part of that saved name.
+
+The direct-distribution app uses private SkyLight APIs with App Sandbox off; it is not targeting the Mac App Store. Updates are delivered through Sparkle 2, with user-approved installation.
 
 ## Development
 
-Open the Swift package directly in Xcode:
-
-```bash
-xed Package.swift
-```
-
-Use `SidebyApp` for the product app and `SidebyDevApp` for local probes and macOS API experiments.
+Open `Package.swift` in Xcode with a Swift 6 toolchain, or run:
 
 ```bash
 swift test
 swift build --product SidebyApp
 swift build --product SidebyDevApp
-scripts/build_app_bundle.sh
-scripts/build_dev_app_bundle.sh
 ```
 
-`SidebyDevApp` is a local test harness, not the release bundle. The product bundle uses `Resources/AppIcon.icns`.
+`SidebyApp` is the product. `SidebyDevApp` is a local probe and API test harness. To build an app bundle for manual verification, check the published [Sparkle feed](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml) and run `scripts/build_app_bundle.sh` with `SIDEBY_BUILD_NUMBER` set to the latest `sparkle:version` plus one. Do not use the script’s default build number after a public release exists.
 
-## Architecture
+Regenerate the README screenshots and simulated demo with `bash scripts/render_readme_demo.sh`. This uses isolated sample data and does not need real external displays. See [media sources and reproduction](docs/media/README.md).
 
-Sideby is split into small SwiftPM modules:
+### Architecture
 
-```text
-Sources/
-  SidebyApp/        product app, menu bar, panels, onboarding
-  SidebyDevApp/     local probes and diagnostics
-  SidebyDevSupport/ probe helpers used by SidebyDevApp
-  SidebyCore/       domain models, gesture logic, settings, diagnostics
-  SidebySystem/     macOS API adapters
-  SidebyUI/         reusable SwiftUI views and view models
-Tests/
-  SidebyCoreTests/
-  SidebySystemTests/
-  SidebyUITests/
-```
+- `SidebyApp`: menu bar, windows, product onboarding, and application coordination.
+- `SidebyCore`: pure Swift workspace, gesture, settings, and recovery rules.
+- `SidebySystem`: macOS input, display, layout, and command adapters.
+- `SidebyUI`: reusable SwiftUI views and view models.
+- `SidebyDevApp` / `SidebyDevSupport`: local probes and diagnostics.
 
-Important boundaries:
+Space switching goes through `ContextSwitchEngine` and `SpaceCommandExecutor`. SwiftUI owns reusable interfaces; AppKit handles menu bar, window, and system integration.
 
-- Space switching goes through `ContextSwitchEngine` and `SpaceCommandExecutor`.
-- Global input and macOS adapters stay in `SidebySystem`.
-- Gesture interpretation and Context rules stay in pure Swift under `SidebyCore`.
-- SwiftUI owns reusable UI while AppKit adapters handle menu bar, window, and system integration.
+See [Development](docs/DEVELOPMENT.md) and [Decisions](docs/DECISIONS.md) for implementation and distribution details.
 
-See [Development](docs/DEVELOPMENT.md) for setup and release notes, and [Decisions](docs/DECISIONS.md) for the technical boundaries that protect users.
+## Contributing, security, and license
 
-## Contributing
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request, and run `swift test` for code changes. Discuss changes involving permissions, input, switching, packaging, or distribution in an issue first.
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request, and run `swift test` for code changes.
-
-For changes involving permissions, input, switching, packaging, or distribution, open an issue first so the trade-offs are explicit.
-
-## Security
-
-Please do not report security vulnerabilities through public issues. See [SECURITY.md](SECURITY.md) for the reporting process.
-
-## License
-
-Sideby is released under the [MIT License](LICENSE).
+Report vulnerabilities through the process in [SECURITY.md](SECURITY.md), not a public issue. Sideby is released under the [MIT License](LICENSE).

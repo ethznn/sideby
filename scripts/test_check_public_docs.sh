@@ -50,6 +50,23 @@ remove_fixture() {
 
 expect_pass
 
+mkdir -p "$repository/docs/plans"
+printf '# Internal release plan\n' > "$repository/docs/plans/example.md"
+git -C "$repository" add -f docs/plans/example.md
+expect_fail "forbidden public documentation path"
+remove_fixture docs/plans/example.md
+
+mkdir -p "$repository/docs/media"
+printf '<p>/Users/example/Develop/sideby</p>\n' > "$repository/docs/media/preview.html"
+git -C "$repository" add docs/media/preview.html
+expect_fail "local macOS path"
+remove_fixture docs/media/preview.html
+
+printf '{"display": "29047B54-6562-49DE-AA42-F7A696BE4F6B"}\n' > "$repository/docs/media/data.json"
+git -C "$repository" add docs/media/data.json
+expect_fail "machine-specific UUID"
+remove_fixture docs/media/data.json
+
 mkdir -p "$repository/docs/superpowers/plans"
 printf '# Internal plan\n' > "$repository/docs/superpowers/plans/example.md"
 git -C "$repository" add -f docs/superpowers/plans/example.md

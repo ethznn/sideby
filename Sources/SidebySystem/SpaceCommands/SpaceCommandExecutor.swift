@@ -559,7 +559,8 @@ public struct CGDisplaySwitchTargetProvider: DisplaySwitchTargetProviding {
             isBuiltin: CGDisplayIsBuiltin(id) != 0,
             vendorNumber: CGDisplayVendorNumber(id),
             modelNumber: CGDisplayModelNumber(id),
-            serialNumber: CGDisplaySerialNumber(id)
+            serialNumber: CGDisplaySerialNumber(id),
+            displayUUID: DisplayLayoutMapper.displayUUID(for: id)
         )
         return DisplaySwitchTargetCandidate(
             stableID: DisplayLayoutMapper.stableID(for: snapshot),

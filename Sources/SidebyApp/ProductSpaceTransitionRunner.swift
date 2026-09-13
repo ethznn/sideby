@@ -242,6 +242,17 @@ enum ProductSpaceTransitionResult: Equatable, Sendable {
 struct ProductSpaceTransitionRunner: Sendable {
     let makeExecutor: @Sendable (String) -> any SpaceCommandExecuting
     let verifier: StableSpaceLayoutVerifier
+    let verifiesBeforePosting: Bool
+
+    init(
+        makeExecutor: @escaping @Sendable (String) -> any SpaceCommandExecuting,
+        verifier: StableSpaceLayoutVerifier,
+        verifiesBeforePosting: Bool = false
+    ) {
+        self.makeExecutor = makeExecutor
+        self.verifier = verifier
+        self.verifiesBeforePosting = verifiesBeforePosting
+    }
 
     func run(_ request: ProductSpaceTransitionRequest) -> ProductSpaceTransitionResult {
         var currentIndexes = request.beforeIndexes
@@ -264,6 +275,18 @@ struct ProductSpaceTransitionRunner: Sendable {
                     expectedPreviousIndex: step.previousIndex,
                     actualPreviousIndex: currentIndexes[step.displayID]
                 ))
+            }
+
+            if verifiesBeforePosting {
+                // A named plan is valid only while its last confirmed layout
+                // still holds. The reader also rejects changed Space identities.
+                if case .failure(let failure) = verifier.waitForExpected(
+                    previous: currentIndexes,
+                    expected: currentIndexes,
+                    changedDisplayIDs: []
+                ) {
+                    return failed(.verification(failure))
+                }
             }
 
             didAttemptPost = true

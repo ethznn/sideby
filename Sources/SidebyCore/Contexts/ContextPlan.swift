@@ -337,10 +337,13 @@ public struct ContextPlan: Equatable, Codable, Sendable {
     public mutating func moveDisplaySpace(
         displayID: String,
         spaceIndex: Int,
+        fromContextID: String? = nil,
         toContextID targetContextID: String
     ) -> Bool {
         guard spaceIndex >= 0,
-              let sourceIndex = contexts.firstIndex(where: { $0.spaceIndex(for: displayID) == spaceIndex }),
+              let sourceIndex = contexts.firstIndex(where: {
+                  $0.spaceIndex(for: displayID) == spaceIndex && (fromContextID == nil || $0.id == fromContextID)
+              }),
               let targetIndex = contexts.firstIndex(where: { $0.id == targetContextID }),
               sourceIndex != targetIndex
         else {
@@ -371,6 +374,21 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         if affectsCurrentContext {
             syncState = .needsSync
         }
+        return true
+    }
+
+    /// Assigns this cell only. A desktop can belong to multiple workspaces.
+    @discardableResult
+    public mutating func assignDisplaySpace(displayID: String, spaceIndex: Int?, toContextID: String) -> Bool {
+        guard !displayID.isEmpty, spaceIndex == nil || spaceIndex! >= 0,
+              let index = contexts.firstIndex(where: { $0.id == toContextID }),
+              contexts[index].spaceIndex(for: displayID) != spaceIndex else { return false }
+        let context = contexts[index]
+        var mappings = context.displaySpaceIndexes
+        mappings[displayID] = spaceIndex
+        contexts[index] = ContextDefinition(id: context.id, order: context.order, name: context.name,
+                                            displaySpaceIndexes: mappings)
+        if context.id == currentContextID { syncState = .needsSync }
         return true
     }
 

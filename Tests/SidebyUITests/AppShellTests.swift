@@ -13,10 +13,11 @@ final class AppShellTests: XCTestCase {
     }
 
     func testFloatingMenuLayoutUsesResizableDefaults() {
-        XCTAssertEqual(FloatingMenuPanelLayout.defaultSize.width, 520)
-        XCTAssertEqual(FloatingMenuPanelLayout.defaultSize.height, 640)
-        XCTAssertEqual(FloatingMenuPanelLayout.minimumSize.width, 520)
-        XCTAssertEqual(FloatingMenuPanelLayout.minimumSize.height, 420)
+        let available = NSRect(x: 0, y: 0, width: 500, height: 500)
+        let size = FloatingMenuPanelLayout.contentSize(currentContentSize: nil, isNewPanel: true, visibleFrame: available)
+        XCTAssertLessThan(size.width, available.width)
+        XCTAssertLessThan(size.height, available.height)
+        XCTAssertGreaterThanOrEqual(size.width, FloatingMenuPanelLayout.minimumSize.width)
     }
 
     func testFloatingMenuLayoutClampsSavedSizeToVisibleFrame() {
@@ -27,6 +28,13 @@ final class AppShellTests: XCTestCase {
 
         XCTAssertEqual(size.width, 876)
         XCTAssertEqual(size.height, 676)
+    }
+
+    func testFloatingMenuClampingDoesNotOverflowAVisibleFrameSmallerThanItsNormalMinimum() {
+        let size = FloatingMenuPanelLayout.clampedContentSize(NSSize(width: 900, height: 700),
+            visibleFrame: NSRect(x: 0, y: 0, width: 300, height: 170))
+        XCTAssertEqual(size.width, 276)
+        XCTAssertEqual(size.height, 146)
     }
 
     func testFloatingMenuLayoutKeepsUserResizedPanelSize() {
@@ -134,7 +142,7 @@ final class AppShellTests: XCTestCase {
     func testCompactContextMatrixUsesReadableContextColumnWidth() {
         XCTAssertEqual(
             FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: true),
-            72
+            160
         )
         XCTAssertEqual(
             FloatingMenuContextMatrixLayout.contextColumnWidth(isCompact: false),

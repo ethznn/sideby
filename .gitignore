@@ -30,4 +30,5 @@ dist/
 # Local agent plans and raw research artifacts
 docs/superpowers/
 docs/local-research/
+docs/plans/
 docs/SPACE_*_RESEARCH.md

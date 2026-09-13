@@ -30,13 +30,13 @@ while IFS= read -r file; do
     [[ -f "$file" ]] || continue
 
     case "$file" in
-        docs/superpowers/*|docs/local-research/*|docs/SPACE_*_RESEARCH.md)
+        docs/superpowers/*|docs/plans/*|docs/local-research/*|docs/SPACE_*_RESEARCH.md)
             report_path_violation "$file"
             ;;
     esac
 
     case "$file" in
-        *.md) ;;
+        *.md|*.html|docs/*.json) ;;
         *) continue ;;
     esac
 

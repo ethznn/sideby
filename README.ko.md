@@ -2,162 +2,141 @@
 
 [English](README.md) | 한국어
 
-Sideby는 여러 디스플레이를 하나의 작업 Context처럼 함께 움직이게 해주는 네이티브 macOS 메뉴 막대 앱입니다.
+**하던 작업으로 한 번에 돌아오세요.**
 
-함께 사용할 디스플레이를 선택하고 현재 Space 구성을 캡처한 뒤, 제스처·단축키·버튼 또는 Context 선택으로 전체 작업공간을 전환할 수 있습니다. Mission Control을 대체하거나 전체 윈도우 매니저가 되기보다 이 한 가지 흐름에 집중합니다.
+코드와 참고 문서를 **결제 개발**로 묶어 두고, 리뷰 요청이 오면 **PR 리뷰**로 전환하세요. Sideby는 Mac과 외부 화면의 데스크탑을 작업별로 묶어, 화면마다 따로 전환하지 않아도 하던 일을 이어가도록 돕습니다. 화면 하나만으로도 사용할 수 있습니다.
 
-## 미리 보기
+[Sideby 0.11.0의 새로운 기능](docs/releases/0.11.0.md)을 확인하세요.
 
 <p align="center">
-  <img src="./docs/images/sideby-demo-en.gif" width="720" alt="여러 디스플레이의 작업공간을 Context 단위로 전환하는 Sideby" />
+  <img src="./docs/images/sideby-demo-en.gif" width="720" alt="시뮬레이션 데모: 결제 코드와 API 문서를 PR 리뷰와 실행 화면으로 전환하고, Option-Shift-Tab으로 두 작업을 반복해서 왕복합니다." />
 </p>
 
-## Why Sideby
+결제 개발 → PR 리뷰 → 결제 개발. 같은 `⌥⇧Tab` 단축키로 두 작업을 계속 오갈 수 있습니다. 데모는 샘플 데스크탑과 실제 Sideby 매트릭스 화면으로 제작했습니다. 화면 전환 애니메이션은 실제 모니터 녹화가 아닌 시뮬레이션입니다. [정지 이미지 보기](docs/images/sideby-demo-poster-en.png).
 
-하나의 작업은 여러 디스플레이에 걸쳐 있는 경우가 많습니다. 한 화면에는 코드, 다른 화면에는 참고 자료, 또 다른 화면에는 커뮤니케이션 도구를 둘 수 있습니다. 다음 작업으로 넘어갈 때 각 디스플레이를 따로 전환하는 대신 이 작업공간이 하나의 묶음처럼 움직이는 편이 자연스럽습니다.
+[Sideby 다운로드](https://github.com/ethznn/sideby/releases) · macOS 14 이상 · 한국어·영어 지원
 
-Sideby는 디스플레이별 Space 구성을 이름 있는 Context로 만듭니다. 범위는 의도적으로 작게 유지하고, macOS 권한이나 Space 상태 때문에 안전하게 이동할 수 없을 때는 그 한계를 명확하게 알려줍니다.
+## Sideby로 할 수 있는 일
 
-## 사용 방법
+- **작업에 필요한 화면을 함께 전환하세요.** 작업의 **이동** 버튼을 누르면 선택한 화면들이 각자 배정된 데스크탑으로 이동합니다.
+- **같은 단축키로 돌아오세요.** `⌥⇧Tab`을 누르면 직전 작업으로 돌아갑니다. 다시 누르면 방금 작업으로 되돌아갑니다.
+- **메뉴에서 바로 구성을 바꾸세요.** 메뉴 막대의 Sideby를 열면 매트릭스가 바로 보입니다. 작업 이름 수정, 화면 배정, 데스크탑 새로고침을 여기서 할 수 있습니다.
 
-1. **디스플레이 선택:** 함께 움직일 디스플레이를 고릅니다.
-2. **Context 캡처:** 현재 Space 배치에서 이름 있는 Context를 만들고, 필요하면 matrix에서 membership을 조정합니다.
-3. **함께 전환:** 제스처, 단축키, 이전/다음 버튼 또는 Context 선택으로 전체 작업공간을 이동합니다.
+<p align="center">
+  <img src="./docs/images/sideby-context-capture-ko.png" width="680" alt="Sideby 다크 모드 메뉴: 화면 선택 그림과 작업 매트릭스. 결제 개발에는 Checkout.swift와 API 문서, PR 리뷰에는 변경 내역과 실행 화면이 배정되어 있습니다." />
+</p>
 
-## 기능
+*샘플 작업과 디스플레이 데이터를 넣어 렌더링한 실제 Sideby 화면입니다.*
 
-### Contexts
+## 내 작업에 맞게 매트릭스 조정하기
 
-- 현재 멀티 디스플레이 Space 배치를 즉시 캡처하고, layout query를 사용할 수 없으면 walk-based fallback을 사용합니다.
-- 고정된 Context 개수 제한 없이 발견한 모든 Space를 캡처합니다.
-- 빈 Context를 추가하고 Context matrix에서 디스플레이 Space membership을 구성합니다.
-- 실제 macOS Space를 지우지 않고 Context만 삭제합니다. 빈 Context는 즉시 삭제하고, Space가 매핑된 Context는 확인 후 삭제합니다.
-- 선택한 디스플레이의 live Space 개수 중 최솟값 아래로 Context를 삭제할 수 없으며, live layout을 신뢰할 수 없으면 삭제하지 않습니다.
-- 디스플레이별 현재 Space 위치가 달라도 중간 빈칸을 보존해 membership이 Context 1부터 연속일 필요가 없습니다.
+열은 작업, 행은 디스플레이입니다. 각 칸에는 해당 화면에 배정된 데스크탑이 표시되며, 읽을 수 있는 경우 콘텐츠 이름도 함께 나옵니다.
 
-### Switching
+| 조작 | 결과 |
+| --- | --- |
+| 열 위쪽의 이름 수정 | 작업 이름을 바꿉니다. 전환할 때는 아래의 **이동** 버튼을 누릅니다. |
+| 같은 디스플레이 행의 빈 칸으로 드래그 | 데스크탑 배정을 옮깁니다. |
+| 같은 행의 채워진 칸으로 드래그 | 두 칸의 배정을 맞바꿉니다. |
+| Option을 누른 채 같은 행의 빈 칸으로 드래그 | 원래 배정을 유지하고 다른 작업에서도 같은 데스크탑을 사용합니다. |
+| 디스플레이 이름이나 상하 아이콘 드래그 | 화면 행 순서를 바꿉니다. |
+| 각 칸의 메뉴 열기 | 드래그 없이 데스크탑을 배정합니다. 키보드로도 사용할 수 있습니다. |
 
-- 디스플레이별 목표 Space index를 사용해 선택한 디스플레이를 이전 또는 다음 Context로 이동합니다.
-- Context matrix에서 이름 있는 Context를 직접 활성화합니다.
-- 선택한 디스플레이를 기준 디스플레이가 나타내는 Context에 맞춥니다.
-- 외부 Space 변경으로 Context matching이 안전하지 않으면 일반 이동으로 돌아갑니다.
-- 이동이 끝나면 화면 중앙의 간결한 Context HUD로 결과를 확인합니다.
-- `Option + Shift`와 `1...9`, `0`, `<`, 또는 `>`를 누른 뒤 Option과 Shift를 모두 떼면 Context가 전환됩니다.
+**데스크탑 새로고침**은 메뉴 상단에 있습니다. 변경된 구성을 읽고, 지금 보고 있지 않은 데스크탑까지 화면별 콘텐츠 이름을 조회합니다. 이름은 앱·창에서 제공하는 정보로 제안하므로 macOS의 고유 Space 이름과는 다르며, 모든 이름을 읽을 수 있는 것은 아닙니다. 읽지 못하면 데스크탑 번호를 표시하고, 직접 수정한 작업 이름은 유지합니다.
 
-### Customization
+화면 연결 변화는 자동으로 확인합니다. 연결이 끊긴 화면의 선택과 배정은 재연결을 위해 보관하며, 현재 사용할 수 있는 화면으로 작업을 이어갈 수 있습니다.
 
-- 일반 Previous/Next Space 이동에 사용할 Move Targets를 선택합니다.
-- 디스플레이 Space 위치를 드래그해 캡처된 membership을 조정합니다.
-- 디스플레이 행 순서를 바꾸고 디스플레이 이름 열 너비를 조절합니다.
-- 기본 `Option + Shift + horizontal swipe`, 고정 Context 키보드 레이어 또는 인라인 컨트롤을 사용합니다.
-- 캡처된 Space에 이름과 best-effort visible app/window suggestion을 적용합니다.
+<details>
+<summary>전체 ‘작업과 화면’ 설정 보기</summary>
 
-### Native macOS Experience
+**전체 설정 → 작업과 화면**에도 같은 매트릭스가 있습니다. 조작 방법·권한·일반 설정은 각 항목에서 관리합니다.
 
-- Dock에 계속 남지 않는 메뉴 막대 전용 인터페이스와 리사이즈 가능한 팝오버
-- Accessibility와 Screen Switching access를 설명하는 온보딩과 진단
-- 영어와 한국어 UI
-- Sparkle 2를 통한 서명된 업데이트 확인, 다운로드 및 사용자 승인 설치
+<p align="center">
+  <img src="./docs/images/sideby-settings-workspaces-ko.png" width="720" alt="라이트 모드 작업과 화면 설정: 화면 선택 그림, 상단의 데스크탑 구성 가져오기, 메뉴와 동일한 편집 매트릭스." />
+</p>
 
-## 설치와 빠른 시작
+</details>
 
-Sideby는 macOS 14 이상을 지원합니다.
+## 처음으로 두 작업 왕복하기
 
-[GitHub Releases](https://github.com/ethznn/sideby/releases)에서 최신 서명·공증 DMG를 다운로드하고 Sideby를 Applications로 옮긴 뒤 실행하세요. Sideby는 메뉴 막대에 머물며 Dock 아이콘을 계속 표시하지 않습니다. 컨트롤을 다시 열려면 메뉴 막대의 Sideby 항목을 사용합니다.
+1. **설치하고 권한을 확인하세요.** [GitHub Releases](https://github.com/ethznn/sideby/releases)에서 DMG를 내려받아 Sideby를 응용 프로그램으로 옮겨 실행합니다. 안내에 따라 손쉬운 사용과 화면 전환 접근 권한을 확인하세요.
+2. **함께 움직일 화면을 고르세요.** 모니터 그림이나 체크박스를 누릅니다. 화면 하나로도 사용할 수 있지만, 왕복을 체험하려면 서로 다른 데스크탑 구성이 필요합니다. 데스크탑이 부족하면 Mission Control 안내를 따라 추가하세요.
+3. **작업에 이름을 붙이세요.** 데스크탑 구성을 가져와 두 작업의 이름을 정하고, 화면별 콘텐츠 배정을 확인합니다.
+4. **다른 작업에 갔다가 돌아오세요.** 안내의 버튼으로 다른 작업에 이동한 뒤 처음 작업으로 돌아옵니다. 완료 후 **메뉴에서 시작하기**를 누르세요. 이후에는 단축키나 제스처도 사용할 수 있습니다.
 
-처음 실행하면 설정한 제스처를 감지하고 요청한 Space 전환 명령을 보내는 데 필요한 권한을 macOS가 요청합니다.
+안내는 나중에 이어서 진행할 수 있습니다. 실제 왕복이 성공해야 완료되며, 건너뛰거나 이동에 실패한 경우에는 완료로 기록하지 않습니다.
 
-- 전역 제스처 감지를 위한 **Accessibility**
-- Previous/Next Space 명령을 보내기 위한 **Screen Switching access**
-- 현재 명령 경로에서 필요한 경우 **System Events Automation**
+<details>
+<summary>작업 준비와 왕복 완료 화면 보기</summary>
 
-Sideby는 Space 전환, Context Capture, Align Displays를 위해 Screen Recording 권한을 요청하지 않습니다.
+<p align="center">
+  <img src="./docs/images/sideby-onboarding-workspaces-ko.png" width="640" alt="작업 준비 온보딩: 결제 개발과 PR 리뷰 이름을 수정하고, 두 디스플레이의 콘텐츠 이름과 데스크탑 번호를 확인합니다." />
+</p>
 
-소스에서 빌드하려면 Swift 6 toolchain이 포함된 Xcode를 설치하고 다음 명령을 실행합니다.
+<p align="center">
+  <img src="./docs/images/sideby-onboarding-roundtrip-ko.png" width="640" alt="왕복 완료 온보딩: 같은 Option-Shift-Tab으로 오가는 방법과 메뉴에서 시작하기 버튼." />
+</p>
 
-```bash
-swift test
-scripts/build_app_bundle.sh
-open "dist/Sideby.app"
-```
+완료 상태를 포함해 샘플 데이터를 넣은 실제 앱 화면입니다.
 
-로컬 앱을 다시 빌드한 뒤에도 macOS가 권한을 거부 상태로 표시하면 시스템 설정에서 기존 Sideby 항목을 제거하고 새 번들을 다시 추가하세요.
+</details>
+
+## 단축키와 제스처
+
+| 입력 | 동작 |
+| --- | --- |
+| `⌥⇧Tab` | 직전 작업으로 돌아갑니다. 반복해서 누르면 최근 두 작업을 오갑니다. |
+| `⌥⇧1` … `⌥⇧9`, `⌥⇧0` | 1~10번째 작업으로 이동합니다. |
+| `⌥⇧<` / `⌥⇧>` | 이전 / 다음 작업으로 이동합니다. |
+| Option + Shift + 가로 스와이프 | 기본 제스처로 전환합니다. |
+
+키보드로 전환할 때는 조합을 누른 뒤 Option과 Shift를 모두 떼면 이동합니다. 제스처 옵션은 조작 방법 설정에서 확인할 수 있습니다.
+
+## 화면 구성이 바뀌었을 때
+
+Sideby는 현재 데스크탑 구성을 읽고 요청한 이동을 확인합니다. 메뉴를 열거나 **데스크탑 새로고침**을 누르면 전체 설정 창에 들어가지 않고 변경된 구성을 반영할 수 있습니다. 앱을 다시 켰다고 매번 저장된 배정을 확인할 필요는 없습니다.
+
+일부 화면이 이동하지 못했다면 아직 목적지에 도착하지 않은 화면만 다시 시도할 수 있습니다. 필요한 데스크탑이 없어졌거나 구성을 읽지 못하면 메뉴에서 새로고침 또는 배정 확인 방법을 안내합니다.
+
+작업은 기존 macOS 데스크탑을 연결한 것입니다. 앱과 문서를 다시 열거나 창 내용·위치를 복원하지는 않습니다. 작업을 삭제해도 Sideby의 배정만 지워지며 실제 macOS 데스크탑은 삭제되지 않습니다.
 
 ## 개인정보와 플랫폼 안내
 
-Sideby는 마스터 토글이 켜져 있거나 명시적으로 활성화된 온보딩 제스처 테스트 중에 설정된 제스처를 감지하기 위해 Accessibility를 사용합니다. 또한 허용된 전환 또는 캡처 요청 뒤에 Space 명령을 보내고, Context Capture 중 화면에 보이는 앱/윈도우 이름을 가능한 범위에서 제안하기 위해 Accessibility를 사용합니다. 앱이 실행 중일 때는 마스터 토글이 꺼진 상태를 안내할 수 있도록 macOS 전역 hot-key 등록으로 고정 `Option + Shift + 숫자 / < / >` 조합만 감지합니다. 다른 키 입력을 검사하거나 저장하지 않습니다.
+Sideby는 설정한 전역 제스처를 감지하고, 가능한 경우 앱·창의 이름을 제안하는 데 손쉬운 사용 접근 권한을 사용합니다. 화면 전환 접근 권한은 요청한 데스크탑 이동 명령을 보내는 데 필요합니다. 일부 명령 경로에는 System Events 자동화 권한도 필요합니다. 전환과 데스크탑 구성 조회는 화면 기록 권한을 요청하지 않습니다.
 
-macOS가 제공할 때 현재 디스플레이별 Space layout을 런타임에 읽지만 private Space ID, 숨겨진 Mission Control 상태, 입력 내용, raw input event, 스크린샷, app bundle ID 또는 window ID를 저장하지 않습니다.
+전역 키보드 단축키는 고정된 `Option + Shift + 숫자 / < / > / Tab` 조합만 등록합니다. 다른 키 입력은 검사하거나 저장하지 않습니다. 데스크탑 조회는 macOS 구성을 읽기만 하며, 비공개 Space ID·창 ID·원시 입력 이벤트·스크린샷은 저장하지 않습니다.
 
-다음 사용자 설정만 Mac에 로컬로 저장합니다.
+작업 이름과 배정, 화면 선택과 행 순서, 기억한 화면 이름, 조작 설정과 안내 진행 상태는 Mac에 로컬로 저장합니다. 콘텐츠 제안을 작업 이름으로 사용하면 해당 이름도 저장됩니다.
 
-- Context 이름과 정의
-- 디스플레이 membership과 캡처된 디스플레이별 Space index
-- 디스플레이 행 순서
-- 단축키와 입력 설정
-- 사용자가 작성한 라벨
-
-Context 삭제는 Sideby에 저장된 매핑만 제거하며 실제 macOS Space는 삭제하지 않습니다.
-
-현재 직접 배포 빌드는 App Sandbox가 꺼져 있습니다. Context Capture와 Align Displays는 가능할 때 read-only SkyLight layout query를 사용하고, Capture에는 공개 명령 기반 fallback을 제공합니다. 따라서 Sideby는 Mac App Store 배포를 목표로 하지 않습니다.
+직접 배포 앱은 App Sandbox를 끈 상태에서 비공개 SkyLight API를 사용하며, Mac App Store 배포를 목표로 하지 않습니다. Sparkle 2로 업데이트를 제공하고 사용자가 승인하면 설치합니다.
 
 ## 개발
 
-Xcode에서 Swift package를 직접 엽니다.
-
-```bash
-xed Package.swift
-```
-
-제품 앱은 `SidebyApp`, 로컬 probe와 macOS API 실험은 `SidebyDevApp`을 사용합니다.
+Swift 6 도구 모음이 포함된 Xcode에서 `Package.swift`를 열거나 다음 명령을 실행합니다.
 
 ```bash
 swift test
 swift build --product SidebyApp
 swift build --product SidebyDevApp
-scripts/build_app_bundle.sh
-scripts/build_dev_app_bundle.sh
 ```
 
-`SidebyDevApp`은 로컬 테스트 하네스이며 릴리스 번들이 아닙니다. 제품 번들은 `Resources/AppIcon.icns`를 사용합니다.
+`SidebyApp`은 제품 앱, `SidebyDevApp`은 로컬 진단과 API 실험용 앱입니다. 직접 확인할 앱 번들을 만들 때는 공개 [Sparkle 피드](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml)의 최신 `sparkle:version`에 1을 더한 값을 `SIDEBY_BUILD_NUMBER`로 지정하고 `scripts/build_app_bundle.sh`를 실행하세요. 공개 배포 이후에는 스크립트의 기본 빌드 번호를 사용하지 않습니다.
 
-## 아키텍처
+README 이미지와 시뮬레이션 데모는 `bash scripts/render_readme_demo.sh`로 다시 만들 수 있습니다. 실제 외부 화면 없이 별도 샘플 데이터를 사용합니다. 자세한 내용은 [미디어 원본과 재생성 방법](docs/media/README.md)을 참고하세요.
 
-Sideby는 작은 SwiftPM 모듈로 나뉩니다.
+### 아키텍처
 
-```text
-Sources/
-  SidebyApp/        제품 앱, 메뉴 막대, 패널, 온보딩
-  SidebyDevApp/     로컬 probe와 진단
-  SidebyDevSupport/ SidebyDevApp에서 사용하는 probe helper
-  SidebyCore/       도메인 모델, 제스처 로직, 설정, 진단
-  SidebySystem/     macOS API adapter
-  SidebyUI/         재사용 SwiftUI view와 view model
-Tests/
-  SidebyCoreTests/
-  SidebySystemTests/
-  SidebyUITests/
-```
+- `SidebyApp`: 메뉴 막대, 창, 제품 온보딩과 앱 흐름.
+- `SidebyCore`: 순수 Swift로 작성한 작업·제스처·설정·복구 규칙.
+- `SidebySystem`: macOS 입력·디스플레이·구성 조회·명령 어댑터.
+- `SidebyUI`: 재사용 SwiftUI 뷰와 뷰 모델.
+- `SidebyDevApp` / `SidebyDevSupport`: 로컬 진단과 실험.
 
-중요한 경계는 다음과 같습니다.
+Space 전환은 `ContextSwitchEngine`과 `SpaceCommandExecutor`를 거칩니다. 재사용 화면은 SwiftUI가 맡고, 메뉴 막대·창·시스템 연동은 AppKit이 처리합니다.
 
-- Space 전환은 `ContextSwitchEngine`과 `SpaceCommandExecutor`를 통합니다.
-- 전역 입력과 macOS adapter는 `SidebySystem`에 둡니다.
-- 제스처 해석과 Context 규칙은 `SidebyCore`의 순수 Swift 로직에 둡니다.
-- 재사용 UI는 SwiftUI가 맡고 메뉴 막대, 창, 시스템 연동은 AppKit adapter가 처리합니다.
+구현 및 배포에 관한 내용은 [Development](docs/DEVELOPMENT.md)와 [Decisions](docs/DECISIONS.md)를 참고하세요.
 
-개발 및 릴리스 설정은 [Development](docs/DEVELOPMENT.md), 사용자를 보호하는 기술 경계는 [Decisions](docs/DECISIONS.md)를 참고하세요.
+## 기여·보안·라이선스
 
-## 기여
+이슈나 pull request를 열기 전에 [CONTRIBUTING.md](CONTRIBUTING.md)를 읽고, 코드 변경 시 `swift test`를 실행해 주세요. 권한·입력·전환·패키징·배포 변경은 먼저 이슈에서 논의해 주세요.
 
-기여를 환영합니다. 이슈나 pull request를 열기 전에 [CONTRIBUTING.md](CONTRIBUTING.md)를 읽고, 코드 변경에는 `swift test`를 실행해 주세요.
-
-권한, 입력, 전환, 패키징 또는 배포에 관련된 변경은 트레이드오프가 명확해지도록 먼저 이슈를 열어 주세요.
-
-## 보안
-
-보안 취약점은 공개 이슈로 제보하지 말아 주세요. [SECURITY.md](SECURITY.md)의 제보 절차를 이용해 주세요.
-
-## 라이선스
-
-Sideby는 [MIT License](LICENSE)로 배포됩니다.
+보안 취약점은 공개 이슈 대신 [SECURITY.md](SECURITY.md)의 절차로 제보해 주세요. Sideby는 [MIT License](LICENSE)로 배포됩니다.

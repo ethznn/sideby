@@ -2,8 +2,8 @@ import XCTest
 @testable import SidebyCore
 
 final class ContextKeyboardShortcutTests: XCTestCase {
-    func testCatalogMapsNumberRowCommaAndPeriodToTwelveCommands() {
-        XCTAssertEqual(ContextKeyboardShortcutCatalog.bindings.count, 12)
+    func testCatalogMapsNumberRowCommaAndPeriodAndTabToThirteenCommands() {
+        XCTAssertEqual(ContextKeyboardShortcutCatalog.bindings.count, 13)
         XCTAssertEqual(
             Array(ContextKeyboardShortcutCatalog.bindings.prefix(10).map(\.command)),
             (1...10).map { .activate(position: $0) }
@@ -12,7 +12,7 @@ final class ContextKeyboardShortcutTests: XCTestCase {
         XCTAssertEqual(ContextKeyboardShortcutCatalog.bindings[11].command, .move(.next))
         XCTAssertEqual(
             ContextKeyboardShortcutCatalog.bindings.map(\.shortcut.keyCode),
-            [18, 19, 20, 21, 23, 22, 26, 28, 25, 29, 43, 47]
+            [18, 19, 20, 21, 23, 22, 26, 28, 25, 29, 43, 47, 48]
         )
         XCTAssertTrue(
             ContextKeyboardShortcutCatalog.bindings.allSatisfy {

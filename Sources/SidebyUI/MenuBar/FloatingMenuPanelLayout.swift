@@ -104,7 +104,7 @@ public enum FloatingMenuContextMatrixLayout: Sendable {
     }
 
     public static func contextColumnWidth(isCompact: Bool) -> CGFloat {
-        isCompact ? 72 : 220
+        isCompact ? 160 : 220
     }
 
     public static func displayColumnMaximumWidth(isCompact: Bool) -> CGFloat {
@@ -434,8 +434,8 @@ private extension CGRect {
 }
 
 public enum FloatingMenuPanelLayout {
-    public static let defaultSize = NSSize(width: 520, height: 640)
-    public static let minimumSize = NSSize(width: 520, height: 420)
+    public static let defaultSize = NSSize(width: 400, height: 360)
+    public static let minimumSize = NSSize(width: 320, height: 180)
     public static let screenPadding: CGFloat = 24
 
     public static func contentSize(
@@ -472,8 +472,8 @@ public enum FloatingMenuPanelLayout {
         let maxWidth: CGFloat
         let maxHeight: CGFloat
         if let visibleFrame {
-            maxWidth = max(minimumSize.width, visibleFrame.width - screenPadding)
-            maxHeight = max(minimumSize.height, visibleFrame.height - screenPadding)
+            maxWidth = max(1, visibleFrame.width - screenPadding)
+            maxHeight = max(1, visibleFrame.height - screenPadding)
         } else {
             maxWidth = max(size.width, minimumSize.width)
             maxHeight = max(size.height, minimumSize.height)

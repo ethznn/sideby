@@ -77,10 +77,6 @@ final class ShortcutSettingsViewTests: XCTestCase {
         XCTAssertEqual(presentation.actionTitle, "Accessibility Settings")
     }
 
-    func testOnboardingCompletionActionOpensSettings() {
-        XCTAssertEqual(SBSStrings(language: .english).onboardingCompletionActionTitle, "Open Settings")
-        XCTAssertEqual(SBSStrings(language: .korean).onboardingCompletionActionTitle, "설정 열기")
-    }
 
     func testLocalizesFixedContextKeyboardLayer() {
         let english = SBSStrings(language: .english)
