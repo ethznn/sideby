@@ -181,6 +181,180 @@ final class ProductSpaceTransitionRunnerTests: XCTestCase {
         XCTAssertEqual(executors.commandsByDisplay, ["main": [.next]])
     }
 
+    func testPreflightRejectsStaleCurrentIndexBeforePosting() {
+        let executors = RecordingExecutors()
+        let runner = makeRunner(
+            snapshots: [["main": 1]],
+            executors: executors,
+            verifiesBeforePosting: true
+        )
+
+        XCTAssertEqual(
+            runner.run(.init(
+                beforeIndexes: ["main": 0],
+                steps: [.init(displayID: "main", command: .next, previousIndex: 0, expectedIndex: 1)],
+                finalExpectedIndexes: ["main": 1]
+            )),
+            failure(
+                .verification(.unexpectedDisplayChange(displayID: "main")),
+                confirmedIndexes: ["main": 0],
+                mayHaveMoved: false
+            )
+        )
+        XCTAssertTrue(executors.commandsByDisplay.isEmpty)
+    }
+
+    func testPreflightRejectsUnreadableIdentityBeforePosting() {
+        let executors = RecordingExecutors()
+        let runner = makeRunner(
+            snapshots: [nil],
+            executors: executors,
+            verifiesBeforePosting: true
+        )
+
+        XCTAssertEqual(
+            runner.run(.init(
+                beforeIndexes: ["main": 0],
+                steps: [.init(displayID: "main", command: .next, previousIndex: 0, expectedIndex: 1)],
+                finalExpectedIndexes: ["main": 1]
+            )),
+            failure(
+                .verification(.unreadableLayout),
+                confirmedIndexes: ["main": 0],
+                mayHaveMoved: false
+            )
+        )
+        XCTAssertTrue(executors.commandsByDisplay.isEmpty)
+    }
+
+    func testPreflightStopsBeforeSecondPostWhenLiveCurrentIndexChanges() {
+        let executors = RecordingExecutors()
+        let runner = makeRunner(
+            snapshots: [["main": 0], ["main": 1], ["main": 2]],
+            executors: executors,
+            verifiesBeforePosting: true
+        )
+
+        XCTAssertEqual(
+            runner.run(.init(
+                beforeIndexes: ["main": 0],
+                steps: [
+                    .init(displayID: "main", command: .next, previousIndex: 0, expectedIndex: 1),
+                    .init(displayID: "main", command: .next, previousIndex: 1, expectedIndex: 2)
+                ],
+                finalExpectedIndexes: ["main": 2]
+            )),
+            failure(
+                .verification(.unexpectedDisplayChange(displayID: "main")),
+                confirmedIndexes: ["main": 1],
+                mayHaveMoved: true
+            )
+        )
+        XCTAssertEqual(executors.commandsByDisplay, ["main": [.next]])
+    }
+
+    func testPreflightStopsBeforeSecondPostWhenIdentityReadFails() {
+        let executors = RecordingExecutors()
+        let runner = makeRunner(
+            snapshots: [["main": 0], ["main": 1], nil],
+            executors: executors,
+            verifiesBeforePosting: true
+        )
+
+        XCTAssertEqual(
+            runner.run(.init(
+                beforeIndexes: ["main": 0],
+                steps: [
+                    .init(displayID: "main", command: .next, previousIndex: 0, expectedIndex: 1),
+                    .init(displayID: "main", command: .next, previousIndex: 1, expectedIndex: 2)
+                ],
+                finalExpectedIndexes: ["main": 2]
+            )),
+            failure(
+                .verification(.unreadableLayout),
+                confirmedIndexes: ["main": 1],
+                mayHaveMoved: true
+            )
+        )
+        XCTAssertEqual(executors.commandsByDisplay, ["main": [.next]])
+    }
+
+    func testPreflightFreshTransitionStillAcknowledgesEachPostAndFinalStability() {
+        let executors = RecordingExecutors()
+        let runner = makeRunner(
+            snapshots: [
+                ["main": 0, "external": 0],
+                ["main": 1, "external": 0],
+                ["main": 1, "external": 0],
+                ["main": 1, "external": 1],
+                ["main": 1, "external": 1],
+                ["main": 1, "external": 1]
+            ],
+            executors: executors,
+            verifiesBeforePosting: true
+        )
+
+        XCTAssertEqual(
+            runner.run(.init(
+                beforeIndexes: ["main": 0, "external": 0],
+                steps: [
+                    .init(displayID: "main", command: .next, previousIndex: 0, expectedIndex: 1),
+                    .init(displayID: "external", command: .next, previousIndex: 0, expectedIndex: 1)
+                ],
+                finalExpectedIndexes: ["main": 1, "external": 1]
+            )),
+            .success(["main": 1, "external": 1])
+        )
+        XCTAssertEqual(executors.commandsByDisplay, ["main": [.next], "external": [.next]])
+    }
+
+    func testPreflightRejectsStaleRetryAndFreshRetryOnlyMovesRemainingDisplay() {
+        let executors = RecordingExecutors()
+        let staleRetry = makeRunner(
+            snapshots: [["main": 1, "external": 0]],
+            executors: executors,
+            verifiesBeforePosting: true
+        )
+
+        XCTAssertEqual(
+            staleRetry.run(.init(
+                beforeIndexes: ["main": 0, "external": 0],
+                steps: [
+                    .init(displayID: "main", command: .next, previousIndex: 0, expectedIndex: 1),
+                    .init(displayID: "external", command: .next, previousIndex: 0, expectedIndex: 1)
+                ],
+                finalExpectedIndexes: ["main": 1, "external": 1]
+            )),
+            failure(
+                .verification(.unexpectedDisplayChange(displayID: "main")),
+                confirmedIndexes: ["main": 0, "external": 0],
+                mayHaveMoved: false
+            )
+        )
+        XCTAssertTrue(executors.commandsByDisplay.isEmpty)
+
+        let freshRetry = makeRunner(
+            snapshots: [
+                ["main": 1, "external": 0],
+                ["main": 1, "external": 1],
+                ["main": 1, "external": 1],
+                ["main": 1, "external": 1]
+            ],
+            executors: executors,
+            verifiesBeforePosting: true
+        )
+
+        XCTAssertEqual(
+            freshRetry.run(.init(
+                beforeIndexes: ["main": 1, "external": 0],
+                steps: [.init(displayID: "external", command: .next, previousIndex: 0, expectedIndex: 1)],
+                finalExpectedIndexes: ["main": 1, "external": 1]
+            )),
+            .success(["main": 1, "external": 1])
+        )
+        XCTAssertEqual(executors.commandsByDisplay, ["external": [.next]])
+    }
+
     func testIntermediateStepsAcknowledgeExactlyWhileOnlyFinalMapUsesStabilityWindow() {
         let executors = RecordingExecutors()
         let harness = ScriptedLayoutHarness([
@@ -332,7 +506,8 @@ final class ProductSpaceTransitionRunnerTests: XCTestCase {
         executors: RecordingExecutors,
         pollInterval: TimeInterval = 0.01,
         stabilityDuration: TimeInterval = 0,
-        maximumPolls: Int = 3
+        maximumPolls: Int = 3,
+        verifiesBeforePosting: Bool = false
     ) -> ProductSpaceTransitionRunner {
         let harness = ScriptedLayoutHarness(snapshots)
         return ProductSpaceTransitionRunner(
@@ -341,7 +516,8 @@ final class ProductSpaceTransitionRunnerTests: XCTestCase {
                 pollInterval: pollInterval,
                 stabilityDuration: stabilityDuration,
                 maximumPolls: maximumPolls
-            )
+            ),
+            verifiesBeforePosting: verifiesBeforePosting
         )
     }
 

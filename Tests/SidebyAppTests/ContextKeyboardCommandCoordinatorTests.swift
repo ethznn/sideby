@@ -132,3 +132,31 @@ final class ContextKeyboardCommandCoordinatorTests: XCTestCase {
         )
     }
 }
+
+extension ContextKeyboardCommandCoordinatorTests {
+    func testPreviousShortcutKeepsTogglingAndBlocksOverlappingExecution() {
+        var history = WorkspaceVisitHistory()
+        history.recordSuccessfulVisit(contextID: "code")
+        history.recordSuccessfulVisit(contextID: "review")
+        var coordinator = ContextKeyboardCommandCoordinator()
+        var currentPlan = plan
+        _ = currentPlan.setCurrentContext(id: "review")
+        for target in ["code", "review", "code"] {
+            let action = coordinator.handle(.pressed(.returnToPreviousWorkspace), contextPlan: currentPlan,
+                isSidebyEnabled: true, isSwitching: false, isCapturing: false, at: 10,
+                previousContextID: history.previousContextID)
+            XCTAssertEqual(action, .activate(contextID: target))
+            XCTAssertEqual(coordinator.handle(.pressed(.returnToPreviousWorkspace), contextPlan: currentPlan,
+                isSidebyEnabled: true, isSwitching: false, isCapturing: false, at: 10,
+                previousContextID: history.previousContextID), .ignore)
+            history.recordSuccessfulVisit(contextID: target)
+            _ = currentPlan.setCurrentContext(id: target)
+            coordinator.finishExecution(at: 11)
+        }
+        XCTAssertEqual(ContextKeyboardShortcutPolicy.action(command: .returnToPreviousWorkspace,
+            contextPlan: currentPlan, isSidebyEnabled: true, isSwitching: false, isCapturing: false), .ignore)
+        XCTAssertEqual(ContextKeyboardShortcutPolicy.action(command: .returnToPreviousWorkspace,
+            contextPlan: currentPlan, isSidebyEnabled: true, isSwitching: false, isCapturing: false,
+            previousContextID: "deleted"), .ignore)
+    }
+}

@@ -10,82 +10,140 @@ import UniformTypeIdentifiers
 
 @main
 struct SidebyApp: App {
-    @StateObject private var model = SidebyAppModel()
+    @StateObject private var model: SidebyAppModel
     @StateObject private var updater: SidebyUpdater
-    @AppStorage("sideby.v1.onboarding-complete") private var didCompleteOnboarding = false
+    private let preferences: UserDefaultsProductUIPreferences
+    private let windows: ProductWindowCoordinator
+    private let menuActions: ProductMenuPanelActions
 
     init() {
         MenuBarOnlyApplicationPresentation.apply()
-
         if SingleInstanceGuard.activateExistingApplicationAndReturnShouldTerminate() {
             Thread.sleep(forTimeInterval: 0.1)
             exit(0)
         }
-
-        _updater = StateObject(wrappedValue: SidebyUpdater())
+        let model = SidebyAppModel()
+        let updater = SidebyUpdater()
+        let preferences = UserDefaultsProductUIPreferences(defaults: .standard)
+        let navigation = ProductUINavigation(preferences: preferences)
+        let presentation = ProductOnboardingPresentation(preferences: preferences)
+        // A restored eligibility flag is not evidence that a guide window is visible.
+        model.isShowingFirstWorkGuide = false
+        model.workspaceGuideIsRecording = false
+        let windows = ProductWindowCoordinator(
+            navigation: navigation,
+            settingsContent: { [model, navigation, updater] window in
+                AnyView(ProductSettingsHost(model: model, navigation: navigation, updater: updater,
+                    actions: ProductSettingsActions(
+                        checkForUpdates: { [weak updater] in updater?.checkForUpdates() },
+                        openOnboarding: { [weak window] in window?.showOnboarding(replay: true) },
+                        finishAssignmentReview: { [weak window] in window?.returnAfterAssignmentReview() })))
+            },
+            onboardingContent: { [model, presentation, preferences] window in
+                AnyView(ProductOnboardingView(model: model, presentation: presentation, preferences: preferences,
+                    actions: ProductOnboardingActions(
+                        close: { [weak window] in window?.closeOnboarding() },
+                        finishToDaily: { [weak window] in
+                            window?.closeOnboarding()
+                            window?.presentDaily?()
+                        },
+                        openInputSettings: { [weak window] in
+                            window?.closeOnboarding()
+                            window?.showSettings(.init(pane: .input))
+                        },
+                        openWorkspaceSettings: { [weak window] contextID, displayID in
+                            window?.showSettings(.init(pane: .workspaces, contextID: contextID,
+                                                      displayID: displayID, returnTo: .onboarding))
+                        })))
+            },
+            closeDaily: { ProductFloatingMenuPanelController.shared.close() },
+            refreshState: { [weak model] in model?.refresh() },
+            onboardingWillShow: { [weak model, presentation, preferences] replay in
+                guard let model else { return }
+                model.isShowingFirstWorkGuide = true
+                preferences.didDismissOnboarding = false
+                presentation.open(replay: replay, facts: ProductOnboardingFacts(model: model))
+                model.workspaceGuideIsRecording = ProductGuideRecordingPolicy.shouldRecord(
+                    stage: presentation.state.stage, progress: model.firstWorkProgress)
+            },
+            onboardingWillClose: { [weak model, preferences] in
+                model?.dismissFirstWorkGuide()
+                preferences.didDismissOnboarding = true
+            })
+        let actions = ProductMenuPanelActions(route: { [weak windows] request in
+            switch ProductApplicationRouting.route(for: request) {
+            case .settings(let route): windows?.showSettings(route)
+            case .onboarding(let replay): windows?.showOnboarding(replay: replay)
+            }
+        }, quit: { NSApplication.shared.terminate(nil) })
+        windows.presentDaily = { [model, actions] in
+            ProductFloatingMenuPanelController.shared.present(from: nil, model: model, actions: actions)
+        }
+        _model = StateObject(wrappedValue: model)
+        _updater = StateObject(wrappedValue: updater)
+        self.preferences = preferences
+        self.windows = windows
+        menuActions = actions
     }
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarControlView(
-                model: model,
-                updater: updater,
-                didCompleteOnboarding: $didCompleteOnboarding
-            )
+            MenuBarControlView(model: model, actions: menuActions)
         } label: {
-            ProductMenuBarLabelView(didCompleteOnboarding: $didCompleteOnboarding)
+            ProductMenuBarLabelView(model: model, preferences: preferences, windows: windows)
         }
         .menuBarExtraStyle(.window)
-
-        WindowGroup("Sideby", id: "main") {
-            ProductRootView(
-                model: model,
-                updater: updater,
-                didCompleteOnboarding: $didCompleteOnboarding
-            )
-            .frame(
-                minWidth: didCompleteOnboarding ? 760 : 480,
-                minHeight: didCompleteOnboarding ? 560 : 380
-            )
-            .onAppear {
-                model.refresh()
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button(DailyRefreshStrings(language: model.settings.language).settings) { windows.showSettings() }
+                    .keyboardShortcut(",", modifiers: .command)
             }
-            .background(ProductMainWindowConfigurator())
         }
-        .defaultSize(
-            width: didCompleteOnboarding ? 760 : 480,
-            height: didCompleteOnboarding ? 560 : 380
-        )
+    }
+}
+
+private struct ProductSettingsHost: View {
+    @ObservedObject var model: SidebyAppModel
+    @ObservedObject var navigation: ProductUINavigation
+    @ObservedObject var updater: SidebyUpdater
+    let actions: ProductSettingsActions
+    var body: some View {
+        ProductSettingsView(model: model, navigation: navigation,
+                            canCheckForUpdates: updater.canCheckForUpdates,
+                            actions: actions)
+    }
+}
+
+extension ProductOnboardingFacts {
+    @MainActor init(model: SidebyAppModel) {
+        let selected = model.selectedDisplayIDs.intersection(model.displayLayout.displays.map(\.id))
+        self.init(hasAccessibilityPermission: model.permissionState == .granted,
+                  hasSwitchingAccess: model.hasSwitchingAccess, selectedDisplayCount: selected.count,
+                  participatingContextIDs: model.settings.contextPlan.contexts.sorted { $0.order < $1.order }
+                    .filter { !Set($0.displayIDs).isDisjoint(with: selected)
+                        && model.isWorkspaceAssignmentAvailable(contextID: $0.id) }.map(\.id),
+                  connectionStatus: model.workspaceConnectionStatus,
+                  isBusy: model.isSwitching || model.contextCaptureSession != nil || model.pendingContextCaptureAlignment != nil,
+                  isEnabled: model.isEnabled, progress: model.firstWorkProgress)
     }
 }
 
 private struct ProductMenuBarLabelView: View {
-    @Binding var didCompleteOnboarding: Bool
-    @Environment(\.openWindow) private var openWindow
-    @State private var didRequestInitialOnboardingWindow = false
+    @ObservedObject var model: SidebyAppModel
+    let preferences: any ProductUIPreferences
+    let windows: ProductWindowCoordinator
+    @State private var initialGuide = ProductInitialGuidePresentation()
 
     var body: some View {
         SidebyMenuBarIcon()
             .frame(width: 22, height: 18)
             .accessibilityLabel("Sideby")
             .onAppear {
-                openInitialOnboardingWindowIfNeeded()
+                if initialGuide.shouldPresent(isRoundTripComplete: model.firstWorkProgress.isComplete,
+                                              isDismissed: preferences.didDismissOnboarding) {
+                    DispatchQueue.main.async { windows.showOnboarding() }
+                }
             }
-            .onChange(of: didCompleteOnboarding) { _, _ in
-                openInitialOnboardingWindowIfNeeded()
-            }
-    }
-
-    private func openInitialOnboardingWindowIfNeeded() {
-        guard !didCompleteOnboarding, !didRequestInitialOnboardingWindow else {
-            return
-        }
-
-        didRequestInitialOnboardingWindow = true
-        DispatchQueue.main.async {
-            openWindow(id: "main")
-            ProductMainWindowPresenter.present()
-        }
     }
 }
 
@@ -150,8 +208,10 @@ private enum SidebyMenuBarIconImage {
 private final class SidebyAppObserverTokens {
     var settingsObserver: NSObjectProtocol?
     var externalSpaceObserver: NSObjectProtocol?
+    var displayConfigurationObserver: NSObjectProtocol?
 
     deinit {
+        if let displayConfigurationObserver { NotificationCenter.default.removeObserver(displayConfigurationObserver) }
         if let settingsObserver {
             DistributedNotificationCenter.default().removeObserver(settingsObserver)
         }
@@ -174,7 +234,8 @@ struct ContextKeyboardCommandCoordinator {
         isSidebyEnabled: Bool,
         isSwitching: Bool,
         isCapturing: Bool,
-        at timestamp: Double
+        at timestamp: Double,
+        previousContextID: String? = nil
     ) -> ContextKeyboardAction {
         switch event {
         case .pressed(let command):
@@ -187,7 +248,8 @@ struct ContextKeyboardCommandCoordinator {
                 contextPlan: contextPlan,
                 isSidebyEnabled: isSidebyEnabled,
                 isSwitching: isSwitching,
-                isCapturing: isCapturing
+                isCapturing: isCapturing,
+                previousContextID: previousContextID
             )
             switch action {
             case .activate, .move:
@@ -238,50 +300,6 @@ enum ContextKeyboardExecutionResolver {
         case .ignore, .showSidebyOff, .showMissingContext:
             return nil
         }
-    }
-}
-
-@MainActor
-private enum ProductMainWindowPresenter {
-    static let windowIdentifier = NSUserInterfaceItemIdentifier("sideby-main-window")
-
-    static func present(after delay: TimeInterval = 0.08) {
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            bringMainWindowToFront()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            bringMainWindowToFront()
-        }
-    }
-
-    static func configure(_ window: NSWindow) {
-        window.identifier = windowIdentifier
-        window.collectionBehavior.insert(.moveToActiveSpace)
-    }
-
-    static func hideIfVisible() {
-        NSApplication.shared.windows
-            .filter { window in
-                window.identifier == windowIdentifier || window.title == "Sideby"
-            }
-            .forEach { window in
-                window.orderOut(nil)
-            }
-    }
-
-    private static func bringMainWindowToFront() {
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        guard let window = NSApplication.shared.windows.first(where: { window in
-            window.identifier == windowIdentifier || window.title == "Sideby"
-        }) else {
-            return
-        }
-
-        configure(window)
-        window.deminiaturize(nil)
-        window.makeKeyAndOrderFront(nil)
-        window.orderFrontRegardless()
     }
 }
 
@@ -478,12 +496,12 @@ private final class ProductContextHUDController {
         }
 
         let displayID = CGDirectDisplayID(number.uint32Value)
-        return [
-            String(CGDisplayVendorNumber(displayID)),
-            String(CGDisplayModelNumber(displayID)),
-            String(CGDisplaySerialNumber(displayID)),
-            String(displayID)
-        ].joined(separator: "-")
+        return DisplayLayoutMapper.stableID(for: DisplaySnapshot(
+            displayID: displayID, name: screen.localizedName,
+            isPrimary: CGDisplayIsMain(displayID) != 0, isBuiltin: CGDisplayIsBuiltin(displayID) != 0,
+            vendorNumber: CGDisplayVendorNumber(displayID), modelNumber: CGDisplayModelNumber(displayID),
+            serialNumber: CGDisplaySerialNumber(displayID), displayUUID: DisplayLayoutMapper.displayUUID(for: displayID)
+        ))
     }
 
     private func scheduleFadeOut(
@@ -556,14 +574,35 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var contextCaptureStatus: String?
     @Published private var contextCaptureAlignmentCoordinator = ProductContextCaptureAlignmentCoordinator()
     @Published private(set) var contextDeletionMinimumCount: Int? = nil
+    @Published var workspaceConnectionStatus: WorkspaceConnectionStatus = .unconfirmed
+    @Published var workspaceObservedDisplays: [InstantCaptureDisplay]?
+    @Published var verifiedCurrentWorkspaceID: String?
+    @Published var workspaceRecoveryTargetID: String?
+    @Published var workspaceHistory = WorkspaceVisitHistory()
+    @Published var firstWorkProgress = WorkspaceFirstRunProgress()
+    @Published var isShowingFirstWorkGuide = false
+    @Published var workspaceSwitchTargetName: String?
+    @Published var lastWorkspaceSwitchSucceeded = false
+    var workspaceConnectionSession = WorkspaceConnectionSession()
+    var workspaceLastObservedSpaceIDs: [String: [UInt64]] = [:]
+    var workspaceObservationOverride: (() -> WorkspaceLayoutObservation?)?
+    var workspaceSpaceIDsOverride: (() -> [String: [UInt64]]?)?
+    var workspaceGuideIsRecording = false
+    var workspaceConfigurationRevision = 0
+    var workspacePreferences: UserDefaults? = .standard
+    @Published var workspaceDesktopNames: [String: [Int: String]] = [:]
+    var workspaceDesktopNameSpaceIDs: [String: [UInt64]] = [:]
+    @Published var workspaceNameRefreshCount = 0
+    var workspaceNameOrigins: [String: String] = [:]
+    var workspaceNameSuggestionProvider: (any SpaceNameSuggestionProviding)? = MacSpaceNameSuggestionProvider()
 
-    private var settingsStore: any SettingsStoring = UserDefaultsSettingsStore()
+    var settingsStore: any SettingsStoring = UserDefaultsSettingsStore()
     private let permissionService = AccessibilityPermissionService()
-    private let displayObserver = MacDisplayObserver()
+    let displayObserver = MacDisplayObserver()
     private let loginItemService = MacLoginItemService()
     private let setupFlow = V1SetupFlow()
     private let visibleAppSuggestionProvider = MacVisibleAppSuggestionProvider()
-    private let spaceLayoutReader: any SpaceLayoutReading = SLSSpaceLayoutReader()
+    let spaceLayoutReader: any SpaceLayoutReading = SLSSpaceLayoutReader()
     private let contextHUDPolicy = ContextSwitchHUDPolicy()
     private let observerTokens = SidebyAppObserverTokens()
     private static let enabledDefaultsKey = "sideby.enabled"
@@ -576,11 +615,10 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         subsystem: "dev.sideby.Sideby",
         category: "ContextCapture"
     )
-    private var didInitializeSelectedDisplays = false
     private var swipeInputSource: GlobalEventTapInputSource?
     private var contextKeyboardInputSource: GlobalContextKeyboardShortcutInputSource?
     private var contextKeyboardCoordinator = ContextKeyboardCommandCoordinator()
-    @Published private var failedContextKeyboardCommands: [ContextKeyboardCommand] = []
+    @Published var failedContextKeyboardCommands: [ContextKeyboardCommand] = []
     private var swipePipeline = SwipeInputPipeline(settings: .default)
     private var inputLatch = InputCommandLatch()
     private var inputSessionID = 0
@@ -600,7 +638,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private var lastScrollStatusUpdate = 0.0
     private var isOnboardingGestureTestActive = false
     private var ignoresExternalSpaceChangesUntil: Date?
-    private var selectedDisplaySpacesOverride: (() -> [InstantCaptureDisplay]?)?
+    var selectedDisplaySpacesOverride: (() -> [InstantCaptureDisplay]?)?
     private var postEventAccessOverride: Bool?
 
     var diagnostics: [DiagnosticState] {
@@ -624,8 +662,14 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         self.inputStatus = strings.sidebyOff
         self.lastInputEvent = Self.inputHint(for: loadedSettings, strings: strings)
         self.loginItemStatus = strings.startAtLoginStatus(isEnabled: loginItemService.isEnabled)
+        loadFirstWorkProgress()
         startSettingsChangeObserver()
         startExternalSpaceChangeObserver()
+        observerTokens.displayConfigurationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refresh() }
+        }
         refresh()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -644,6 +688,8 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     ) {
         self.settings = testSettings
         self.settingsStore = DiscardingSettingsStore()
+        self.workspacePreferences = nil
+        self.workspaceNameSuggestionProvider = nil
         self.selectedDisplayIDs = selectedDisplayIDs
         self.selectedDisplaySpacesOverride = selectedDisplaySpaces
         self.postEventAccessOverride = postEventAccessGranted
@@ -715,12 +761,19 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     func refresh() {
-        displayLayout = displayObserver.currentLayout()
+        let snapshots = displayObserver.currentSnapshots()
+        let oldSettings = settings
+        let oldSelected = selectedDisplayIDs
+        _ = DisplayIdentityMigration.migrate(settings: &settings, snapshots: snapshots)
+        displayLayout = DisplayLayoutMapper.layout(from: snapshots)
         syncSelectedDisplays(with: displayLayout)
+        workspaceConfigurationChanged(from: oldSettings.contextPlan, selectedIDs: oldSelected)
+        if settings != oldSettings { settingsStore.save(settings) }
         refreshContextEditAvailability()
         permissionState = permissionService.currentState
         postEventAccessGranted = CGPreflightPostEventAccess()
         loginItemStatus = strings.startAtLoginStatus(isEnabled: loginItemService.isEnabled)
+        refreshWorkspaceStatus()
         diagnostics = currentDiagnostics()
     }
 
@@ -768,7 +821,8 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             isSidebyEnabled: isEnabled,
             isSwitching: isSwitching,
             isCapturing: contextCaptureSession != nil,
-            at: ProcessInfo.processInfo.systemUptime
+            at: ProcessInfo.processInfo.systemUptime,
+            previousContextID: workspaceHistory.previousContextID
         )
 
         routeContextKeyboardAction(action)
@@ -872,6 +926,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     func finish() {
         isOnboardingGestureTestActive = false
         applyOnboardingCompletionDefaults()
+        showFirstWorkGuide()
         didFinishMiniOnboarding = true
     }
 
@@ -886,19 +941,25 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     func setDisplayTarget(_ display: DisplayInfo, isSelected: Bool) {
-        var selected = selectedDisplayIDs
-        if isSelected {
-            selected.insert(display.id)
-        } else {
-            selected.remove(display.id)
-        }
-        selectedDisplayIDs = selected
+        guard !isSwitching, contextCaptureSession == nil else { return }
+        let previousSelected = selectedDisplayIDs
+        settings.displaySelection.setSelected(isSelected, displayID: display.id, name: display.name)
+        selectedDisplayIDs = settings.displaySelection.connectedSelectedDisplayIDs(in: displayLayout)
+        workspaceConfigurationChanged(from: settings.contextPlan, selectedIDs: previousSelected)
+        settingsStore.save(settings)
         refreshContextEditAvailability()
+        refreshWorkspaceStatus()
     }
 
     func selectAllDisplayTargets() {
-        selectedDisplayIDs = Set(displayLayout.displays.map(\.id))
+        guard !isSwitching, contextCaptureSession == nil else { return }
+        let previousSelected = selectedDisplayIDs
+        settings.displaySelection.selectAllConnected(in: displayLayout)
+        selectedDisplayIDs = settings.displaySelection.connectedSelectedDisplayIDs(in: displayLayout)
+        workspaceConfigurationChanged(from: settings.contextPlan, selectedIDs: previousSelected)
+        settingsStore.save(settings)
         refreshContextEditAvailability()
+        refreshWorkspaceStatus()
     }
 
     var canAddContext: Bool {
@@ -948,9 +1009,12 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     func setContextName(contextID: String, name: String) {
+        guard let context = settings.contextPlan.contexts.first(where: { $0.id == contextID }),
+              context.name != name else { return }
         updateContextPlan { plan in
             plan.renameContext(id: contextID, name: name)
         }
+        rememberWorkspaceNameOrigin(contextID: contextID, automaticName: nil)
     }
 
     var canActivateContext: Bool {
@@ -976,8 +1040,10 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     func activateContext(
         contextID: String,
         requiresCompleteSelectedLayout: Bool = false,
+        recordsWorkspaceVisit: Bool = true,
         completion: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
+        lastWorkspaceSwitchSucceeded = false
         guard isEnabled else {
             diagnostics = [
                 DiagnosticState(
@@ -1021,11 +1087,13 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             targetContext: targetContext,
             intent: hudIntent,
             requiresCompleteSelectedLayout: requiresCompleteSelectedLayout,
+            recordsWorkspaceVisit: recordsWorkspaceVisit,
             completion: completion
         )
     }
 
     func moveDisplaySpace(displayID: String, spaceIndex: Int, toContextID: String) {
+        guard canAddContext else { return }
         updateContextPlan { plan in
             _ = plan.moveDisplaySpace(
                 displayID: displayID,
@@ -1033,6 +1101,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 toContextID: toContextID
             )
         }
+        refreshWorkspaceStatus()
     }
 
     func moveContextDisplayRow(displayID: String, to targetDisplayID: String) {
@@ -1054,151 +1123,102 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         targetContext: ContextDefinition,
         intent: ContextSwitchIntent,
         requiresCompleteSelectedLayout: Bool,
+        recordsWorkspaceVisit: Bool = true,
         completion: (@MainActor @Sendable (Bool) -> Void)?
     ) {
-        let decision = ModePolicy().decision(
-            for: settings.mode,
-            inputMethod: .shortcut,
-            runtimeState: runtimeState
-        )
+        lastWorkspaceSwitchSucceeded = false
+        let decision = ModePolicy().decision(for: settings.mode, inputMethod: .shortcut, runtimeState: runtimeState)
         let modeDiagnostics = DiagnosticRule.evaluate(decision: decision)
         guard decision.isAllowed else {
             diagnostics = modeDiagnostics
-            if let diagnostic = modeDiagnostics.first(where: { $0.severity == .blocker }) ?? modeDiagnostics.first {
-                lastSwitchResult = strings.localizedDiagnosticTitle(diagnostic.title)
-            }
             completion?(false)
             return
         }
-
-        let displays = selectedDisplaySpaces()
+        let observation = workspaceObservation()
+        let displays = observation?.displays
         guard ProductContextActivationLayoutPolicy.isAdmitted(
-            displays,
-            selectedDisplayIDs: selectedDisplayIDs,
+            displays, selectedDisplayIDs: selectedDisplayIDs,
             requiresCompleteSelectedLayout: requiresCompleteSelectedLayout
         ), let displays else {
-            updateContextPlan { plan in
-                plan.markNeedsSync()
-            }
-            diagnostics = currentDiagnostics()
-            lastSwitchResult = strings.alignFailed
+            updateContextPlan { $0.markNeedsSync() }
+            recordWorkspaceActivation(targetContext, succeeded: false)
+            lastSwitchResult = strings.workspaceLayoutUnavailable
             completion?(false)
             return
         }
-
-        let targetMemberDisplayIDs = Set(displays.compactMap { display in
-            targetContext.spaceIndex(for: display.displayID) == nil ? nil : display.displayID
-        })
-        guard !targetMemberDisplayIDs.isEmpty else {
-            diagnostics = [
-                DiagnosticState(
-                    severity: .blocker,
-                    title: strings.noMoveTargetsTitle,
-                    message: strings.noMoveTargetsMessage,
-                    actionLabel: nil
-                )
-            ]
-            lastSwitchResult = strings.noMoveTargetsReason
+        let expectedSpaceIDs = observation?.spaceIDsByDisplayID
+        guard admitWorkspaceActivation(targetContext, snapshot: expectedSpaceIDs) else {
             completion?(false)
             return
         }
-
-        let moves = ContextDisplayMovePlanner.moves(
-            displays: displays,
-            targetContext: targetContext
-        )
-
+        let readiness = WorkspaceRecoveryState(targetContext: targetContext, selectedDisplayIDs: selectedDisplayIDs, displays: displays)
+        guard readiness.canRetry || readiness.isResolved else {
+            recordWorkspaceActivation(targetContext, succeeded: false)
+            lastSwitchResult = strings.workspaceConnectionReviewMessage
+            completion?(false)
+            return
+        }
+        let memberDisplays = displays.filter { selectedDisplayIDs.contains($0.displayID) && targetContext.spaceIndex(for: $0.displayID) != nil }
+        let originContextID = settings.contextPlan.contexts.first {
+            $0.id == settings.contextPlan.currentContextID && WorkspaceRecoveryState(
+                targetContext: $0, selectedDisplayIDs: selectedDisplayIDs, displays: displays
+            ).isResolved
+        }?.id
+        let targetMemberDisplayIDs = Set(memberDisplays.map(\.displayID))
+        let moves = ContextDisplayMovePlanner.moves(displays: memberDisplays, targetContext: targetContext)
+        workspaceRecoveryTargetID = nil
+        workspaceSwitchTargetName = targetContext.name
         ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(30)
         isSwitching = true
         switchSessionID += 1
         let sessionID = switchSessionID
+        let configurationRevision = workspaceConfigurationRevision
         let reader = spaceLayoutReader
-        let includedDisplayIDs = Set(displays.map(\.displayID))
-        let beforeIndexes = Dictionary(
-            uniqueKeysWithValues: displays.map { ($0.displayID, $0.currentSpaceIndex) }
-        )
+        let beforeIndexes = Dictionary(uniqueKeysWithValues: memberDisplays.map { ($0.displayID, $0.currentSpaceIndex) })
         let steps = moves.flatMap {
-            Self.adjacentSteps(
-                displayID: $0.displayID,
-                currentIndex: $0.currentIndex,
-                targetIndex: $0.targetIndex
-            )
+            Self.adjacentSteps(displayID: $0.displayID, currentIndex: $0.currentIndex, targetIndex: $0.targetIndex)
         }
         let request = Self.transitionRequest(beforeIndexes: beforeIndexes, steps: steps)
         let mapping = DisplayLayoutMapper.stableIDsByUUID(
-            snapshots: displayObserver.currentSnapshots(),
-            uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
+            snapshots: displayObserver.currentSnapshots(), uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
         )
         let hudGeneration: Int?
-        if moves.isEmpty {
-            hudGeneration = nil
-        } else if let presentation = contextHUDPolicy.inProgressPresentation(
-            for: intent,
-            executedDisplayIDs: targetMemberDisplayIDs
-        ) {
-            hudGeneration = ProductContextHUDController.shared.show(
-                presentation.state,
-                displayIDs: presentation.displayIDs,
-                displayLayout: displayLayout
-            )
+        if !moves.isEmpty, let presentation = contextHUDPolicy.inProgressPresentation(for: intent, executedDisplayIDs: targetMemberDisplayIDs) {
+            hudGeneration = ProductContextHUDController.shared.show(presentation.state, displayIDs: presentation.displayIDs, displayLayout: displayLayout)
         } else {
             hudGeneration = nil
         }
-
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Self.productRunner(
-                reader: reader,
-                stableIDsByUUID: mapping,
-                includedDisplayIDs: includedDisplayIDs
+                reader: reader, stableIDsByUUID: mapping,
+                includedDisplayIDs: targetMemberDisplayIDs,
+                expectedSpaceIDsByDisplayID: expectedSpaceIDs
             ).run(request)
             let didMoveAll: Bool
-            if case .success = result {
-                didMoveAll = true
-            } else {
-                didMoveAll = false
-            }
-
+            if case .success = result { didMoveAll = true } else { didMoveAll = false }
             DispatchQueue.main.async { [weak self] in
-                guard let self else {
+                guard let self, self.switchSessionID == sessionID else {
                     completion?(false)
                     return
                 }
-                guard self.switchSessionID == sessionID else {
-                    completion?(false)
-                    return
-                }
-
-                if didMoveAll {
+                let succeeded = self.recordWorkspaceActivation(
+                    targetContext, succeeded: didMoveAll, recordsVisit: recordsWorkspaceVisit,
+                    expectedConfigurationRevision: configurationRevision, originContextID: originContextID
+                )
+                if succeeded {
+                    self.updateContextPlan { _ = $0.setCurrentContext(id: targetContext.id) }
                     self.diagnostics = modeDiagnostics
-                    self.updateContextPlan { plan in
-                        _ = plan.setCurrentContext(id: targetContext.id)
-                    }
-                    self.lastSwitchResult = self.strings.alignedToContext(
-                        self.settings.contextPlan.currentContext?.name ?? targetContext.name
-                    )
+                    self.lastSwitchResult = self.strings.workspaceMovedTo(targetContext.name)
                 } else {
-                    self.updateContextPlan { plan in
-                        plan.markNeedsSync()
-                    }
-                    self.diagnostics = modeDiagnostics + [
-                        DiagnosticState(
-                            severity: .warning,
-                            title: self.strings.spaceCommandNotAcceptedTitle,
-                            message: self.strings.spaceCommandNotAcceptedMessage,
-                            actionLabel: nil
-                        )
-                    ]
-                    self.lastSwitchResult = self.strings.alignFailed
+                    self.updateContextPlan { $0.markNeedsSync() }
+                    self.diagnostics = modeDiagnostics
+                    self.lastSwitchResult = self.strings.workspaceTransitionFailed(targetContext.name)
                 }
-                if let hudGeneration {
-                    ProductContextHUDController.shared.dismissImmediately(generation: hudGeneration)
-                }
+                if let hudGeneration { ProductContextHUDController.shared.dismissImmediately(generation: hudGeneration) }
                 self.isSwitching = false
                 self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
-                Self.contextCaptureLog.notice(
-                    "context-activate target=\(targetContext.id, privacy: .public) moved=\(moves.count, privacy: .public) success=\(didMoveAll, privacy: .public)"
-                )
-                completion?(didMoveAll)
+                self.refreshWorkspaceStatus()
+                completion?(succeeded)
             }
         }
     }
@@ -1222,83 +1242,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        let moves = displays.compactMap { display -> (display: InstantCaptureDisplay, targetIndex: Int)? in
-            guard display.displayID != reference.displayID,
-                  let targetIndex = target.spaceIndex(for: display.displayID),
-                  display.currentSpaceIndex != targetIndex
-            else {
-                return nil
-            }
-            return (display, targetIndex)
-        }
-
-        let alignFeedback = AlignFeedbackPolicy.feedback(
-            displays: displays,
-            referenceDisplayID: reference.displayID,
-            targetContext: target
-        )
-
-        isSwitching = true
-        ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(30)
-        switchSessionID += 1
-        let sessionID = switchSessionID
-        let reader = spaceLayoutReader
-        let includedDisplayIDs = Set(displays.map(\.displayID))
-        let beforeIndexes = Dictionary(
-            uniqueKeysWithValues: displays.map { ($0.displayID, $0.currentSpaceIndex) }
-        )
-        let steps = moves.flatMap {
-            Self.adjacentSteps(
-                displayID: $0.display.displayID,
-                currentIndex: $0.display.currentSpaceIndex,
-                targetIndex: $0.targetIndex
-            )
-        }
-        let request = Self.transitionRequest(beforeIndexes: beforeIndexes, steps: steps)
-        let mapping = DisplayLayoutMapper.stableIDsByUUID(
-            snapshots: displayObserver.currentSnapshots(),
-            uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
-        )
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = Self.productRunner(
-                reader: reader,
-                stableIDsByUUID: mapping,
-                includedDisplayIDs: includedDisplayIDs
-            ).run(request)
-            let didAlignAll: Bool
-            if case .success = result {
-                didAlignAll = true
-            } else {
-                didAlignAll = false
-            }
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.switchSessionID == sessionID else {
-                    return
-                }
-                self.isSwitching = false
-                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
-                if didAlignAll {
-                    self.updateContextPlan { plan in
-                        _ = plan.setCurrentContext(id: target.id)
-                    }
-                    self.lastSwitchResult = self.strings.alignedToContext(
-                        self.settings.contextPlan.currentContext?.name ?? target.name
-                    )
-                    self.showAlignFeedbackHUD(alignFeedback)
-                } else {
-                    self.updateContextPlan { plan in
-                        plan.markNeedsSync()
-                    }
-                    self.lastSwitchResult = self.strings.alignFailed
-                }
-                self.diagnostics = self.currentDiagnostics()
-                Self.contextCaptureLog.notice(
-                    "align-displays target=\(target.id, privacy: .public) moved=\(moves.count, privacy: .public) success=\(didAlignAll, privacy: .public)"
-                )
-            }
-        }
+        activateContext(contextID: target.id, recordsWorkspaceVisit: false)
     }
 
     private func showAlignFeedbackHUD(_ feedback: [AlignDisplayFeedback]) {
@@ -1366,30 +1310,15 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     /// Reads the live Space layout for selected displays that expose
     /// independent Spaces, in layout order. Mirrored displays can be present
     /// as screens without independent Space layout, so they are skipped.
-    private func selectedDisplaySpaces() -> [InstantCaptureDisplay]? {
-        if let selectedDisplaySpacesOverride {
-            return selectedDisplaySpacesOverride()
-        }
-        guard let layouts = spaceLayoutReader.readLayout(), !layouts.isEmpty else {
-            return nil
-        }
-
-        let mapping = DisplayLayoutMapper.stableIDsByUUID(
-            snapshots: displayObserver.currentSnapshots(),
-            uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
-        )
-        return DisplayLayoutMapper.instantCaptureDisplays(
-            selectedDisplayIDs: selectedDisplayIDs,
-            displayLayout: displayLayout,
-            layouts: layouts,
-            stableIDsByUUID: mapping
-        )
+    func selectedDisplaySpaces() -> [InstantCaptureDisplay]? {
+        workspaceObservation()?.displays
     }
 
     nonisolated private static func productIndexes(
         reader: any SpaceLayoutReading,
         stableIDsByUUID: [String: String],
-        includedDisplayIDs: Set<String>
+        includedDisplayIDs: Set<String>,
+        expectedSpaceIDsByDisplayID: [String: [UInt64]]? = nil
     ) -> [String: Int]? {
         guard let layouts = reader.readLayout() else {
             return nil
@@ -1403,6 +1332,9 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             else {
                 continue
             }
+            if let expectedSpaceIDsByDisplayID,
+               expectedSpaceIDsByDisplayID[stableID] != layout.spaceIDs { return nil }
+            guard indexes[stableID] == nil else { return nil }
             indexes[stableID] = index
         }
 
@@ -1412,7 +1344,8 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     nonisolated private static func productRunner(
         reader: any SpaceLayoutReading,
         stableIDsByUUID: [String: String],
-        includedDisplayIDs: Set<String>
+        includedDisplayIDs: Set<String>,
+        expectedSpaceIDsByDisplayID: [String: [UInt64]]? = nil
     ) -> ProductSpaceTransitionRunner {
         ProductSpaceTransitionRunner(
             makeExecutor: { displayID in
@@ -1422,9 +1355,11 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 productIndexes(
                     reader: reader,
                     stableIDsByUUID: stableIDsByUUID,
-                    includedDisplayIDs: includedDisplayIDs
+                    includedDisplayIDs: includedDisplayIDs,
+                    expectedSpaceIDsByDisplayID: expectedSpaceIDsByDisplayID
                 )
-            }
+            },
+            verifiesBeforePosting: expectedSpaceIDsByDisplayID != nil
         )
     }
 
@@ -1459,7 +1394,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         )
     }
 
-    private func refreshContextEditAvailability() {
+    func refreshContextEditAvailability() {
         contextDeletionMinimumCount = ContextEditAction.minimumContextCount(
             selectedDisplayIDs: selectedDisplayIDs,
             readLiveDisplays: selectedDisplaySpaces
@@ -1468,8 +1403,9 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     /// Builds the context plan directly from a complete live Space layout.
     func startInstantContextCapture() -> Bool {
+        let observation = workspaceObservation()
         guard let instantPlan = ProductInstantContextCaptureStartPolicy.plan(
-            for: selectedDisplaySpaces(),
+            for: observation?.displays,
             selectedDisplayIDs: selectedDisplayIDs
         ) else {
             contextCaptureStatus = strings.contextCaptureLayoutUnavailable
@@ -1477,7 +1413,9 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         contextCaptureAlignmentCoordinator.invalidate()
-        let contexts: [ContextDefinition]
+        let previousContexts = settings.contextPlan.contexts
+        let hasSavedAssignments = previousContexts.contains { !$0.displayIDs.isEmpty }
+        var contexts: [ContextDefinition]
         if instantPlan.isSynchronized {
             let currentOrder = instantPlan.contexts
                 .first { $0.id == instantPlan.currentContextID }?.order ?? 1
@@ -1488,18 +1426,33 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             contexts = instantPlan.contexts
         }
 
+        let capturedOrder = instantPlan.contexts.first { $0.id == instantPlan.currentContextID }?.order
+        if hasSavedAssignments {
+            contexts = WorkspaceCaptureRefreshPolicy.contexts(
+                discovered: contexts, existing: previousContexts, selectedDisplayIDs: selectedDisplayIDs
+            )
+        }
+        let currentID = contexts.first { $0.order == capturedOrder }?.id ?? instantPlan.currentContextID
         updateContextPlan { plan in
             plan.replaceContexts(
                 contexts,
-                currentContextID: instantPlan.currentContextID
+                currentContextID: currentID
             )
             if !instantPlan.isSynchronized {
                 plan.markNeedsSync()
             }
         }
+        workspaceConnectionSession.reset()
+        workspaceHistory = WorkspaceVisitHistory()
+        firstWorkProgress = WorkspaceFirstRunProgress()
+        workspaceGuideIsRecording = false
+        saveFirstWorkProgress()
+        verifiedCurrentWorkspaceID = nil
+        workspaceRecoveryTargetID = nil
+        applyWorkspaceObservation(observation)
         if instantPlan.isSynchronized {
             contextCaptureStatus = strings.contextCaptureReadySummary(
-                count: contexts.count,
+                count: instantPlan.contexts.count,
                 currentName: settings.contextPlan.currentContext?.name ?? "Context 1"
             )
         } else {
@@ -1511,7 +1464,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             contextCaptureStatus = candidates.isEmpty
                 ? strings.contextCaptureNoCommonAlignmentTarget
                 : strings.contextCaptureReadySummary(
-                    count: contexts.count,
+                    count: instantPlan.contexts.count,
                     currentName: settings.contextPlan.currentContext?.name ?? "Context 1"
                 )
         }
@@ -1557,7 +1510,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        activateContext(contextID: contextID, requiresCompleteSelectedLayout: true) { [weak self] _ in
+        activateContext(contextID: contextID, requiresCompleteSelectedLayout: true, recordsWorkspaceVisit: false) { [weak self] _ in
             self?.contextCaptureAlignmentCoordinator.finish(requestID: requestID)
         }
     }
@@ -1597,6 +1550,15 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         return labels.isEmpty ? "Context \(order)" : labels.joined(separator: " / ")
+    }
+
+    func visibleContentName(contextID: String) -> String? {
+        guard canAddContext, pendingContextCaptureAlignment == nil else { return nil }
+        refreshWorkspaceStatus()
+        guard verifiedCurrentWorkspaceID == contextID,
+              let context = settings.contextPlan.contexts.first(where: { $0.id == contextID }) else { return nil }
+        let name = suggestedContextName(order: context.order)
+        return name == "Context \(context.order)" ? nil : name
     }
 
     private func commitContextCapture(
@@ -1933,7 +1895,6 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     private func applyOnboardingCompletionDefaults() {
         refresh()
         let defaults = OnboardingCompletionPolicy().completionDefaults(for: displayLayout)
-        selectedDisplayIDs = defaults.selectedDisplayIDs
         refreshContextEditAvailability()
         isEnabled = defaults.isSidebyEnabled
         UserDefaults.standard.set(defaults.isSidebyEnabled, forKey: Self.enabledDefaultsKey)
@@ -1969,8 +1930,8 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
         var savedSettings = newSettings
         savedSettings.mode = .shortcut
-        settings = savedSettings
-        settingsStore.save(savedSettings)
+        applyWorkspaceSettings(savedSettings)
+        settingsStore.save(settings)
         swipePipeline = SwipeInputPipeline(settings: currentGestureSettings)
         refreshLocalizedStatus()
         lastInputEvent = Self.inputHint(for: settings, strings: strings)
@@ -2021,50 +1982,12 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        let plan = settings.contextPlan
-        if ExternalSpaceChangeContextPolicy.shouldTrackCurrentContext(
-            isSidebyEnabled: isEnabled,
-            plan: plan
-        ),
-            let displays = selectedDisplaySpaces() {
-            let indexes = Dictionary(
-                uniqueKeysWithValues: displays.map { ($0.displayID, $0.currentSpaceIndex) }
-            )
-            if let matchedID = ContextCurrentMatcher.currentContextID(
-                contexts: plan.contexts,
-                displayIndexes: indexes
-            ) {
-                if matchedID != plan.currentContextID || plan.syncState != .synchronized {
-                    updateContextPlan { plan in
-                        _ = plan.setCurrentContext(id: matchedID)
-                    }
-                    lastSwitchResult = strings.followingContext(
-                        settings.contextPlan.currentContext?.name ?? matchedID
-                    )
-                }
-            } else if plan.syncState == .synchronized {
-                updateContextPlan { plan in
-                    plan.markNeedsSync()
-                }
-                lastSwitchResult = strings.contextNeedsAlignment
-            }
-            diagnostics = currentDiagnostics()
-            return
+        refreshWorkspaceStatus()
+        if verifiedCurrentWorkspaceID == nil {
+            updateContextPlan { $0.markNeedsSync() }
+            lastSwitchResult = strings.workspaceNotAligned
         }
-
-        guard ExternalSpaceChangeContextPolicy.shouldPauseContextMatching(
-            isSidebyEnabled: isEnabled,
-            plan: settings.contextPlan
-        ) else {
-            return
-        }
-
-        updateContextPlan { plan in
-            plan.pauseContextMatchingForUnsynchronizedMovement()
-        }
-
         diagnostics = currentDiagnostics()
-        lastSwitchResult = strings.contextMatchingPaused
     }
 
     private func reloadSettingsFromStoreIfChanged() {
@@ -2074,7 +1997,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        settings = loadedSettings
+        applyWorkspaceSettings(loadedSettings)
         swipePipeline = SwipeInputPipeline(settings: currentGestureSettings)
         refreshLocalizedStatus()
         lastInputEvent = Self.inputHint(for: settings, strings: strings)
@@ -2103,6 +2026,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
     @discardableResult
     func switchContext(_ command: SwitchCommand) -> Bool {
+        lastWorkspaceSwitchSucceeded = false
         refresh()
         guard contextCaptureSession == nil else {
             lastSwitchResult = strings.ignoredSwitchContextCaptureActive(label: "button", command: command)
@@ -2598,6 +2522,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         resumeInputAfterCompletion shouldResumeInput: Bool? = nil,
         completion: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
+        lastWorkspaceSwitchSucceeded = false
         guard contextCaptureSession == nil else {
             lastSwitchResult = strings.ignoredSwitchContextCaptureActive(label: label, command: command)
             if let shouldResumeInput {
@@ -2606,6 +2531,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             completion?(false)
             return
         }
+        refreshWorkspaceStatus()
         let intent = settings.contextPlan.switchIntent(for: command)
         guard intent.shouldExecute else {
             if let diagnostic = intent.diagnostic {
@@ -2638,18 +2564,14 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        if settings.contextPlan.isPinned,
-           let targetContext = intent.targetContext,
-           settings.contextPlan.contexts.contains(where: { !$0.usesDefaultSpaceIndexes }) {
-            performIndexedContextSwitch(
-                command,
-                targetContext: targetContext,
-                label: label,
-                inputMethod: inputMethod,
-                intent: intent,
-                resumeInputAfterCompletion: shouldResumeInput,
-                completion: completion
-            )
+        if settings.contextPlan.isPinned, let targetContext = intent.targetContext {
+            performContextActivation(
+                targetContext: targetContext, intent: intent,
+                requiresCompleteSelectedLayout: false
+            ) { [weak self] success in
+                if let shouldResumeInput { self?.finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput) }
+                completion?(success)
+            }
             return
         }
 
@@ -2767,6 +2689,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 }
                 self.isSwitching = false
                 self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
+                self.refreshWorkspaceStatus()
                 if let shouldResumeInput {
                     self.finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
                 }
@@ -2783,6 +2706,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         navigationDiagnostic: DiagnosticState?,
         mayHaveMoved: Bool
     ) {
+        verifiedCurrentWorkspaceID = nil
         diagnostics = result.diagnostics
         if result.didExecute {
             let targetContext = intent.targetContext
@@ -2810,179 +2734,6 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 )
             ]
             lastSwitchResult = strings.blockedSwitch(label: label, command: command, reason: strings.systemEventsFailedReason)
-        }
-    }
-
-    private func performIndexedContextSwitch(
-        _ command: SwitchCommand,
-        targetContext: ContextDefinition,
-        label: String,
-        inputMethod: InputMethod,
-        intent: ContextSwitchIntent,
-        resumeInputAfterCompletion shouldResumeInput: Bool?,
-        completion: (@MainActor @Sendable (Bool) -> Void)?
-    ) {
-        let decision = ModePolicy().decision(
-            for: settings.mode,
-            inputMethod: inputMethod,
-            runtimeState: runtimeState
-        )
-        let modeDiagnostics = DiagnosticRule.evaluate(decision: decision)
-        guard decision.isAllowed else {
-            diagnostics = modeDiagnostics
-            if let diagnostic = modeDiagnostics.first(where: { $0.severity == .blocker }) ?? modeDiagnostics.first {
-                lastSwitchResult = strings.blockedSwitch(
-                    label: label,
-                    command: command,
-                    reason: strings.localizedDiagnosticTitle(diagnostic.title)
-                )
-            }
-            if let shouldResumeInput {
-                finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
-            }
-            completion?(false)
-            return
-        }
-
-        guard let displays = selectedDisplaySpaces(), !displays.isEmpty else {
-            updateContextPlan { plan in
-                plan.markNeedsSync()
-            }
-            diagnostics = currentDiagnostics()
-            lastSwitchResult = strings.alignFailed
-            if let shouldResumeInput {
-                finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
-            }
-            completion?(false)
-            return
-        }
-
-        let targetMemberDisplayIDs = Set(displays.compactMap { display in
-            targetContext.spaceIndex(for: display.displayID) == nil ? nil : display.displayID
-        })
-        guard !targetMemberDisplayIDs.isEmpty else {
-            diagnostics = [
-                DiagnosticState(
-                    severity: .blocker,
-                    title: strings.noMoveTargetsTitle,
-                    message: strings.noMoveTargetsMessage,
-                    actionLabel: nil
-                )
-            ]
-            lastSwitchResult = strings.blockedSwitch(label: label, command: command, reason: strings.noMoveTargetsReason)
-            if let shouldResumeInput {
-                finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
-            }
-            completion?(false)
-            return
-        }
-
-        let moves = displays.compactMap { display -> (display: InstantCaptureDisplay, targetIndex: Int)? in
-            guard let targetIndex = targetContext.spaceIndex(for: display.displayID),
-                  display.currentSpaceIndex != targetIndex
-            else {
-                return nil
-            }
-            return (display, targetIndex)
-        }
-
-        ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(30)
-        isSwitching = true
-        switchSessionID += 1
-        let sessionID = switchSessionID
-        let reader = spaceLayoutReader
-        let includedDisplayIDs = Set(displays.map(\.displayID))
-        let beforeIndexes = Dictionary(
-            uniqueKeysWithValues: displays.map { ($0.displayID, $0.currentSpaceIndex) }
-        )
-        let steps = moves.flatMap {
-            Self.adjacentSteps(
-                displayID: $0.display.displayID,
-                currentIndex: $0.display.currentSpaceIndex,
-                targetIndex: $0.targetIndex
-            )
-        }
-        let request = Self.transitionRequest(beforeIndexes: beforeIndexes, steps: steps)
-        let mapping = DisplayLayoutMapper.stableIDsByUUID(
-            snapshots: displayObserver.currentSnapshots(),
-            uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
-        )
-        let hudGeneration: Int?
-        if moves.isEmpty {
-            hudGeneration = nil
-        } else if let presentation = contextHUDPolicy.inProgressPresentation(
-            for: intent,
-            executedDisplayIDs: targetMemberDisplayIDs
-        ) {
-            hudGeneration = ProductContextHUDController.shared.show(
-                presentation.state,
-                displayIDs: presentation.displayIDs,
-                displayLayout: displayLayout
-            )
-        } else {
-            hudGeneration = nil
-        }
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = Self.productRunner(
-                reader: reader,
-                stableIDsByUUID: mapping,
-                includedDisplayIDs: includedDisplayIDs
-            ).run(request)
-            let didMoveAll: Bool
-            if case .success = result {
-                didMoveAll = true
-            } else {
-                didMoveAll = false
-            }
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self else {
-                    completion?(false)
-                    return
-                }
-                guard self.switchSessionID == sessionID else {
-                    completion?(false)
-                    return
-                }
-
-                if didMoveAll {
-                    self.diagnostics = modeDiagnostics
-                    self.updateContextPlan { plan in
-                        _ = plan.setCurrentContext(id: targetContext.id)
-                    }
-                    self.lastSwitchResult = self.strings.postedSwitch(label: label, command: command)
-                } else {
-                    self.updateContextPlan { plan in
-                        plan.markNeedsSync()
-                    }
-                    self.diagnostics = modeDiagnostics + [
-                        DiagnosticState(
-                            severity: .warning,
-                            title: self.strings.spaceCommandNotAcceptedTitle,
-                            message: self.strings.spaceCommandNotAcceptedMessage,
-                            actionLabel: nil
-                        )
-                    ]
-                    self.lastSwitchResult = self.strings.blockedSwitch(
-                        label: label,
-                        command: command,
-                        reason: self.strings.systemEventsFailedReason
-                    )
-                }
-                if let hudGeneration {
-                    ProductContextHUDController.shared.dismissImmediately(generation: hudGeneration)
-                }
-                self.isSwitching = false
-                self.ignoresExternalSpaceChangesUntil = Date().addingTimeInterval(0.75)
-                Self.contextCaptureLog.notice(
-                    "context-switch-indexed target=\(targetContext.id, privacy: .public) moved=\(moves.count, privacy: .public) success=\(didMoveAll, privacy: .public)"
-                )
-                if let shouldResumeInput {
-                    self.finishLatchedInputSwitch(shouldResumeInput: shouldResumeInput)
-                }
-                completion?(didMoveAll)
-            }
         }
     }
 
@@ -3198,16 +2949,11 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func syncSelectedDisplays(with layout: DisplayLayout) {
-        let currentIDs = Set(layout.displays.map(\.id))
-        if !didInitializeSelectedDisplays {
-            selectedDisplayIDs = currentIDs
-            didInitializeSelectedDisplays = true
-        } else {
-            selectedDisplayIDs = selectedDisplayIDs.intersection(currentIDs)
-        }
+        settings.displaySelection.reconcile(with: layout)
+        selectedDisplayIDs = settings.displaySelection.connectedSelectedDisplayIDs(in: layout)
     }
 
-    private func updateContextPlan(_ mutate: (inout ContextPlan) -> Void) {
+    func updateContextPlan(_ mutate: (inout ContextPlan) -> Void) {
         var plan = settings.contextPlan
         mutate(&plan)
 
@@ -3215,7 +2961,13 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
+        let previousPlan = settings.contextPlan
         settings.contextPlan = plan
+        workspaceConfigurationChanged(from: previousPlan, selectedIDs: selectedDisplayIDs)
+        let validIDs = Set(plan.contexts.map(\.id))
+        workspaceHistory.reconcile(validContextIDs: validIDs)
+        firstWorkProgress.reconcile(validContextIDs: validIDs)
+        if let id = workspaceRecoveryTargetID, !validIDs.contains(id) { workspaceRecoveryTargetID = nil }
         settingsStore.save(settings)
         diagnostics = currentDiagnostics()
         refreshLocalizedStatus()
@@ -3248,154 +3000,6 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 }
 
-private struct ProductRootView: View {
-    @ObservedObject var model: SidebyAppModel
-    let updater: SidebyUpdater
-    @Binding var didCompleteOnboarding: Bool
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        if didCompleteOnboarding {
-            ProductMenuOnlySettingsRedirectView(
-                model: model,
-                openMenuPanel: {
-                    openMenuPanelForPresentationTrigger(.settingsRedirect)
-                }
-            )
-        } else {
-            OnboardingFlowView(viewModel: model, language: model.settings.language) {
-                finishOnboardingToSettings()
-            }
-            .onAppear {
-                model.prepareMiniOnboarding()
-            }
-            .onChange(of: model.didFinishMiniOnboarding) { _, didFinish in
-                if didFinish {
-                    didCompleteOnboarding = true
-                }
-            }
-        }
-    }
-
-    private func finishOnboardingToSettings() {
-        didCompleteOnboarding = true
-        openMenuPanelForPresentationTrigger(.onboardingCompletion)
-    }
-
-    private func openMenuPanelForPresentationTrigger(
-        _ trigger: FloatingMenuPanelPresentationTrigger,
-        initialExpansion: FloatingMenuSectionExpansion = .default
-    ) {
-        let sourceWindow: NSWindow?
-        switch FloatingMenuPanelPresentationPolicy.anchor(for: trigger) {
-        case .sourceWindow:
-            sourceWindow = currentMainWindow
-        case .menuBarFallback:
-            sourceWindow = nil
-        }
-
-        openMenuPanel(from: sourceWindow, initialExpansion: initialExpansion)
-    }
-
-    private func openMenuPanel(
-        from sourceWindow: NSWindow? = NSApplication.shared.keyWindow,
-        initialExpansion: FloatingMenuSectionExpansion = .default
-    ) {
-        ProductFloatingMenuPanelController.shared.present(
-            from: sourceWindow,
-            model: model,
-            actions: menuActions,
-            initialExpansion: initialExpansion
-        )
-        ProductMainWindowPresenter.hideIfVisible()
-    }
-
-    private var currentMainWindow: NSWindow? {
-        NSApplication.shared.keyWindow
-            ?? NSApplication.shared.windows.first { window in
-                window.identifier == ProductMainWindowPresenter.windowIdentifier
-                    || window.title == "Sideby"
-            }
-    }
-
-    private var menuActions: ProductMenuPanelActions {
-        ProductMenuPanelActions(
-            updater: updater,
-            openSettings: {
-                openMenuPanel(initialExpansion: .opening(.overview))
-            },
-            replayOnboarding: {
-                ProductFloatingMenuPanelController.shared.close()
-                model.prepareMiniOnboarding()
-                didCompleteOnboarding = false
-                openWindow(id: "main")
-                ProductMainWindowPresenter.present()
-            },
-            customizeShortcuts: {
-                openMenuPanel(initialExpansion: .opening(.input))
-            },
-            quit: {
-                NSApplication.shared.terminate(nil)
-            }
-        )
-    }
-}
-
-private struct ProductMenuOnlySettingsRedirectView: View {
-    @ObservedObject var model: SidebyAppModel
-    let openMenuPanel: () -> Void
-
-    var body: some View {
-        VStack(alignment: .center, spacing: 10) {
-            SidebyMenuBarIcon()
-                .frame(width: 32, height: 26)
-            Text(model.strings.settings)
-                .font(.title3.weight(.semibold))
-            Button(model.strings.openSettings, action: openMenuPanel)
-                .pointingHandCursor()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            DispatchQueue.main.async {
-                openMenuPanel()
-            }
-        }
-    }
-}
-
-private struct ProductMainWindowConfigurator: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        configure(windowFor: view)
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        configure(windowFor: nsView)
-    }
-
-    private func configure(windowFor view: NSView) {
-        DispatchQueue.main.async {
-            if let window = view.window {
-                ProductMainWindowPresenter.configure(window)
-            }
-        }
-    }
-}
-
-private extension FloatingMenuSectionExpansion {
-    static func opening(_ destination: SettingsAccessDestination) -> FloatingMenuSectionExpansion {
-        var expansion = FloatingMenuSectionExpansion.default
-        switch destination {
-        case .overview:
-            break
-        case .input:
-            expansion.showsInput = true
-        }
-        return expansion
-    }
-}
-
 private struct LaunchAtLoginControls: View {
     @ObservedObject var model: SidebyAppModel
 
@@ -3419,16 +3023,13 @@ private struct LaunchAtLoginControls: View {
 
 private struct MenuBarControlView: View {
     @ObservedObject var model: SidebyAppModel
-    let updater: SidebyUpdater
-    @Binding var didCompleteOnboarding: Bool
-    @Environment(\.openWindow) private var openWindow
+    let actions: ProductMenuPanelActions
     @Environment(\.dismiss) private var dismiss
     @State private var menuWindow: NSWindow?
     @State private var didOpenFloatingMenu = false
 
     var body: some View {
-        Color.clear
-            .frame(width: 1, height: 1)
+        Color.clear.frame(width: 1, height: 1)
             .background {
                 ProductMenuWindowReader { window in
                     menuWindow = window
@@ -3440,303 +3041,52 @@ private struct MenuBarControlView: View {
                 model.refresh()
                 openFloatingMenuWhenReady()
             }
-            .onDisappear {
-                didOpenFloatingMenu = false
-            }
+            .onDisappear { didOpenFloatingMenu = false }
     }
 
     private func openFloatingMenuWhenReady(retryCount: Int = 3) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-            guard !didOpenFloatingMenu else {
-                return
-            }
-
+            guard !didOpenFloatingMenu else { return }
             guard let sourceWindow = menuWindow ?? NSApplication.shared.keyWindow else {
-                if retryCount > 0 {
-                    openFloatingMenuWhenReady(retryCount: retryCount - 1)
-                    return
-                }
-
+                if retryCount > 0 { openFloatingMenuWhenReady(retryCount: retryCount - 1); return }
                 openFloatingMenu(from: nil)
                 return
             }
-
             openFloatingMenu(from: sourceWindow)
         }
     }
 
-    private func openFloatingMenu(
-        from sourceWindow: NSWindow?,
-        initialExpansion: FloatingMenuSectionExpansion = .default
-    ) {
-        guard !didOpenFloatingMenu else {
-            return
-        }
-
+    private func openFloatingMenu(from sourceWindow: NSWindow?) {
+        guard !didOpenFloatingMenu else { return }
         didOpenFloatingMenu = true
-        ProductFloatingMenuPanelController.shared.toggle(
-            from: sourceWindow,
-            model: model,
-            actions: menuActions,
-            initialExpansion: initialExpansion
-        )
-        closeMenuBarWindow()
-    }
-
-    private func openMainWindow() {
-        openWindow(id: "main")
-        closeMenuBarWindow()
-        ProductMainWindowPresenter.present()
-    }
-
-    private func openMenuPanel(opening destination: SettingsAccessDestination) {
-        ProductFloatingMenuPanelController.shared.present(
-            from: menuWindow,
-            model: model,
-            actions: menuActions,
-            initialExpansion: .opening(destination)
-        )
-        ProductMainWindowPresenter.hideIfVisible()
-        closeMenuBarWindow()
-    }
-
-    private func handleMenuRoute(_ route: SettingsAccessRoute) {
-        switch route {
-        case .menuPanel(let destination):
-            openMenuPanel(opening: destination)
-        case .onboarding:
-            model.prepareMiniOnboarding()
-            didCompleteOnboarding = false
-            openMainWindow()
-        }
-    }
-
-    private func closeMenuBarWindow() {
-        let menuWindow = menuWindow ?? NSApplication.shared.keyWindow
+        ProductFloatingMenuPanelController.shared.toggle(from: sourceWindow, model: model, actions: actions)
+        let menuWindow = menuWindow
         dismiss()
         menuWindow?.orderOut(nil)
     }
-
-    private var menuActions: ProductMenuPanelActions {
-        ProductMenuPanelActions(
-            updater: updater,
-            openSettings: {
-                handleMenuRoute(
-                    SettingsAccessRoute.route(
-                        for: .openSettings,
-                        didCompleteOnboarding: didCompleteOnboarding
-                    )
-                )
-            },
-            replayOnboarding: {
-                handleMenuRoute(
-                    SettingsAccessRoute.route(
-                        for: .replayOnboarding,
-                        didCompleteOnboarding: didCompleteOnboarding
-                    )
-                )
-            },
-            customizeShortcuts: {
-                handleMenuRoute(
-                    SettingsAccessRoute.route(
-                        for: .customizeShortcuts,
-                        didCompleteOnboarding: didCompleteOnboarding
-                    )
-                )
-            },
-            quit: {
-                NSApplication.shared.terminate(nil)
-            }
-        )
-    }
 }
 
-private struct ProductMenuPanelActions {
-    let updater: SidebyUpdater
-    let openSettings: () -> Void
-    let replayOnboarding: () -> Void
-    let customizeShortcuts: () -> Void
+struct ProductMenuPanelActions {
+    let route: (ProductApplicationRequest) -> Void
     let quit: () -> Void
 }
 
 private struct ProductMenuContentView: View {
     @ObservedObject var model: SidebyAppModel
     let actions: ProductMenuPanelActions
-    @ObservedObject private var updater: SidebyUpdater
-    @State private var expansion = FloatingMenuSectionExpansion.default
-
-    init(
-        model: SidebyAppModel,
-        actions: ProductMenuPanelActions,
-        initialExpansion: FloatingMenuSectionExpansion = .default
-    ) {
-        self.model = model
-        self.actions = actions
-        self._updater = ObservedObject(wrappedValue: actions.updater)
-        self._expansion = State(initialValue: initialExpansion)
-    }
 
     var body: some View {
-        let strings = model.strings
-        let diagnosticsSection = FloatingMenuDiagnosticsContent.section(
-            for: model.diagnostics,
-            strings: strings
-        )
-
-        VStack(alignment: .leading, spacing: 8) {
-            MoveTargetsView(
-                model: model,
-                showsSummary: true,
-                wrapsInGroupBox: true
-            )
-
-            contextsSection
-
-            if let diagnosticsSection {
-                ProductMenuDiagnosticsView(section: diagnosticsSection)
-            }
-
-            ForEach(FloatingMenuCollapsibleSectionContent.defaultItems, id: \.self) { section in
-                disclosureSection(section, strings: strings)
-            }
-
-            menuActions
-        }
-    }
-
-    private var contextsSection: some View {
-        GroupBox(model.strings.contextPlanner) {
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(
-                    Array(FloatingMenuContextSectionContent.defaultItems.enumerated()),
-                    id: \.offset
-                ) { index, item in
-                    if index > 0 {
-                        Divider()
-                    }
-
-                    switch item {
-                    case .captureControls:
-                        ContextCaptureControlsView(model: model, wrapsInGroupBox: false)
-                    case .matrix:
-                        ContextsView(
-                            model: model,
-                            wrapsInGroupBox: false,
-                            showsHelp: false,
-                            isCompact: true
-                        )
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var settingsBinding: Binding<AppSettings> {
-        Binding(
-            get: { model.settings },
-            set: { model.updateSettings($0) }
-        )
-    }
-
-    @ViewBuilder
-    private func disclosureSection(
-        _ section: FloatingMenuCollapsibleSection,
-        strings: SBSStrings
-    ) -> some View {
-        switch section {
-        case .input:
-            CompactDisclosureSection(
-                title: strings.input,
-                systemImage: "keyboard",
-                isExpanded: expansionBinding(for: .input)
-            ) {
-                ShortcutSettingsView(
-                    settings: settingsBinding,
-                    showsInputExperiment: false
-                )
-            }
-        case .permissions:
-            CompactDisclosureSection(
-                title: strings.permissions,
-                systemImage: "lock",
-                isExpanded: expansionBinding(for: .permissions)
-            ) {
-                PrivacyPermissionsView(model: model)
-            }
-        case .general:
-            CompactDisclosureSection(
-                title: strings.general,
-                systemImage: "gearshape",
-                isExpanded: expansionBinding(for: .general)
-            ) {
-                generalSettings
-            }
-        }
-    }
-
-    private func expansionBinding(for section: FloatingMenuCollapsibleSection) -> Binding<Bool> {
-        Binding(
-            get: { expansion.isExpanded(section) },
-            set: { expansion.set(section, isExpanded: $0) }
-        )
-    }
-
-    private var generalSettings: some View {
         VStack(alignment: .leading, spacing: 12) {
-            LanguageSettingsView(settings: settingsBinding)
-
-            Divider()
-
-            LaunchAtLoginControls(model: model)
-
-            Divider()
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    generalButtons
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    generalButtons
-                }
-            }
-            .font(.caption)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var generalButtons: some View {
-        ForEach(FloatingMenuGeneralActionContent.defaultItems, id: \.self) { item in
-            generalButton(for: item)
-        }
-    }
-
-    @ViewBuilder
-    private func generalButton(for item: FloatingMenuGeneralActionItem) -> some View {
-        switch item {
-        case .replayOnboarding:
-            Button(model.strings.replayOnboarding, action: actions.replayOnboarding)
+            WorkspaceChooserView(model: model, actions: WorkspaceChooserActions(
+                openSettings: { actions.route(.settings) },
+                editWorkspaces: { actions.route(.workspaces) },
+                reviewAssignments: { actions.route(.review(contextID: $0, displayID: $1)) },
+                openPermissions: { actions.route(.permissions) },
+                resumeOnboarding: { actions.route(.resume) }))
+            Button(DailyRefreshStrings(language: model.settings.language).quit, action: actions.quit)
                 .pointingHandCursor()
-        case .refresh:
-            Button(model.strings.refresh) {
-                model.refresh()
-            }
-            .pointingHandCursor()
-        case .checkForUpdates:
-            Button(model.strings.checkForUpdates) {
-                updater.checkForUpdates()
-            }
-            .disabled(!updater.canCheckForUpdates)
-            .pointingHandCursor()
+                .font(.system(size: 12)).controlSize(.large)
         }
-    }
-
-    private var menuActions: some View {
-        Button(model.strings.quit, action: actions.quit)
-            .pointingHandCursor()
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .font(.caption)
     }
 }
 
@@ -3914,6 +3264,7 @@ private final class ProductFloatingMenuPanelController {
     private var pendingActions: ProductMenuPanelActions?
     private var pendingInitialExpansion: FloatingMenuSectionExpansion = .default
     private var didObserveSwitching = false
+    private var presentationGeneration = 0
 
     private init() {}
 
@@ -3942,26 +3293,23 @@ private final class ProductFloatingMenuPanelController {
         actions: ProductMenuPanelActions,
         initialExpansion: FloatingMenuSectionExpansion = .default
     ) {
+        presentationGeneration += 1
+        let generation = presentationGeneration
+        model.refresh()
         let relocation = ProductMenuBarWindowRelocation.capture(window: sourceWindow)
             ?? ProductMenuBarWindowRelocation.fallback()
         clearPendingReopen()
         switchObserver = model.$isSwitching.sink { [weak self, weak model] isSwitching in
-            guard isSwitching else {
-                return
-            }
-
             Task { @MainActor [weak self, weak model] in
-                guard let self, let model else {
-                    return
+                guard let self, let model, self.presentationGeneration == generation else { return }
+                if isSwitching {
+                    self.queueReopenAfterSwitch(
+                        from: self.panel, model: model, actions: actions,
+                        initialExpansion: initialExpansion, alreadySwitching: true
+                    )
+                } else if self.didObserveSwitching {
+                    self.scheduleShowPending(after: 0.22)
                 }
-
-                self.queueReopenAfterSwitch(
-                    from: self.panel,
-                    model: model,
-                    actions: actions,
-                    initialExpansion: initialExpansion,
-                    alreadySwitching: true
-                )
             }
         }
 
@@ -3974,6 +3322,7 @@ private final class ProductFloatingMenuPanelController {
     }
 
     func close() {
+        presentationGeneration += 1
         clearPendingReopen()
         switchObserver = nil
         hidePanel()
@@ -3993,26 +3342,6 @@ private final class ProductFloatingMenuPanelController {
         pendingInitialExpansion = initialExpansion
         didObserveSwitching = alreadySwitching
         showWorkItem?.cancel()
-
-        switchObserver = model.$isSwitching.sink { [weak self] isSwitching in
-            Task { @MainActor [weak self] in
-                guard let self else {
-                    return
-                }
-
-                if isSwitching {
-                    self.didObserveSwitching = true
-                    self.hidePanel()
-                    return
-                }
-
-                guard self.didObserveSwitching else {
-                    return
-                }
-
-                self.scheduleShowPending(after: 0.22)
-            }
-        }
 
         scheduleShowPending(after: 1.15)
         hidePanel()
@@ -4048,9 +3377,16 @@ private final class ProductFloatingMenuPanelController {
             return
         }
 
+        if WorkspacePanelReturnPolicy.shouldReturnToWork(
+            succeeded: model.lastWorkspaceSwitchSucceeded,
+            isEditing: false,
+            isGuiding: model.isShowingFirstWorkGuide
+        ) {
+            close()
+            return
+        }
         let initialExpansion = pendingInitialExpansion
         clearPendingReopen()
-        switchObserver = nil
         show(
             model: model,
             relocation: relocation,
@@ -4080,6 +3416,7 @@ private final class ProductFloatingMenuPanelController {
         initialExpansion: FloatingMenuSectionExpansion
     ) {
         let isNewPanel = panel == nil
+        let generation = presentationGeneration
         let panel = panel ?? makePanel()
         let capturedExistingContentSize = isNewPanel ? nil : panel.contentView?.bounds.size
         self.panel = panel
@@ -4098,23 +3435,26 @@ private final class ProductFloatingMenuPanelController {
                         initialExpansion: initialExpansion
                     )
                 },
-                actions: ProductMenuPanelActions(
-                    updater: actions.updater,
-                    openSettings: { [weak self] in
-                        self?.close()
-                        actions.openSettings()
-                    },
-                    replayOnboarding: { [weak self] in
-                        self?.close()
-                        actions.replayOnboarding()
-                    },
-                    customizeShortcuts: { [weak self] in
-                        self?.close()
-                        actions.customizeShortcuts()
-                    },
-                    quit: actions.quit
-                ),
-                initialExpansion: initialExpansion
+                actions: actions,
+                initialExpansion: initialExpansion,
+                onContentWidthChange: { [weak self, weak panel] width in
+                    guard let self, let panel, self.presentationGeneration == generation else { return }
+                    let visibleFrame = ProductMenuBarWindowConfigurator.targetScreen(for: relocation)?.visibleFrame
+                    let size = FloatingMenuPanelLayout.clampedContentSize(
+                        NSSize(width: width, height: panel.contentView?.bounds.height ?? 360), visibleFrame: visibleFrame)
+                    panel.setContentSize(size)
+                    self.position(panel, using: relocation)
+                },
+                onContentHeightChange: { [weak self, weak panel] height in
+                    guard let self, let panel, height > 0,
+                          self.presentationGeneration == generation, self.panel === panel else { return }
+                    let visibleFrame = ProductMenuBarWindowConfigurator.targetScreen(for: relocation)?.visibleFrame
+                    let size = FloatingMenuPanelLayout.clampedContentSize(
+                        NSSize(width: panel.contentView?.bounds.width ?? 400, height: ceil(height)), visibleFrame: visibleFrame)
+                    guard abs((panel.contentView?.bounds.height ?? 0) - size.height) > 1 else { return }
+                    panel.setContentSize(size)
+                    self.position(panel, using: relocation)
+                }
             )
         )
         applyContentSize(
@@ -4124,7 +3464,6 @@ private final class ProductFloatingMenuPanelController {
             capturedExistingContentSize: capturedExistingContentSize
         )
         position(panel, using: relocation)
-        NSApplication.shared.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
     }
@@ -4198,34 +3537,38 @@ private final class ProductFloatingMenuPanelController {
     }
 }
 
-private struct ProductFloatingMenuPanelView: View {
+struct ProductFloatingMenuPanelView: View {
     @ObservedObject var model: SidebyAppModel
     let onSwitchQueued: (SwitchCommand) -> Void
     let actions: ProductMenuPanelActions
     let initialExpansion: FloatingMenuSectionExpansion
+    var onContentWidthChange: (CGFloat) -> Void = { _ in }
+    var onContentHeightChange: (CGFloat) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ProductPinnedMenuControlsView(
-                model: model,
-                onSwitchQueued: onSwitchQueued
-            )
+            MenuBarMasterControl(model: model)
             .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .windowBackgroundColor))
+            .background(GeometryReader { geometry in
+                Color.clear.preference(key: ProductDailyContentHeightKey.self, value: geometry.size.height)
+            })
             .zIndex(1)
 
             ScrollView(.vertical) {
                 ProductMenuContentView(
                     model: model,
-                    actions: actions,
-                    initialExpansion: initialExpansion
+                    actions: actions
                 )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: ProductDailyContentHeightKey.self, value: geometry.size.height)
+                })
             }
         }
         .frame(
@@ -4236,7 +3579,16 @@ private struct ProductFloatingMenuPanelView: View {
             alignment: .topLeading
         )
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear { onContentWidthChange(680) }
+        .onPreferenceChange(ProductDailyContentHeightKey.self) { height in
+            DispatchQueue.main.async { onContentHeightChange(height) }
+        }
     }
+}
+
+private struct ProductDailyContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value += nextValue() }
 }
 
 private struct ProductPinnedMenuControlsView: View {
@@ -4475,7 +3827,7 @@ private struct ContextsView: View {
         isCompact && contextColumnWidth <= 72
     }
 
-    private var rowHeight: CGFloat { isCompact ? 32 : 36 }
+    private var rowHeight: CGFloat { 36 }
 
     var body: some View {
         let strings = model.strings
@@ -4740,7 +4092,8 @@ private struct ContextsView: View {
                 )
             )
             .textFieldStyle(.roundedBorder)
-            .font(usesDenseContextColumns ? .system(size: 10, weight: .semibold) : .caption.weight(.semibold))
+            .font(.system(size: 13, weight: .medium))
+            .frame(minHeight: 28)
             .lineLimit(usesDenseContextColumns ? 1 : FloatingMenuContextMatrixLayout.nameLineLimit(isCompact: isCompact))
             .help(column.name)
         }
@@ -4760,11 +4113,11 @@ private struct ContextsView: View {
             model.activateContext(contextID: column.id)
         } label: {
             Text(model.strings.goToContext)
-                .font(.system(size: usesDenseContextColumns ? 9 : 10, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color.accentColor)
                 .lineLimit(1)
                 .padding(.horizontal, usesDenseContextColumns ? 5 : 7)
-                .frame(height: usesDenseContextColumns ? 16 : 20)
+                .frame(minHeight: 28)
                 .background(
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.accentColor.opacity(0.08))
@@ -4775,8 +4128,8 @@ private struct ContextsView: View {
                 )
         }
         .buttonStyle(.plain)
-        .help(model.strings.goToContext)
-        .accessibilityLabel(model.strings.goToContext)
+        .help(model.strings.workspaceGoTo(column.name))
+        .accessibilityLabel(model.strings.workspaceGoTo(column.name))
         .disabled(!model.canActivateContext)
         .pointingHandCursor(model.canActivateContext)
     }
@@ -4793,26 +4146,29 @@ private struct ContextsView: View {
         state == .needsSync ? .orange : Color.accentColor
     }
 
-    @ViewBuilder
     private func membershipCell(_ cell: ContextMatrixCell) -> some View {
-        if let spaceIndex = cell.spaceIndex {
+        Menu {
+            ForEach(model.settings.contextPlan.contexts.sorted { $0.order < $1.order }) { source in
+                if let index = source.spaceIndex(for: cell.displayID) {
+                    Button("\(model.strings.spaceNumber(index + 1)) · \(source.name)") {
+                        model.moveDisplaySpace(displayID: cell.displayID, spaceIndex: index, toContextID: cell.contextID)
+                    }
+                    .disabled(source.id == cell.contextID)
+                }
+            }
+        } label: {
             membershipCellContent(cell)
-                .onDrag {
-                    NSItemProvider(
-                        object: ContextMatrixSpaceDragPayload(
-                            displayID: cell.displayID,
-                            spaceIndex: spaceIndex
-                        ).rawValue as NSString
-                    )
-                }
-                .onDrop(of: [UTType.plainText], isTargeted: nil) { providers in
-                    handleSpaceDrop(providers: providers, target: cell)
-                }
-        } else {
-            membershipCellContent(cell)
-                .onDrop(of: [UTType.plainText], isTargeted: nil) { providers in
-                    handleSpaceDrop(providers: providers, target: cell)
-                }
+        }
+        .menuStyle(.borderlessButton)
+        .frame(width: contextColumnWidth, height: rowHeight)
+        .disabled(!model.canAddContext)
+        .accessibilityLabel("\(model.displayName(for: cell.displayID)) · \(model.settings.contextPlan.contexts.first { $0.id == cell.contextID }?.name ?? "") · \(model.strings.workspaceScreenAssignments)")
+        .onDrag {
+            guard let spaceIndex = cell.spaceIndex else { return NSItemProvider() }
+            return NSItemProvider(object: ContextMatrixSpaceDragPayload(displayID: cell.displayID, spaceIndex: spaceIndex).rawValue as NSString)
+        }
+        .onDrop(of: [UTType.plainText], isTargeted: nil) { providers in
+            handleSpaceDrop(providers: providers, target: cell)
         }
     }
 
@@ -4823,10 +4179,10 @@ private struct ContextsView: View {
 
             if let spaceIndex = cell.spaceIndex {
                 Text(model.strings.spaceNumber(spaceIndex + 1))
-                    .font(usesDenseContextColumns ? .system(size: 9, weight: .semibold) : .caption2.weight(.semibold))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.accentColor)
                     .lineLimit(1)
-                    .minimumScaleFactor(usesDenseContextColumns ? 0.55 : 0.72)
+
                     .padding(.horizontal, usesDenseContextColumns ? 2 : 6)
             } else {
                 Text("-")

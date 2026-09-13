@@ -49,7 +49,7 @@ struct ContextCaptureAlignmentPicker: View {
                     Button(presentation.optionLabels[index]) {
                         choose(candidate.id)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.bordered).pointingHandCursor()
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -57,7 +57,7 @@ struct ContextCaptureAlignmentPicker: View {
             HStack {
                 Spacer()
                 Button(strings.cancel, action: cancel)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.bordered).pointingHandCursor()
             }
         }
         .frame(maxWidth: 360, alignment: .leading)

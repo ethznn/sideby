@@ -15,7 +15,13 @@ Run tests:
 swift test
 ```
 
-Build local app bundles:
+Before building a local product bundle, read the current published
+[Sparkle feed](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml)
+and set `SIDEBY_BUILD_NUMBER` to its latest `sparkle:version` plus one. If the
+published build number cannot be verified, check GitHub release metadata before
+building. Do not rely on the script's default build number after a public release.
+
+With that environment variable set, build local app bundles:
 
 ```bash
 scripts/build_app_bundle.sh
@@ -69,7 +75,7 @@ be discovered, downloaded, verified, installed, and relaunched from the app.
 
 The product app owns one `SPUStandardUpdaterController`. It starts with the app,
 uses Sparkle's standard update UI, and exposes a manual **Check for Updates...**
-action in the bottom action area immediately above Quit. Sparkle asks whether
+action in **Settings → General**. Sparkle asks whether
 to enable automatic checks on the second launch. If the user opts in,
 scheduled checks run once per day. Scheduled checks stay quiet when there is no
 update or the network is unavailable; manual checks show Sparkle's standard

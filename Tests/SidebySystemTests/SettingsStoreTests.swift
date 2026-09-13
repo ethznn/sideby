@@ -19,6 +19,11 @@ final class SettingsStoreTests: XCTestCase {
         settings.launchAtLogin = true
         settings.language = .korean
         settings.displayRowOrder = ["external-lg", "built-in"]
+        settings.displaySelection = DisplaySelection(
+            hasInitialized: true,
+            selectedDisplayIDs: ["external-lg"],
+            knownDisplayNames: ["external-lg": "Desk", "built-in": "Built-in", "offline": "Home"]
+        )
 
         store.save(settings)
 

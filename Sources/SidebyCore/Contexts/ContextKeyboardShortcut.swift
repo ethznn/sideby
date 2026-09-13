@@ -1,6 +1,7 @@
 public enum ContextKeyboardCommand: Equatable, Sendable {
     case activate(position: Int)
     case move(SwitchCommand)
+    case returnToPreviousWorkspace
 }
 
 public struct ContextKeyboardShortcutBinding: Equatable, Sendable {
@@ -28,7 +29,8 @@ public enum ContextKeyboardShortcutCatalog: Sendable {
         number(position: 9, keyCode: 25),
         number(position: 10, keyCode: 29),
         binding(keyCode: 43, command: .move(.previous)),
-        binding(keyCode: 47, command: .move(.next))
+        binding(keyCode: 47, command: .move(.next)),
+        binding(keyCode: 48, command: .returnToPreviousWorkspace)
     ]
 
     public static func binding(
@@ -120,7 +122,8 @@ public enum ContextKeyboardShortcutPolicy: Sendable {
         contextPlan: ContextPlan,
         isSidebyEnabled: Bool,
         isSwitching: Bool,
-        isCapturing: Bool
+        isCapturing: Bool,
+        previousContextID: String? = nil
     ) -> ContextKeyboardAction {
         guard !isSwitching, !isCapturing else {
             return .ignore
@@ -130,6 +133,11 @@ public enum ContextKeyboardShortcutPolicy: Sendable {
         }
 
         switch command {
+        case .returnToPreviousWorkspace:
+            guard let previousContextID,
+                  previousContextID != contextPlan.currentContextID,
+                  contextPlan.contexts.contains(where: { $0.id == previousContextID }) else { return .ignore }
+            return .activate(contextID: previousContextID)
         case .move(let switchCommand):
             return .move(switchCommand)
         case .activate(let position):

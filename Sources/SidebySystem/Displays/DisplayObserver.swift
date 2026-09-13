@@ -11,6 +11,7 @@ public struct DisplaySnapshot: Equatable, Sendable {
     public let modelNumber: UInt32
     public let serialNumber: UInt32
     public let frame: DisplayFrame?
+    public let displayUUID: String?
 
     public init(
         displayID: CGDirectDisplayID,
@@ -20,7 +21,8 @@ public struct DisplaySnapshot: Equatable, Sendable {
         vendorNumber: UInt32,
         modelNumber: UInt32,
         serialNumber: UInt32,
-        frame: DisplayFrame? = nil
+        frame: DisplayFrame? = nil,
+        displayUUID: String? = nil
     ) {
         self.displayID = displayID
         self.name = name
@@ -30,6 +32,7 @@ public struct DisplaySnapshot: Equatable, Sendable {
         self.modelNumber = modelNumber
         self.serialNumber = serialNumber
         self.frame = frame
+        self.displayUUID = displayUUID
     }
 }
 
@@ -49,6 +52,16 @@ public enum DisplayLayoutMapper {
     }
 
     public static func stableID(for snapshot: DisplaySnapshot) -> String {
+        if let uuid = snapshot.displayUUID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !uuid.isEmpty {
+            return "uuid:\(uuid.uppercased())"
+        }
+        // Without a UUID, retain the runtime component so identical hardware
+        // stays distinct. A changed runtime ID is not evidence of reconnection.
+        return legacyID(for: snapshot)
+    }
+
+    public static func legacyID(for snapshot: DisplaySnapshot) -> String {
         [
             String(snapshot.vendorNumber),
             String(snapshot.modelNumber),
@@ -63,7 +76,7 @@ public enum DisplayLayoutMapper {
     ) -> [String: String] {
         var mapping: [String: String] = [:]
         for snapshot in snapshots {
-            guard let uuid = uuidForDisplayID(snapshot.displayID) else {
+            guard let uuid = snapshot.displayUUID ?? uuidForDisplayID(snapshot.displayID) else {
                 continue
             }
             mapping[uuid] = stableID(for: snapshot)
@@ -146,7 +159,8 @@ public struct MacDisplayObserver: DisplayObserving {
                     y: Double(bounds.origin.y),
                     width: Double(bounds.width),
                     height: Double(bounds.height)
-                )
+                ),
+                displayUUID: DisplayLayoutMapper.displayUUID(for: id)
             )
         }
     }

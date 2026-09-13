@@ -40,7 +40,7 @@ public struct TryGestureStepView: View {
             }
 
             Button(strings.skipTest, action: skipTest)
-                .buttonStyle(.plain)
+                .buttonStyle(.plain).pointingHandCursor()
                 .font(.caption)
                 .foregroundStyle(Tokens.accent)
         }

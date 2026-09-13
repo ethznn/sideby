@@ -21,7 +21,7 @@ final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
         )
     }
 
-    func testStartRegistersAllTwelveBindings() {
+    func testStartRegistersAllThirteenBindings() {
         let registrar = RecordingContextKeyboardHotKeyRegistrar()
         let source = GlobalContextKeyboardShortcutInputSource(
             registrar: registrar,
@@ -173,7 +173,7 @@ final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
         XCTAssertFalse(installFailureSource.isRunning)
 
         let allRegistrationFailure = RecordingContextKeyboardHotKeyRegistrar(
-            failingIDs: Set((1...12).map { UInt32($0) })
+            failingIDs: Set((1...13).map { UInt32($0) })
         )
         let allFailureSource = GlobalContextKeyboardShortcutInputSource(
             registrar: allRegistrationFailure,
@@ -213,7 +213,7 @@ final class GlobalContextKeyboardShortcutInputSourceTests: XCTestCase {
 
         XCTAssertEqual(secondResult, firstResult)
         XCTAssertEqual(registrar.installCount, 1)
-        XCTAssertEqual(registrar.registrationAttempts, Array(1...12).map(UInt32.init))
+        XCTAssertEqual(registrar.registrationAttempts, Array(1...13).map(UInt32.init))
     }
 
     func testStopIsIdempotentAndRestartResetsPressedKeys() {
