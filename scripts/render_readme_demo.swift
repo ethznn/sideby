@@ -15,7 +15,8 @@ struct Fixture: Decodable {
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let output = root.appendingPathComponent("docs/images")
-let work = root.appendingPathComponent(".build/readme-media")
+let work = ProcessInfo.processInfo.environment["SIDEBY_MEDIA_WORK_DIR"].map { URL(fileURLWithPath: $0) }
+    ?? root.appendingPathComponent(".build/readme-media")
 let fixture = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: root.appendingPathComponent("docs/media/demo-data.json")))
 guard fixture.displays.count == 2, fixture.workspaces.count == 2,
       fixture.workspaces.allSatisfy({ $0.desktops.count == 2 }),

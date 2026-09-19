@@ -7,7 +7,8 @@ import SidebyUI
 
 @MainActor
 final class WorkspaceSettingsNativeEvidenceTests: XCTestCase {
-    private let output = URL(fileURLWithPath: #filePath)
+    private let output = ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE_OUTPUT"].map { URL(fileURLWithPath: $0) }
+        ?? URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent(".build/native-settings-evidence")
 
@@ -36,6 +37,8 @@ final class WorkspaceSettingsNativeEvidenceTests: XCTestCase {
         try await render(settings(tall, ProductUINavigation(preferences: MemoryProductUIPreferences())), name: "settings-700x892-two-displays-dark", width: 700, height: 892, dark: true)
         tall.workspaceHistory.recordSuccessfulVisit(contextID: "task-1")
         tall.workspaceHistory.recordSuccessfulVisit(contextID: "task-0")
+        tall.workspaceRebuildBackup = .init(plan: tall.settings.contextPlan, nameOrigins: [:],
+                                           identity: .init(plan: tall.settings.contextPlan, spaceKeys: [:]))
         let menu = ProductFloatingMenuPanelView(model: tall, onSwitchQueued: { _ in }, actions: .init(route: { _ in }, quit: {}), initialExpansion: .default)
         try await render(menu, name: "menu-matrix-dark", width: 680, height: 620, dark: true)
         let single = makeModel(displayCount: 1, rows: 3)

@@ -3,6 +3,19 @@ import SidebyCore
 @testable import SidebyUI
 
 final class WorkspaceChooserModelTests: XCTestCase {
+    func testOfflineWorkspacesDoNotConsumeVisibleShortcutNumbers() {
+        let plan = ContextPlan(contexts: [
+            .init(id: "offline", order: 1, name: "Desk", displayIDs: ["offline"]),
+            .init(id: "a", order: 2, name: "Build", displaySpaceIndexes: ["main": 0]),
+            .init(id: "b", order: 3, name: "Review", displaySpaceIndexes: ["main": 1])
+        ], currentContextID: "a")
+        let rows = WorkspaceChooserModel.rows(plan: plan, connectedDisplayIDs: ["main"], selectedDisplayIDs: ["main"], verifiedCurrentContextID: "a")
+        XCTAssertEqual(rows.map(\.shortcut), ["⌥⇧1", "⌥⇧2"])
+        let visible = WorkspaceContextVisibility.plan(plan, connectedDisplayIDs: ["main"])
+        XCTAssertEqual(ContextKeyboardShortcutPolicy.action(command: .activate(position: 2), contextPlan: visible,
+            isSidebyEnabled: true, isSwitching: false, isCapturing: false), .activate(contextID: "b"))
+        XCTAssertEqual(visible.switchIntent(for: .next).targetContext?.id, "b")
+    }
     func testRowsKeepShortcutOrderAndExposeOnlyVerifiedCurrentWorkspace() {
         let plan = ContextPlan(contexts: [
             .init(id: "development", order: 1, name: "Development", displayIDs: ["main", "external"]),

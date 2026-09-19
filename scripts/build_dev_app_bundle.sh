@@ -8,7 +8,9 @@ EXECUTABLE_NAME="SidebyDevApp"
 VERSION="${SIDEBY_VERSION:-0.6.0}"
 BUILD_NUMBER="${SIDEBY_BUILD_NUMBER:-1}"
 BUILD_CONFIGURATION="${SIDEBY_BUILD_CONFIGURATION:-debug}"
-APP_DIR="$ROOT_DIR/dist/$APP_NAME"
+BUILD_ROOT="${SIDEBY_BUILD_PATH:-$ROOT_DIR/.build}"
+OUTPUT_DIR="${SIDEBY_OUTPUT_DIR:-$ROOT_DIR/dist}"
+APP_DIR="$OUTPUT_DIR/$APP_NAME"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 
@@ -17,11 +19,13 @@ cd "$ROOT_DIR"
 ENTITLEMENTS_FILE="$(mktemp "${TMPDIR:-/tmp}/sideby-dev-entitlements.XXXXXX.plist")"
 trap 'rm -f "$ENTITLEMENTS_FILE"' EXIT
 
-swift build -c "$BUILD_CONFIGURATION" --product "$PRODUCT_NAME"
-BUILD_DIR="$(swift build -c "$BUILD_CONFIGURATION" --show-bin-path)"
+swift build --scratch-path "$BUILD_ROOT" -c "$BUILD_CONFIGURATION" --product "$PRODUCT_NAME"
+BUILD_DIR="$(swift build --scratch-path "$BUILD_ROOT" -c "$BUILD_CONFIGURATION" --show-bin-path)"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR"
+mkdir -p "$CONTENTS_DIR/Resources"
+cp "$ROOT_DIR/Resources/ThirdPartyNotices.txt" "$CONTENTS_DIR/Resources/ThirdPartyNotices.txt"
 
 cp "$BUILD_DIR/$PRODUCT_NAME" "$MACOS_DIR/$EXECUTABLE_NAME"
 chmod +x "$MACOS_DIR/$EXECUTABLE_NAME"

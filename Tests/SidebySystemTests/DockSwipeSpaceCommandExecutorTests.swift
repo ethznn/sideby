@@ -77,6 +77,29 @@ final class DockSwipeSpaceCommandExecutorTests: XCTestCase {
         XCTAssertEqual(poster.descriptors, [.make(for: .previous), .make(for: .previous)])
         XCTAssertEqual(poster.locations, points)
     }
+
+    func testSerializedPathReceivesTargetAndDoesNotFallBackAfterFailure() {
+        let writer = RecordingCGDockSwipeEventWriter()
+        let point = CGPoint(x: 800, y: 300)
+        let poster = CGDockSwipeEventPoster(writer: writer, hasOrRequestPostEventAccess: { true }, serializedGesturePost: { descriptor, location in
+            XCTAssertEqual(descriptor, .make(for: .next))
+            XCTAssertEqual(location, point)
+            return false
+        })
+        XCTAssertFalse(poster.post(.make(for: .next), at: point))
+        XCTAssertTrue(writer.postedTaps.isEmpty)
+        XCTAssertTrue(writer.integerWrites.isEmpty)
+    }
+
+    func testSerializedPathCannotPostWithoutPermission() {
+        let writer = RecordingCGDockSwipeEventWriter()
+        let poster = CGDockSwipeEventPoster(writer: writer, hasOrRequestPostEventAccess: { false }, serializedGesturePost: { _, _ in
+            XCTFail("Missing permission must prevent gesture posting")
+            return true
+        })
+        XCTAssertFalse(poster.post(.make(for: .next)))
+        XCTAssertTrue(writer.postedTaps.isEmpty)
+    }
 }
 
 private final class RecordingDockSwipePoster: DockSwipeEventPosting, @unchecked Sendable {

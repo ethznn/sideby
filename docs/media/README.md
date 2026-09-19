@@ -1,6 +1,6 @@
 # README media sources
 
-These assets document Sideby 0.11.0. Screenshots use production views with sample data; animated desktop transitions are an explicitly labeled simulation.
+These assets document Sideby 0.11.1. Screenshots use production views with sample data; animated desktop transitions are an explicitly labeled simulation.
 
 Open [the visual preview](preview.html), [English README](../../README.md), or [한국어 README](../../README.ko.md).
 
@@ -17,6 +17,8 @@ Run from a local graphical macOS session with no other SwiftPM build using this 
 1. Run `ReadmeMediaRenderingTests` with `SIDEBY_RENDER_MEDIA=1` to render the production SwiftUI views offscreen.
 2. Run `scripts/render_readme_demo.swift` to draw the sample desktops and encode the GIF with AppKit and ImageIO.
 3. Run `scripts/verify_readme_media.swift` to check image dimensions, every GIF frame's duration, clean looping, size limits, and both READMEs' local links and asset references.
+
+Set `SIDEBY_BUILD_PATH` to an absolute directory under a `.noindex` folder to keep build products and media intermediates outside the checkout. `SIDEBY_MEDIA_WORK_DIR` can independently redirect the intermediate media files.
 
 The screenshot test defaults to `docs/images`; `SIDEBY_MEDIA_OUTPUT` can redirect the screenshots when running the test alone. The complete script deliberately writes to `docs/images` so its generated GIF and README references remain in sync.
 
@@ -44,9 +46,9 @@ The fixtures belong to the test target and scripts. They are not a product demo 
 
 | Asset | Size | Appearance |
 | --- | --- | --- |
-| `sideby-context-capture-{en,ko}.png` | 1360 × 1180 | Dark menu, including the default matrix |
+| `sideby-context-capture-{en,ko}.png` | 1360 × 1280 | Dark menu, including the default matrix |
 | `sideby-settings-workspaces-{en,ko}.png` | 1680 × 1240 | Light Settings |
-| `sideby-onboarding-workspaces-{en,ko}.png` | 1280 × 1400 | Light workspace preparation |
+| `sideby-onboarding-workspaces-{en,ko}.png` | 1280 × 1520 | Light workspace preparation |
 | `sideby-onboarding-roundtrip-{en,ko}.png` | 1280 × 1040 | Light completion and menu handoff |
 | `sideby-demo-en.gif` | 960 × 640 | 62 frames, 22.04 seconds, infinite loop |
 | `sideby-demo-poster-en.png` | 960 × 640 | Static alternative to the demo |
@@ -55,7 +57,7 @@ The historical `context-capture` filenames are retained so old links keep workin
 
 The GIF holds readable static scenes and adds frames only for cursor or desktop movement. Its size target is at most 5 MiB, with an enforced 8 MiB limit. The first and last encoded frames must match.
 
-Intermediate files are ignored by Git:
+Intermediate files use `SIDEBY_MEDIA_WORK_DIR` when set. Their default paths are ignored by Git:
 
 - `.build/readme-media/native/matrix.png`: native matrix source for the GIF.
 - `.build/readme-media/frames/`: representative full-color animation frames for visual inspection.

@@ -2,7 +2,7 @@ import Foundation
 import SidebyCore
 
 extension SidebyAppModel {
-    private static var nameOriginsKey: String { "sideby.workspace-name-origins" }
+    static var nameOriginsKey: String { "sideby.workspace-name-origins" }
 
     func rememberWorkspaceNameOrigin(contextID: String, automaticName: String?) {
         var origins = workspacePreferences?.dictionary(forKey: Self.nameOriginsKey) as? [String: String] ?? workspaceNameOrigins
@@ -14,6 +14,8 @@ extension SidebyAppModel {
     }
 
     func refreshWorkspaceNames(observation: WorkspaceLayoutObservation) {
+        guard !workspaceIdentityNeedsReview, workspaceIdentityUnavailable(in: observation).isEmpty,
+              reconcileWorkspaceLayout(observation) else { return }
         workspaceNameRefreshCount = 0
         workspaceDesktopNames = workspaceNameSuggestionProvider?.names(for: displayLayout,
             spaceIDsByDisplayID: observation.spaceIDsByDisplayID) ?? [:]
@@ -31,8 +33,11 @@ extension SidebyAppModel {
     }
 
     func loadWorkspaceNamesIfNeeded() {
-        guard workspaceDesktopNames.isEmpty, canAddContext, pendingContextCaptureAlignment == nil,
+        guard workspaceNameSuggestionProvider != nil, canAddContext, pendingContextCaptureAlignment == nil,
               let observation = workspaceObservation() else { return }
+        guard workspaceDesktopNames.isEmpty || observation.displays.contains(where: {
+            (workspaceDesktopNames[$0.displayID]?.count ?? 0) < $0.spaceCount
+        }) else { return }
         refreshWorkspaceNames(observation: observation)
     }
 

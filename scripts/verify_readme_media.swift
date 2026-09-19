@@ -3,14 +3,16 @@ import ImageIO
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let directory = root.appendingPathComponent("docs/images")
+let work = ProcessInfo.processInfo.environment["SIDEBY_MEDIA_WORK_DIR"].map { URL(fileURLWithPath: $0) }
+    ?? root.appendingPathComponent(".build/readme-media")
 let timeline = try JSONSerialization.jsonObject(with: Data(contentsOf:
-    root.appendingPathComponent(".build/readme-media/timeline.json"))) as! [[String: Any]]
+    work.appendingPathComponent("timeline.json"))) as! [[String: Any]]
 let expectedDuration = timeline.reduce(0.0) { $0 + ($1["seconds"] as! Double) }
 var expected: [String: (Int, Int)] = ["sideby-demo-poster-en.png": (960, 640)]
 for language in ["en", "ko"] {
-    expected["sideby-context-capture-\(language).png"] = (1360, 1180)
+    expected["sideby-context-capture-\(language).png"] = (1360, 1280)
     expected["sideby-settings-workspaces-\(language).png"] = (1680, 1240)
-    expected["sideby-onboarding-workspaces-\(language).png"] = (1280, 1400)
+    expected["sideby-onboarding-workspaces-\(language).png"] = (1280, 1520)
     expected["sideby-onboarding-roundtrip-\(language).png"] = (1280, 1040)
 }
 for (name, size) in expected.sorted(by: { $0.key < $1.key }) {

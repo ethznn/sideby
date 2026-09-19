@@ -24,9 +24,8 @@ struct WorkspaceMatrixView: View {
     private var columnWidth: CGFloat { compact ? 156 : 184 }
     private var connectedIDs: Set<String> { Set(model.displayLayout.displays.map(\.id)) }
     private var contexts: [ContextDefinition] {
-        model.settings.contextPlan.contexts.sorted { $0.order < $1.order }.filter {
-            showsDisconnected || $0.displayIDs.isEmpty || !Set($0.displayIDs).isDisjoint(with: connectedIDs)
-        }
+        showsDisconnected ? model.settings.contextPlan.contexts.sorted { $0.order < $1.order }
+            : WorkspaceContextVisibility.contexts(in: model.settings.contextPlan, connectedDisplayIDs: connectedIDs)
     }
     private var displayIDs: [String] {
         WorkspaceTablePresentation.displayIDs(connected: model.displayLayout.displays.map(\.id),
@@ -100,6 +99,17 @@ struct WorkspaceMatrixView: View {
         .foregroundStyle(NativeSurfaceStyle.primaryText)
         .font(.system(size: 13))
         .onAppear { model.loadWorkspaceNamesIfNeeded() }
+        .task {
+            // Only while an editor is presented. Mission Control can reorder a
+            // non-current Space without sending an active-Space notification.
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(2)) } catch { break }
+                guard model.canAddContext, model.pendingContextCaptureAlignment == nil else { continue }
+                let previous = model.workspaceLastObservedSpaceIDs
+                model.refreshWorkspaceStatus()
+                if previous != model.workspaceLastObservedSpaceIDs { model.loadWorkspaceNamesIfNeeded() }
+            }
+        }
         .confirmationDialog(model.strings.deleteContextConfirmationTitle(deletionName), isPresented: Binding(
             get: { pendingDeletionID != nil }, set: { if !$0 { pendingDeletionID = nil } }
         )) {

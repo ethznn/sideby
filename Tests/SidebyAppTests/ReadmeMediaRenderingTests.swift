@@ -46,8 +46,10 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         }
         let output = ProcessInfo.processInfo.environment["SIDEBY_MEDIA_OUTPUT"].map { URL(fileURLWithPath: $0) }
             ?? root.appendingPathComponent("docs/images")
-        let evidence = root.appendingPathComponent(".build/readme-media/review")
-        let intermediates = root.appendingPathComponent(".build/readme-media/native")
+        let work = ProcessInfo.processInfo.environment["SIDEBY_MEDIA_WORK_DIR"].map { URL(fileURLWithPath: $0) }
+            ?? root.appendingPathComponent(".build/readme-media")
+        let evidence = work.appendingPathComponent("review")
+        let intermediates = work.appendingPathComponent("native")
         for directory in [output, evidence, intermediates] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
@@ -60,7 +62,7 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             let menu = ProductFloatingMenuPanelView(model: model, onSwitchQueued: { _ in },
                 actions: .init(route: { _ in }, quit: {}), initialExpansion: .default)
             try await render(menu, to: output.appendingPathComponent("sideby-context-capture-\(suffix).png"),
-                             width: 680, height: 590, dark: true)
+                             width: 680, height: 640, dark: true)
             let settings = ProductSettingsView(model: model,
                 navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
                 actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {}))
@@ -70,7 +72,7 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             preferences.onboardingStage = .workspaces
             model.firstWorkProgress = .init()
             try await render(onboarding(model, preferences),
-                to: output.appendingPathComponent("sideby-onboarding-workspaces-\(suffix).png"), width: 640, height: 700, dark: false)
+                to: output.appendingPathComponent("sideby-onboarding-workspaces-\(suffix).png"), width: 640, height: 760, dark: false)
             preferences.onboardingStage = .roundTrip
             completeProgress(model)
             try await render(onboarding(model, preferences),

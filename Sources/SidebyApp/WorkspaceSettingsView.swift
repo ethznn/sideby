@@ -9,7 +9,6 @@ struct WorkspaceSettingsView: View {
     let layout: WorkspaceTablePresentation
     @Binding var selection: WorkspaceSettingsSelection
     @State private var showsDisconnectedAssignments = false
-    @State private var refreshMessage: String?
     private var strings: SettingsRefreshStrings { .init(language: model.settings.language) }
     private var connectedIDs: Set<String> { Set(model.displayLayout.displays.map(\.id)) }
     private var hasDisconnectedAssignments: Bool {
@@ -22,13 +21,8 @@ struct WorkspaceSettingsView: View {
             HStack {
                 Text(strings.pane(.workspaces)).font(.system(size: 22, weight: .semibold)).accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 4)
-                Button(strings.capture) {
-                    let copy = DailyRefreshStrings(language: model.settings.language)
-                    refreshMessage = model.refreshWorkspaceList() ? model.workspaceRefreshMessage : copy.refreshFailed
-                }.pointingHandCursor().disabled(!model.canAddContext || model.selectedDisplayIDs.isEmpty || model.pendingContextCaptureAlignment != nil)
             }
-            Text(refreshMessage ?? strings.captureImpact).font(.system(size: 12))
-                .foregroundStyle(NativeSurfaceStyle.secondaryText).fixedSize(horizontal: false, vertical: true)
+            WorkspaceRebuildControls(model: model)
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(strings.displayHeading).fontWeight(.semibold)

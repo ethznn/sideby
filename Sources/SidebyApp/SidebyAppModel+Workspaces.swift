@@ -34,7 +34,7 @@ extension SidebyAppModel {
             ?? (settings.language == .korean ? "이전에 사용한 화면" : "Previously used display")
     }
 
-    /// Private Space identifiers live only in this process, never in settings.
+    /// Numeric Space handles remain transient; durable identity keys are local bookmarks.
     func workspaceObservation() -> WorkspaceLayoutObservation? {
         if let workspaceObservationOverride { return workspaceObservationOverride() }
         if let selectedDisplaySpacesOverride {
@@ -75,14 +75,18 @@ extension SidebyAppModel {
         return refreshed
     }
 
-    private func reconcileWorkspaceLayout(_ observation: WorkspaceLayoutObservation?, initializesEmptyPlan: Bool = false) -> Bool {
+    func reconcileWorkspaceLayout(_ observation: WorkspaceLayoutObservation?, initializesEmptyPlan: Bool = false) -> Bool {
         guard canAddContext, pendingContextCaptureAlignment == nil, let observation else { return false }
+        workspaceIdentityBlockedDisplayIDs = workspaceIdentityUnavailable(in: observation)
+        guard workspaceIdentityBlockedDisplayIDs.isEmpty else { return false }
         let existing = settings.contextPlan.contexts
         let isInitial = initializesEmptyPlan && existing.allSatisfy { $0.displayIDs.isEmpty }
         guard let refreshed = WorkspaceLiveRefreshPolicy.contexts(existing: isInitial ? [] : existing,
             observation: observation, selectedDisplayIDs: selectedDisplayIDs, previousSpaceIDs: workspaceLastObservedSpaceIDs,
             previousSpaceCounts: workspacePreferences?.dictionary(forKey: "sideby.workspace-desktop-counts") as? [String: Int] ?? [:],
+            previousSpaceKeys: workspaceLastObservedSpaceKeys,
             defaultName: { settings.language == .korean ? "데스크탑 \($0)" : "Desktop \($0)" }) else { return false }
+        workspaceIsReconciling = true
         if refreshed != existing {
             updateContextPlan { plan in
                 let pinned = plan.isPinned
@@ -90,6 +94,8 @@ extension SidebyAppModel {
                 plan.setPinned(pinned)
             }
         }
+        workspaceIsReconciling = false
+        rememberWorkspaceObservation(observation)
         return true
     }
 
@@ -100,6 +106,8 @@ extension SidebyAppModel {
     }
 
     func isWorkspaceAssignmentAvailable(contextID: String) -> Bool {
+        if let context = settings.contextPlan.contexts.first(where: { $0.id == contextID }),
+           !Set(context.displayIDs).isDisjoint(with: workspaceIdentityBlockedDisplayIDs) { return false }
         guard let state = workspaceAssignmentReadiness(contextID: contextID) else { return false }
         return state.canRetry || state.isResolved
     }
@@ -108,11 +116,21 @@ extension SidebyAppModel {
         workspaceObservedDisplays = observation?.displays
         reconcileWorkspaceDesktopNames(observation)
         let required = selectedDisplayIDs.intersection(Set(settings.contextPlan.contexts.flatMap(\.displayIDs)))
+        workspaceIdentityBlockedDisplayIDs = workspaceIdentityUnavailable(in: observation)
+        if !required.isDisjoint(with: workspaceIdentityBlockedDisplayIDs) {
+            workspaceConnectionStatus = .changed(required.intersection(workspaceIdentityBlockedDisplayIDs))
+            verifiedCurrentWorkspaceID = nil
+            updateContextPlan { $0.markNeedsSync() }
+            return
+        }
         // Restore the released behavior: read current desktops on launch/reconnection.
         // A saved workspace does not require a separate confirmation on every app run.
         if let observation, workspaceConnectionSession.confirm(spaceIDsByDisplayID: observation.spaceIDsByDisplayID) {
             if !isSwitching, contextCaptureSession == nil, pendingContextCaptureAlignment == nil {
-                workspaceLastObservedSpaceIDs.merge(observation.spaceIDsByDisplayID) { _, new in new }
+                let alreadyAligned = observation.spaceIDsByDisplayID.allSatisfy { id, ids in
+                    workspaceLastObservedSpaceIDs[id] == nil || workspaceLastObservedSpaceIDs[id] == ids
+                }
+                if alreadyAligned { rememberWorkspaceObservation(observation) }
                 var counts = workspacePreferences?.dictionary(forKey: "sideby.workspace-desktop-counts") as? [String: Int] ?? [:]
                 for display in observation.displays { counts[display.displayID] = display.spaceCount }
                 workspacePreferences?.set(counts, forKey: "sideby.workspace-desktop-counts")
@@ -158,6 +176,8 @@ extension SidebyAppModel {
         }
         let snapshot = observation.spaceIDsByDisplayID
         let displays = observation.displays
+        if !workspaceLastObservedSpaceKeys.isEmpty { _ = reconcileWorkspaceLayout(observation) }
+        guard !workspaceIdentityNeedsReview, workspaceIdentityUnavailable(in: observation).isEmpty else { return false }
         workspaceObservedDisplays = displays
         let mapped = settings.contextPlan.contexts.filter { !Set($0.displayIDs).isDisjoint(with: selectedDisplayIDs) }
         let readiness = mapped.map {
@@ -179,6 +199,15 @@ extension SidebyAppModel {
 
     func admitWorkspaceActivation(_ target: ContextDefinition, snapshot: [String: [UInt64]]?) -> Bool {
         let required = Set(target.displayIDs).intersection(selectedDisplayIDs)
+        guard required.isDisjoint(with: workspaceIdentityBlockedDisplayIDs), !workspaceIdentityNeedsReview,
+              settings.contextPlan.contexts.first(where: { $0.id == target.id })?.displaySpaceIndexes == target.displaySpaceIndexes,
+              required.allSatisfy({ workspaceLastObservedSpaceIDs[$0] == nil || workspaceLastObservedSpaceIDs[$0] == snapshot?[$0] }) else {
+            workspaceConnectionStatus = .changed(required)
+            workspaceRecoveryTargetID = target.id
+            verifiedCurrentWorkspaceID = nil
+            lastSwitchResult = strings.workspaceConnectionReviewMessage
+            return false
+        }
         var currentLayout = WorkspaceConnectionSession()
         guard let snapshot, currentLayout.confirm(spaceIDsByDisplayID: snapshot),
               currentLayout.status(for: required, spaceIDsByDisplayID: snapshot) == .ready else {

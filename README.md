@@ -6,7 +6,7 @@ English | [한국어](README.ko.md)
 
 Keep code and reference material together as **Checkout**, then switch to **PR review** when a review comes in. Sideby groups the desktops on your Mac and external displays into named workspaces, so you can return without switching every screen yourself. It also works with a single display.
 
-See [what’s new in Sideby 0.11.0](docs/releases/0.11.0.md).
+See [what’s new in Sideby 0.11.1](docs/releases/0.11.1.md).
 
 <p align="center">
   <img src="./docs/images/sideby-demo-en.gif" width="720" alt="Simulated demo: Checkout code and API docs change to PR review and a preview, then Option-Shift-Tab switches back and forth." />
@@ -20,7 +20,7 @@ Checkout → PR review → Checkout, using the same `⌥⇧Tab` shortcut to go b
 
 - **Switch a whole task.** Choose a workspace’s **Go** button to move its assigned desktops on the selected displays.
 - **Return with the same shortcut.** Press `⌥⇧Tab` to return to the previous workspace. Press it again to switch back.
-- **Arrange work from the menu.** Open Sideby in the menu bar to see the matrix immediately. Rename workspaces, change assignments, or refresh desktops there.
+- **Arrange work from the menu.** Open Sideby in the menu bar to see the matrix immediately. Rename workspaces, change assignments, or rebuild from the current desktop order there.
 
 <p align="center">
   <img src="./docs/images/sideby-context-capture-en.png" width="680" alt="Sideby’s dark menu with display selection and a matrix: Checkout.swift and Checkout API assigned to Checkout; PR #42 and its preview assigned to PR review." />
@@ -41,7 +41,9 @@ Columns are workspaces. Rows are displays. Each cell shows that display’s assi
 | Drag a display’s name or up/down icon | Reorder display rows. |
 | Open a cell’s menu | Assign a desktop without dragging, including with the keyboard. |
 
-**Refresh desktops** is at the top of the menu. It rereads desktop changes and attempts to update content labels for each display’s desktops, including desktops you are not currently viewing. These labels come from available app/window metadata; they are not native macOS Space names, and some may be unavailable. Sideby falls back to a desktop number and preserves names you edited yourself.
+Desktop changes are detected automatically. To start over, choose **Rebuild from current desktops…** at the top of the menu or Workspaces & Displays settings. Sideby confirms how many workspaces it will create, then replaces the selected displays’ names and assignments in current desktop order. This also replaces custom swaps and shared-desktop assignments. Other displays’ assignments are kept separately. **Restore previous setup** brings back the last saved configuration when its desktops are still available.
+
+New names use available app/window content from each display’s desktops, including desktops you are not currently viewing. These are suggestions, not native macOS Space names; Sideby falls back to a desktop number when metadata is unavailable. Names you edit yourself are preserved during routine updates, but an explicit rebuild creates fresh names.
 
 Display connection changes are checked automatically. Disconnected display choices and assignments are retained for reconnection; you can continue working with the selected displays that are currently available.
 
@@ -51,7 +53,7 @@ Display connection changes are checked automatically. Disconnected display choic
 The same matrix is available in **All settings → Workspaces & Displays**. Input, Permissions, and General settings have their own panes.
 
 <p align="center">
-  <img src="./docs/images/sideby-settings-workspaces-en.png" width="720" alt="Light Workspaces & Displays settings with a display diagram, desktop import action, and the same editable workspace matrix." />
+  <img src="./docs/images/sideby-settings-workspaces-en.png" width="720" alt="Light Workspaces & Displays settings with a display diagram, rebuild action, and the same editable workspace matrix." />
 </p>
 
 </details>
@@ -93,9 +95,11 @@ For keyboard switching, press the combination, then release Option and Shift to 
 
 ## When your setup changes
 
-Sideby reads the live desktop layout and checks requested moves. Opening the menu or using **Refresh desktops** updates the workspace arrangement without a trip to the full Settings window. A relaunch does not normally require you to confirm every saved assignment again.
+Sideby reads the live desktop layout and checks requested moves. Routine additions, removals, and reordered desktops are reflected automatically while the matrix is open and checked before switching. Saved workspaces follow the same surviving desktops across an app restart; reordering desktops does not reset custom workspace assignments. Workspaces that only use disconnected displays are hidden from the everyday matrix and do not take a shortcut position.
 
-If a move is incomplete, Sideby can retry the displays that have not reached the destination. If a required desktop is missing or its layout cannot be read, the menu provides a refresh or assignment-review action.
+If an older version’s assignments already point at the wrong desktops, use **Rebuild from current desktops…** once to start again in the current order. Older versions did not save enough identity information to recover a desktop’s previous position after the fact.
+
+If a move is incomplete, Sideby can retry the displays that have not reached the destination. If a required desktop is missing or its layout cannot be read, check the assignment in the menu, or rebuild to start over. The previous setup stays saved if a desktop needed for restoration is missing.
 
 Workspaces refer to existing macOS desktops. Sideby does not reopen documents or restore window contents and positions. Deleting a workspace removes its Sideby assignments, never the macOS desktops themselves.
 
@@ -103,9 +107,9 @@ Workspaces refer to existing macOS desktops. Sideby does not reopen documents or
 
 Sideby uses Accessibility for its configured global gesture and, when available, app/window title suggestions. Screen Switching access allows it to send the requested desktop-switch commands. Some command paths also need System Events Automation. Switching and desktop discovery do not request Screen Recording permission.
 
-The fixed global keyboard registrations cover only `Option + Shift + number / < / > / Tab`. Sideby does not inspect or store other typed input. Runtime desktop discovery uses read-only macOS layout queries. Private Space IDs, window IDs, raw input events, and screenshots are not saved.
+The fixed global keyboard registrations cover only `Option + Shift + number / < / > / Tab`. Sideby does not inspect or store other typed input. Runtime desktop discovery uses read-only macOS layout queries. Numeric runtime Space IDs, window IDs, raw input events, and screenshots are not saved. Minimal desktop identity bookmarks are stored locally so assignments can follow the same desktops after a restart.
 
-Workspace names and assignments, display choices and row order, remembered display names, input preferences, and guide progress stay locally on your Mac. A content suggestion used as a workspace name becomes part of that saved name.
+Workspace names and assignments, the previous setup saved before a rebuild, display choices and row order, remembered display names, input preferences, and guide progress stay locally on your Mac. A content suggestion used as a workspace name becomes part of that saved name.
 
 The direct-distribution app uses private SkyLight APIs with App Sandbox off; it is not targeting the Mac App Store. Updates are delivered through Sparkle 2, with user-approved installation.
 

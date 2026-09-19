@@ -13,7 +13,6 @@ struct WorkspaceChooserActions {
 struct WorkspaceChooserView: View {
     @ObservedObject var model: SidebyAppModel
     let actions: WorkspaceChooserActions
-    @State private var actionMessage: String?
     @ScaledMetric(relativeTo: .body) private var bodySize = 13.0
     @ScaledMetric(relativeTo: .caption) private var detailSize = 11.0
     private var strings: SBSStrings { model.strings }
@@ -33,23 +32,14 @@ struct WorkspaceChooserView: View {
             HStack {
                 Text(matrixCopy.title).fontWeight(.semibold)
                 Spacer(minLength: 8)
-                Button {
-                    actionMessage = model.refreshWorkspaceList() ? model.workspaceRefreshMessage : copy.refreshFailed
-                } label: { Label(copy.refresh, systemImage: "arrow.clockwise") }
-                    .buttonStyle(.borderless).pointingHandCursor()
-                    .disabled(!model.canAddContext || model.pendingContextCaptureAlignment != nil)
-                    .help(copy.nameHelp)
             }
+            WorkspaceRebuildControls(model: model)
             stateContent
             NativeDisplaySelector(displays: model.displayLayout.displays, selectedIDs: model.selectedDisplayIDs,
                 language: model.settings.language, isEnabled: model.canAddContext,
                 setSelected: { model.setDisplayTarget($0, isSelected: $1) })
             WorkspaceMatrixView(model: model, compact: true)
                 .frame(height: min(440, max(240, 160 + CGFloat(model.displayLayout.displays.count) * 56)))
-            if let actionMessage {
-                Text(actionMessage).font(.system(size: 12)).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
             if let id = model.workspaceHistory.previousContextID,
                id != presentation.currentContextID,
                let row = model.workspaceRows.first(where: { $0.id == id }) {

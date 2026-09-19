@@ -585,6 +585,11 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var lastWorkspaceSwitchSucceeded = false
     var workspaceConnectionSession = WorkspaceConnectionSession()
     var workspaceLastObservedSpaceIDs: [String: [UInt64]] = [:]
+    var workspaceLastObservedSpaceKeys: [String: [String]] = [:]
+    var workspaceIdentityNeedsReview = false
+    var workspaceIsReconciling = false
+    @Published var workspaceIdentityBlockedDisplayIDs: Set<String> = []
+    @Published var workspaceRebuildBackup: WorkspaceRebuildBackup?
     var workspaceObservationOverride: (() -> WorkspaceLayoutObservation?)?
     var workspaceSpaceIDsOverride: (() -> [String: [UInt64]]?)?
     var workspaceGuideIsRecording = false
@@ -662,6 +667,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         self.inputStatus = strings.sidebyOff
         self.lastInputEvent = Self.inputHint(for: loadedSettings, strings: strings)
         self.loginItemStatus = strings.startAtLoginStatus(isEnabled: loginItemService.isEnabled)
+        loadWorkspacePersistence()
         loadFirstWorkProgress()
         startSettingsChangeObserver()
         startExternalSpaceChangeObserver()
@@ -815,9 +821,10 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func handleContextKeyboardEvent(_ event: ContextKeyboardShortcutInputEvent) {
+        if !isSwitching, contextCaptureSession == nil { refreshWorkspaceStatus() }
         let action = contextKeyboardCoordinator.handle(
             event,
-            contextPlan: settings.contextPlan,
+            contextPlan: workspaceKeyboardPlan,
             isSidebyEnabled: isEnabled,
             isSwitching: isSwitching,
             isCapturing: contextCaptureSession != nil,
@@ -843,7 +850,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         case .activate, .move:
             guard let execution = ContextKeyboardExecutionResolver.execution(
                 for: action,
-                contextPlan: settings.contextPlan
+                contextPlan: workspaceKeyboardPlan
             ) else {
                 return
             }
@@ -1146,6 +1153,13 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             completion?(false)
             return
         }
+        // Resolve the saved workspace again after reconciling this exact live
+        // observation. A pending Mission Control reorder must not target the old index.
+        if let observation { _ = reconcileWorkspaceLayout(observation); applyWorkspaceObservation(observation) }
+        guard let targetContext = settings.contextPlan.contexts.first(where: { $0.id == targetContext.id }) else {
+            completion?(false)
+            return
+        }
         let expectedSpaceIDs = observation?.spaceIDsByDisplayID
         guard admitWorkspaceActivation(targetContext, snapshot: expectedSpaceIDs) else {
             completion?(false)
@@ -1433,6 +1447,14 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             )
         }
         let currentID = contexts.first { $0.order == capturedOrder }?.id ?? instantPlan.currentContextID
+        // Capture explicitly creates position-based assignments from this layout.
+        // Save those assignments against the same identity order, not an older one.
+        workspaceIdentityNeedsReview = false
+        workspaceIdentityBlockedDisplayIDs = []
+        if let observation {
+            workspaceLastObservedSpaceKeys.merge(observation.spaceKeysByDisplayID) { _, new in new }
+            workspaceLastObservedSpaceIDs.merge(observation.spaceIDsByDisplayID) { _, new in new }
+        }
         updateContextPlan { plan in
             plan.replaceContexts(
                 contexts,
@@ -2040,7 +2062,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             blockSwitchBecauseSidebyIsOff(command: command, label: "button")
             return false
         }
-        let intent = settings.contextPlan.switchIntent(for: command)
+        let intent = workspaceKeyboardPlan.switchIntent(for: command)
         guard intent.shouldExecute else {
             if let diagnostic = intent.diagnostic {
                 diagnostics = [diagnostic]
@@ -2532,7 +2554,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
         refreshWorkspaceStatus()
-        let intent = settings.contextPlan.switchIntent(for: command)
+        let intent = workspaceKeyboardPlan.switchIntent(for: command)
         guard intent.shouldExecute else {
             if let diagnostic = intent.diagnostic {
                 diagnostics = [diagnostic]
@@ -2846,7 +2868,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             return
         }
 
-        let intent = settings.contextPlan.switchIntent(for: command)
+        let intent = workspaceKeyboardPlan.switchIntent(for: command)
         guard hasSwitchMoveTargets(for: intent, label: "modifier-swipe") else {
             inputStatus = strings.noMoveTargetsStatus
             return
@@ -2892,7 +2914,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func executeSwipeCommand(_ command: SwitchCommand) {
-        let intent = settings.contextPlan.switchIntent(for: command)
+        let intent = workspaceKeyboardPlan.switchIntent(for: command)
         guard hasSwitchMoveTargets(for: intent, label: "modifier-swipe") else {
             inputLatch.reset()
             inputStatus = strings.noMoveTargetsStatus
@@ -2971,6 +2993,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         settingsStore.save(settings)
         diagnostics = currentDiagnostics()
         refreshLocalizedStatus()
+        saveWorkspaceIdentitySnapshot()
     }
 
     private func targetDisplayIDs(for intent: ContextSwitchIntent) -> Set<String> {

@@ -18,18 +18,15 @@ struct DailyRefreshStrings {
     var resume: String { text("Continue first-work guide", "첫 작업 안내 계속하기") }
     var settings: String { text("Settings…", "설정…") }
     var edit: String { text("Edit workspaces", "작업 구성 편집") }
-    var refresh: String { text("Refresh desktops", "데스크탑 새로고침") }
-    var refreshed: String { text("Desktop changes applied", "데스크탑 변경 사항을 반영했습니다") }
-    var refreshFailed: String { text("Could not read the desktops. Try again.", "데스크탑을 읽지 못했습니다. 다시 시도해 주세요.") }
     var rename: String { text("Rename", "이름 수정") }
     var finishRenaming: String { text("Done", "완료") }
     var useVisibleName: String { text("Use name from current screen", "현재 화면에서 이름 가져오기") }
     var nameUnavailable: String { text("Could not find a window name. Enter a name directly.", "창 이름을 찾지 못했습니다. 직접 이름을 입력해 주세요.") }
     var useDesktopName: String { text("Use name from desktop content", "데스크탑 내용에서 이름 가져오기") }
-    var nameHelp: String { text("Refresh suggests names from windows on every desktop. Your own names stay unchanged.", "새로고침하면 각 데스크탑의 창 내용으로 이름을 제안합니다. 직접 수정한 이름은 유지됩니다.") }
+    var nameHelp: String { text("Desktop names are suggested from window content. Your own workspace names stay unchanged.", "각 데스크탑의 창 내용으로 이름을 제안합니다. 직접 수정한 작업 이름은 유지됩니다.") }
     func refreshResult(updatedNames: Int, detectedNames: Int) -> String {
-        if detectedNames == 0 { return text("Desktops refreshed. No window names were available; existing names were kept.", "데스크탑을 새로고침했습니다. 창 이름을 읽지 못해 기존 이름을 유지했습니다.") }
-        return text("Desktops refreshed · \(detectedNames) names found, \(updatedNames) workspace names updated", "데스크탑 새로고침 · 이름 \(detectedNames)개 확인, 작업 이름 \(updatedNames)개 반영")
+        if detectedNames == 0 { return text("No window names were available; existing names were kept.", "창 이름을 읽지 못해 기존 이름을 유지했습니다.") }
+        return text("\(detectedNames) desktop names found, \(updatedNames) workspace names updated", "데스크탑 이름 \(detectedNames)개 확인, 작업 이름 \(updatedNames)개 반영")
     }
     var quit: String { text("Quit Sideby", "Sideby 종료") }
     func movingDisplays(_ count: Int) -> String { text("\(count) displays move together", "화면 \(count)개 함께 이동") }

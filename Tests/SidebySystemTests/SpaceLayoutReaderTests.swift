@@ -2,6 +2,28 @@ import XCTest
 @testable import SidebySystem
 
 final class SpaceLayoutReaderTests: XCTestCase {
+    func testPersistentKeysFollowPayloadOrderIncludingDefaultDesktop() throws {
+        let uuid = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+        let layouts = try XCTUnwrap(DisplaySpaceLayout.displays(fromManagedDisplaySpaces: [[
+            "Display Identifier": "screen", "Current Space": ["ManagedSpaceID": 7],
+            "Spaces": [["ManagedSpaceID": 7, "uuid": uuid, "type": 4],
+                       ["ManagedSpaceID": 1, "uuid": "", "type": 0]]
+        ]]))
+        XCTAssertEqual(layouts[0].spaceKeys, ["uuid:" + uuid, "default-desktop"])
+    }
+
+    func testMissingOrDuplicateUUIDDoesNotInventPersistentIdentity() throws {
+        for spaces: [[String: Any]] in [
+            [["ManagedSpaceID": 1], ["ManagedSpaceID": 2, "uuid": "", "type": 0]],
+            [["ManagedSpaceID": 1, "uuid": "", "type": 0], ["ManagedSpaceID": 2, "uuid": "", "type": 0]],
+            [["ManagedSpaceID": 1, "uuid": "", "type": 4]]
+        ] {
+            let layouts = try XCTUnwrap(DisplaySpaceLayout.displays(fromManagedDisplaySpaces: [[
+                "Display Identifier": "screen", "Current Space": ["ManagedSpaceID": 1], "Spaces": spaces
+            ]]))
+            XCTAssertNil(layouts[0].spaceKeys)
+        }
+    }
     func testParsesManagedDisplaySpacesPayload() {
         let payload: [[String: Any]] = [
             [

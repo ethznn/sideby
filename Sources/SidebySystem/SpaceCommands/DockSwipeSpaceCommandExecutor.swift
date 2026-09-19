@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import SidebyCore
 
 public struct DockSwipeGestureDescriptor: Equatable, Sendable {
@@ -184,22 +185,32 @@ private final class CGDockSwipeWritableEvent: CGDockSwipeEventWritingEvent, @unc
 public struct CGDockSwipeEventPoster: DockSwipeEventPosting, LocatedDockSwipeEventPosting {
     private let writer: any CGDockSwipeEventWriting
     private let hasOrRequestPostEventAccess: @Sendable () -> Bool
+    private let serializedGesturePost: (@Sendable (DockSwipeGestureDescriptor, CGPoint?) -> Bool)?
 
     public init() {
+        let serializedPost: (@Sendable (DockSwipeGestureDescriptor, CGPoint?) -> Bool)?
+        if SerializedDockSwipeGesture.isRequired(onMajorVersion: ProcessInfo.processInfo.operatingSystemVersion.majorVersion) {
+            serializedPost = { descriptor, location in SerializedDockSwipeGesture.post(descriptor, at: location) }
+        } else {
+            serializedPost = nil
+        }
         self.init(
             writer: CGDockSwipeEventWriter(),
             hasOrRequestPostEventAccess: {
                 CGPreflightPostEventAccess() || CGRequestPostEventAccess()
-            }
+            },
+            serializedGesturePost: serializedPost
         )
     }
 
     init(
         writer: any CGDockSwipeEventWriting,
-        hasOrRequestPostEventAccess: @escaping @Sendable () -> Bool
+        hasOrRequestPostEventAccess: @escaping @Sendable () -> Bool,
+        serializedGesturePost: (@Sendable (DockSwipeGestureDescriptor, CGPoint?) -> Bool)? = nil
     ) {
         self.writer = writer
         self.hasOrRequestPostEventAccess = hasOrRequestPostEventAccess
+        self.serializedGesturePost = serializedGesturePost
     }
 
     public func post(_ descriptor: DockSwipeGestureDescriptor) -> Bool {
@@ -214,11 +225,9 @@ public struct CGDockSwipeEventPoster: DockSwipeEventPosting, LocatedDockSwipeEve
         _ descriptor: DockSwipeGestureDescriptor,
         location: CGPoint?
     ) -> Bool {
-        guard hasOrRequestPostEventAccess(),
-              let event = writer.makeEvent()
-        else {
-            return false
-        }
+        guard hasOrRequestPostEventAccess() else { return false }
+        if let serializedGesturePost { return serializedGesturePost(descriptor, location) }
+        guard let event = writer.makeEvent() else { return false }
 
         if let location,
            !event.setLocation(location) {

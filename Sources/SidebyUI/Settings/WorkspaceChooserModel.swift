@@ -19,7 +19,7 @@ public enum WorkspaceChooserModel {
         verifiedCurrentContextID: String?,
         failedCommands: [ContextKeyboardCommand] = []
     ) -> [WorkspaceChooserRow] {
-        plan.contexts.sorted { $0.order < $1.order }.enumerated().compactMap { index, context in
+        WorkspaceContextVisibility.contexts(in: plan, connectedDisplayIDs: connectedDisplayIDs).enumerated().compactMap { index, context in
             guard !context.displayIDs.isEmpty else { return nil }
             let position = index + 1
             let members = Set(context.displayIDs)

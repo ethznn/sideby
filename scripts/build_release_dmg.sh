@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="${SIDEBY_VERSION:?error: SIDEBY_VERSION is required for a release DMG}"
 BUILD_NUMBER="${SIDEBY_BUILD_NUMBER:?error: SIDEBY_BUILD_NUMBER is required for a release DMG}"
+OUTPUT_DIR="${SIDEBY_OUTPUT_DIR:-$ROOT_DIR/dist}"
 "$ROOT_DIR/scripts/validate_release_metadata.sh" "$VERSION" "$BUILD_NUMBER"
 APP_BUILD_SCRIPT="$ROOT_DIR/scripts/build_app_bundle.sh"
 APP_NAME="Sideby.app"
@@ -22,7 +23,7 @@ if [[ "${SIDEBY_SKIP_APP_BUILD:-0}" != "1" ]]; then
   "$APP_BUILD_SCRIPT"
 fi
 
-APP_DIR="$ROOT_DIR/dist/$APP_NAME"
+APP_DIR="$OUTPUT_DIR/$APP_NAME"
 INFO_PLIST="$APP_DIR/Contents/Info.plist"
 
 if [[ ! -d "$APP_DIR" ]]; then
@@ -42,7 +43,7 @@ if [[ "$ACTUAL_BUILD_NUMBER" != "$BUILD_NUMBER" ]]; then
   exit 1
 fi
 
-DMG_PATH="${SIDEBY_DMG_PATH:-$ROOT_DIR/dist/Sideby-$VERSION.dmg}"
+DMG_PATH="${SIDEBY_DMG_PATH:-$OUTPUT_DIR/Sideby-$VERSION.dmg}"
 DMG_DIR="$(dirname "$DMG_PATH")"
 
 if [[ -e "/Volumes/$VOLUME_NAME" ]]; then

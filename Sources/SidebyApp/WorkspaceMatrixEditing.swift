@@ -40,7 +40,8 @@ struct WorkspaceSpaceDragPayload: Codable, Equatable, Sendable {
 
 extension SidebyAppModel {
     func canEditWorkspaceDisplay(_ id: String) -> Bool {
-        canAddContext && pendingContextCaptureAlignment == nil && displayLayout.displays.contains { $0.id == id }
+        canAddContext && pendingContextCaptureAlignment == nil && !workspaceIdentityBlockedDisplayIDs.contains(id)
+            && displayLayout.displays.contains { $0.id == id }
     }
 
     func workspaceDesktopChoices(displayID: String) -> [WorkspaceAssignmentChoice] {
@@ -58,6 +59,9 @@ extension SidebyAppModel {
 
     @discardableResult
     func assignWorkspaceDesktop(displayID: String, spaceIndex: Int?, toContextID: String) -> Bool {
+        let previousLayout = workspaceLastObservedSpaceIDs
+        refreshWorkspaceStatus()
+        guard previousLayout.isEmpty || previousLayout == workspaceLastObservedSpaceIDs else { return false }
         guard canEditWorkspaceDisplay(displayID),
               spaceIndex == nil || workspaceDesktopChoices(displayID: displayID).contains(where: { $0.spaceIndex == spaceIndex })
         else { return false }
@@ -75,6 +79,7 @@ extension SidebyAppModel {
     @discardableResult
     func dropWorkspaceDesktop(_ payload: WorkspaceSpaceDragPayload, targetDisplayID: String,
                               targetContextID: String, copying: Bool) -> Bool {
+        refreshWorkspaceStatus()
         guard payload.displayID == targetDisplayID, payload.sourceContextID != targetContextID,
               canEditWorkspaceDisplay(targetDisplayID),
               settings.contextPlan.contexts.first(where: { $0.id == payload.sourceContextID })?.spaceIndex(for: targetDisplayID) == payload.spaceIndex

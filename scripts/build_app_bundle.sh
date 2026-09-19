@@ -9,11 +9,13 @@ APP_BUNDLE_ID="${SIDEBY_BUNDLE_ID:-io.github.ethznn.sideby}"
 BUILD_NUMBER="${SIDEBY_BUILD_NUMBER:-1}"
 VERSION="${SIDEBY_VERSION:-0.6.0}"
 BUILD_CONFIGURATION="${SIDEBY_BUILD_CONFIGURATION:-release}"
+BUILD_ROOT="${SIDEBY_BUILD_PATH:-$ROOT_DIR/.build}"
+OUTPUT_DIR="${SIDEBY_OUTPUT_DIR:-$ROOT_DIR/dist}"
 # Protected product-bundle decision: keep sandbox off for the current direct
 # distribution baseline unless the user explicitly approves a release-strategy change.
 APP_SANDBOX="${SIDEBY_APP_SANDBOX:-0}"
 APPLE_EVENTS_TEMPORARY_EXCEPTION="${SIDEBY_APPLE_EVENTS_TEMPORARY_EXCEPTION:-0}"
-APP_DIR="$ROOT_DIR/dist/$APP_NAME"
+APP_DIR="$OUTPUT_DIR/$APP_NAME"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
@@ -33,10 +35,10 @@ cd "$ROOT_DIR"
 ENTITLEMENTS_FILE="$(mktemp "${TMPDIR:-/tmp}/sideby-entitlements.XXXXXX.plist")"
 trap 'rm -f "$ENTITLEMENTS_FILE"' EXIT
 
-swift build -c "$BUILD_CONFIGURATION" --product "$PRODUCT_NAME"
-BUILD_DIR="$(swift build -c "$BUILD_CONFIGURATION" --show-bin-path)"
+swift build --scratch-path "$BUILD_ROOT" -c "$BUILD_CONFIGURATION" --product "$PRODUCT_NAME"
+BUILD_DIR="$(swift build --scratch-path "$BUILD_ROOT" -c "$BUILD_CONFIGURATION" --show-bin-path)"
 SPARKLE_FRAMEWORK_SOURCE="$(
-  find "$ROOT_DIR/.build/artifacts" \
+  find "$BUILD_ROOT/artifacts" \
     -path '*/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework' \
     -type d -print -quit
 )"
@@ -58,6 +60,8 @@ rm -rf "$SPARKLE_FRAMEWORK/Versions/B/XPCServices" "$SPARKLE_FRAMEWORK/XPCServic
 if [[ -f "$APP_ICON_FILE" ]]; then
   cp "$APP_ICON_FILE" "$RESOURCES_DIR/AppIcon.icns"
 fi
+
+cp "$ROOT_DIR/Resources/ThirdPartyNotices.txt" "$RESOURCES_DIR/ThirdPartyNotices.txt"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

@@ -4,9 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="${SIDEBY_VERSION:?error: SIDEBY_VERSION is required}"
 BUILD_NUMBER="${SIDEBY_BUILD_NUMBER:?error: SIDEBY_BUILD_NUMBER is required}"
+BUILD_ROOT="${SIDEBY_BUILD_PATH:-$ROOT_DIR/.build}"
+OUTPUT_DIR="${SIDEBY_OUTPUT_DIR:-$ROOT_DIR/dist}"
 NOTES_PATH="${SIDEBY_RELEASE_NOTES_PATH:?error: SIDEBY_RELEASE_NOTES_PATH is required}"
 TAG="${SIDEBY_RELEASE_TAG-v$VERSION}"
-DMG_PATH="${SIDEBY_DMG_PATH:-$ROOT_DIR/dist/Sideby-$VERSION.dmg}"
+DMG_PATH="${SIDEBY_DMG_PATH:-$OUTPUT_DIR/Sideby-$VERSION.dmg}"
 ACCOUNT="${SIDEBY_SPARKLE_ACCOUNT:-sideby-sparkle}"
 
 "$ROOT_DIR/scripts/validate_release_metadata.sh" "$VERSION" "$BUILD_NUMBER"
@@ -22,8 +24,8 @@ DEVELOPER_ID_REQUIREMENT='=anchor apple generic and certificate 1[field.1.2.840.
 codesign --verify --verbose -R "$DEVELOPER_ID_REQUIREMENT" "$DMG_PATH" >&2
 xcrun stapler validate "$DMG_PATH" >&2
 
-GENERATE_APPCAST="$(find "$ROOT_DIR/.build/artifacts" -path '*/Sparkle/bin/generate_appcast' -type f -print -quit)"
-SIGN_UPDATE="$(find "$ROOT_DIR/.build/artifacts" -path '*/Sparkle/bin/sign_update' -type f -print -quit)"
+GENERATE_APPCAST="$(find "$BUILD_ROOT/artifacts" -path '*/Sparkle/bin/generate_appcast' -type f -print -quit)"
+SIGN_UPDATE="$(find "$BUILD_ROOT/artifacts" -path '*/Sparkle/bin/sign_update' -type f -print -quit)"
 [[ -x "$GENERATE_APPCAST" && -x "$SIGN_UPDATE" ]] || {
   echo "error: resolve Sparkle tools with swift package resolve" >&2
   exit 1
@@ -99,11 +101,11 @@ if [[ "$APPCAST_NOTES_URL" != "$EXPECTED_NOTES_URL" ]]; then
 fi
 
 "$SIGN_UPDATE" --account "$ACCOUNT" --verify "$APPCAST_PATH" >&2
-mkdir -p "$ROOT_DIR/dist"
-cp "$WORK_DIR/Sideby-$VERSION.md" "$ROOT_DIR/dist/Sideby-$VERSION.md"
-cp "$APPCAST_PATH" "$ROOT_DIR/dist/appcast.xml"
+mkdir -p "$OUTPUT_DIR"
+cp "$WORK_DIR/Sideby-$VERSION.md" "$OUTPUT_DIR/Sideby-$VERSION.md"
+cp "$APPCAST_PATH" "$OUTPUT_DIR/appcast.xml"
 
 printf '%s\n' \
   "$DMG_PATH" \
-  "$ROOT_DIR/dist/Sideby-$VERSION.md" \
-  "$ROOT_DIR/dist/appcast.xml"
+  "$OUTPUT_DIR/Sideby-$VERSION.md" \
+  "$OUTPUT_DIR/appcast.xml"

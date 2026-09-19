@@ -5,11 +5,15 @@ public struct DisplaySpaceLayout: Equatable, Sendable {
     public let displayUUID: String
     public let spaceIDs: [UInt64]
     public let currentSpaceID: UInt64
+    /// Durable keys supplied by macOS, in the same order as spaceIDs.
+    /// nil means identity could not be established for the complete display.
+    public let spaceKeys: [String]?
 
-    public init(displayUUID: String, spaceIDs: [UInt64], currentSpaceID: UInt64) {
+    public init(displayUUID: String, spaceIDs: [UInt64], currentSpaceID: UInt64, spaceKeys: [String]? = nil) {
         self.displayUUID = displayUUID
         self.spaceIDs = spaceIDs
         self.currentSpaceID = currentSpaceID
+        self.spaceKeys = spaceKeys
     }
 
     /// Parses the bridged payload of SLSCopyManagedDisplaySpaces. Some
@@ -45,8 +49,21 @@ public struct DisplaySpaceLayout: Equatable, Sendable {
         return DisplaySpaceLayout(
             displayUUID: uuid,
             spaceIDs: spaceIDs,
-            currentSpaceID: currentID
+            currentSpaceID: currentID,
+            spaceKeys: persistentKeys(spaces)
         )
+    }
+
+    private static func persistentKeys(_ spaces: [[String: Any]]) -> [String]? {
+        let keys = spaces.compactMap { space -> String? in
+            guard let uuid = space["uuid"] as? String else { return nil }
+            // macOS represents the primary default desktop with an explicit
+            // empty UUID. This is a display-scoped identity, not position zero.
+            if uuid.isEmpty, (space["type"] as? NSNumber)?.intValue == 0 { return "default-desktop" }
+            return UUID(uuidString: uuid).map { "uuid:" + $0.uuidString }
+        }
+        guard keys.count == spaces.count, Set(keys).count == keys.count else { return nil }
+        return keys
     }
 }
 
