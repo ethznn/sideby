@@ -49,8 +49,12 @@ illustrated desktops. It contains no live action and uses an original,
 synthesized score. The READMEs link to English and Korean MP4s in landscape
 (1920 × 1080) and vertical (1080 × 1920) formats. The final films, including their original score, are attached to the
 [0.12.0 release](https://github.com/ethznn/sideby/releases/tag/v0.12.0).
-The linked README posters are `docs/images/sideby-brand-film-{en,ko}.png`
-(1920 × 1080), taken from the finished films.
+The READMEs show `docs/images/sideby-brand-film-{en,ko}.gif` immediately,
+without opening a link: a 7.6-second silent preview cut from the final film
+(hook → shortcut and matrix → all three displays switching → brand and logo).
+Each 960 × 540 GIF has 76 frames at 10 fps and loops continuously. Clicking
+it opens the full film with music. The 1920 × 1080 PNGs with the same names
+remain available as still alternatives.
 
 ## Verification
 

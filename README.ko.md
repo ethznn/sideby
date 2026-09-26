@@ -10,11 +10,11 @@
 
 <p align="center">
   <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4">
-    <img src="./docs/images/sideby-brand-film-ko.png" width="720" alt="21초 Sideby 브랜드 영상 보기: MacBook과 외부 모니터 두 대를 한 번에, 제자리로." />
+    <img src="./docs/images/sideby-brand-film-ko.gif" width="720" alt="Sideby 움직이는 미리보기: 어디까지 했더라? 단축키를 누르고 작업을 선택하면 화면 세 개가 한 번에 하던 일로 돌아옵니다." />
   </a>
 </p>
 
-**[▶ 영상 보기 · 21초 · 소리와 함께](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4)**
+**[▶ 영상 보기 · 21초 · 소리와 함께](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4)** · [정지 이미지 보기](docs/images/sideby-brand-film-ko.png)
 
 **21초 브랜드 영상 — 흐름은 끊겨도, 일은 제자리에:** [한국어 MP4](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4) · [English MP4](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4) · 쇼츠·릴스용 9:16: [한국어](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-ko.mp4) · [English](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-en.mp4). “어디까지 했더라?”에서 시작해 화면 세 개가 한 번에 하던 일로 돌아오는 순간을 담았습니다. Sideby 화면은 시연 데이터를 넣은 실제 앱 캡처이고, 모니터 속 화면은 시연용 그림입니다. 음악은 이 영상을 위해 직접 만든 오리지널 곡입니다.
 

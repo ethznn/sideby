@@ -10,11 +10,11 @@ Keep code and reference material together as **Checkout**, then switch to **PR r
 
 <p align="center">
   <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4">
-    <img src="./docs/images/sideby-brand-film-en.png" width="720" alt="Watch the 21-second Sideby brand film: Right back where you were, across a MacBook and two external displays." />
+    <img src="./docs/images/sideby-brand-film-en.gif" width="720" alt="Animated Sideby preview: Where was I? Hold the shortcut, choose a workspace, and return all three displays to the work you left." />
   </a>
 </p>
 
-**[▶ Watch the film · 21 seconds · Sound on](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4)**
+**[▶ Watch the film · 21 seconds · Sound on](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4)** · [Still image](docs/images/sideby-brand-film-en.png)
 
 **21-second brand film — Interrupted. Never lost.:** [English MP4](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4) · [한국어 MP4](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4) · 9:16 for Shorts and Reels: [English](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-en.mp4) · [한국어](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-ko.mp4). From “Where was I?” to three displays returning to the work you left at once. Sideby screens are captured from the actual app with sample data; the desktops on the displays are illustrations. Original score.
 

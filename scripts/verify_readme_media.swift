@@ -64,14 +64,18 @@ precondition(pixels(CGImageSourceCreateImageAtIndex(gif, 0, nil)!) == pixels(CGI
 
 // Finished README loops are repository assets; film production files are not required.
 for language in ["en", "ko"] {
-    let url = directory.appendingPathComponent("sideby-readme-loop-\(language).gif")
+  for (stem, frameCount, seconds, matchingBoundaries) in [
+    ("sideby-readme-loop", 100, 10.0, true),
+    ("sideby-brand-film", 76, 7.6, false)
+  ] {
+    let url = directory.appendingPathComponent("\(stem)-\(language).gif")
     let loop = CGImageSourceCreateWithURL(url as CFURL, nil)!
-    precondition(CGImageSourceGetCount(loop) == 100, "Unexpected frame count: \(url.lastPathComponent)")
+    precondition(CGImageSourceGetCount(loop) == frameCount, "Unexpected frame count: \(url.lastPathComponent)")
     let properties = CGImageSourceCopyProperties(loop, nil)! as NSDictionary
     let timing = properties[kCGImagePropertyGIFDictionary] as! NSDictionary
     precondition((timing[kCGImagePropertyGIFLoopCount] as! NSNumber).intValue == 0)
     var loopDuration = 0.0
-    for index in 0..<100 {
+    for index in 0..<frameCount {
         let frame = CGImageSourceCreateImageAtIndex(loop, index, nil)!
         precondition(frame.width == 960 && frame.height == 540)
         let properties = CGImageSourceCopyPropertiesAtIndex(loop, index, nil)! as NSDictionary
@@ -80,13 +84,16 @@ for language in ["en", "ko"] {
         precondition(abs(delay.doubleValue - 0.1) < 0.001)
         loopDuration += delay.doubleValue
     }
-    precondition(abs(loopDuration - 10) < 0.001)
+    precondition(abs(loopDuration - seconds) < 0.001)
     let first = pixels(CGImageSourceCreateImageAtIndex(loop, 0, nil)!)
-    precondition(first == pixels(CGImageSourceCreateImageAtIndex(loop, 99, nil)!), "Loop boundaries differ")
-    precondition(first != pixels(CGImageSourceCreateImageAtIndex(loop, 40, nil)!), "Demo must switch workspaces")
+    if matchingBoundaries {
+        precondition(first == pixels(CGImageSourceCreateImageAtIndex(loop, frameCount - 1, nil)!), "Loop boundaries differ")
+    }
+    precondition(first != pixels(CGImageSourceCreateImageAtIndex(loop, frameCount / 2, nil)!), "Preview must animate")
     let loopBytes = try Data(contentsOf: url).count
     precondition(loopBytes <= 8 * 1024 * 1024, "GIF exceeds 8 MiB")
-    print("Verified \(url.lastPathComponent): 100 frames, 10s, matching loop boundaries")
+    print("Verified \(url.lastPathComponent): \(frameCount) frames, \(seconds)s, animated, \(loopBytes) bytes")
+  }
 }
 
 // Ensure both READMEs use their localized repository assets and versioned film links.
