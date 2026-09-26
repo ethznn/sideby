@@ -33,9 +33,6 @@ docs/local-research/
 docs/plans/
 docs/SPACE_*_RESEARCH.md
 
-# Local promotional films and their production pipeline
-/docs/media/motion/
-/scripts/motion/
-/scripts/render_sideby_motion.sh
-/scripts/render_sideby_brand_film.sh
-/scripts/render_sideby_brand_film_v2.sh
+# Local marketing workspace: films, production sources, render scripts and renders.
+# Publish only finished assets: README GIF/PNG into docs/images/, MP4s as release attachments.
+/marketing/

@@ -56,6 +56,24 @@ Each 960 × 540 GIF has 76 frames at 10 fps and loops continuously. Clicking
 it opens the full film with music. The 1920 × 1080 PNGs with the same names
 remain available as still alternatives.
 
+## Marketing workspace and publishing
+
+Promotional films, their edit sources, scores, render scripts and full-resolution
+renders live in the local `marketing/` directory at the repository root. The
+whole directory is ignored by Git, so drafts and large files never enter history.
+
+Publish a finished asset only when a document needs it:
+
+| Asset | Where it goes | Tracked |
+| --- | --- | --- |
+| README preview GIF and still PNG | `docs/images/` | Yes |
+| Full film MP4 (with sound, landscape or vertical) | GitHub Release attachment, linked from the READMEs | No |
+| Edit sources, scores, stills, contact sheets, drafts | `marketing/` | No |
+
+When you copy a GIF or PNG into `docs/images/`, add it to both READMEs, update the
+expected sizes and frame counts in `scripts/verify_readme_media.swift`, and run
+the checks below. Documentation must not link into `marketing/`.
+
 ## Verification
 
 ```bash

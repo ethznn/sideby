@@ -122,7 +122,7 @@ for document in documents {
         if path.hasPrefix("https:") || path.hasPrefix("http:") || path.hasPrefix("#") { continue }
         let local = path.components(separatedBy: "#")[0].components(separatedBy: "?")[0]
         let target = document.deletingLastPathComponent().appendingPathComponent(local).standardizedFileURL
-        for ignored in ["docs/media/motion", "scripts/motion"] {
+        for ignored in ["marketing"] {
             let excluded = root.appendingPathComponent(ignored).path
             precondition(target.path != excluded && !target.path.hasPrefix(excluded + "/"),
                          "\(document.lastPathComponent) links to local-only production files: \(local)")

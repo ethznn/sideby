@@ -175,7 +175,8 @@ to the maintainer.
 After updating README assets, run `swift scripts/verify_readme_media.swift` as
 described in [README media](media/README.md). The repository keeps the images
 and GIFs used by the documentation; promotional MP4s and their production
-pipeline stay outside Git. CI does not require those local production files.
+pipeline stay in the Git-ignored `marketing/` directory (see
+[README media](media/README.md#marketing-workspace-and-publishing)). CI does not require those local production files.
 When publishing the corresponding release, upload the four linked brand-film
 MP4s as release attachments and verify their downloads. Remove the release
 draft label and update both READMEs' version and download-availability notes.
