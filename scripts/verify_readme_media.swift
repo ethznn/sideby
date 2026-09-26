@@ -15,6 +15,7 @@ let expectedFrameCount = timeline?.count ?? 62
 let expectedDuration = timeline?.reduce(0.0) { $0 + ($1["seconds"] as! Double) } ?? 22.04
 var expected: [String: (Int, Int)] = ["sideby-demo-poster-en.png": (960, 640)]
 for language in ["en", "ko"] {
+    expected["sideby-triptych-\(language).png"] = (1920, 1080)
     expected["sideby-brand-film-\(language).png"] = (1920, 1080)
     expected["sideby-readme-loop-\(language).png"] = (960, 540)
     expected["sideby-context-capture-\(language).png"] = (1360, 1280)
@@ -66,7 +67,8 @@ precondition(pixels(CGImageSourceCreateImageAtIndex(gif, 0, nil)!) == pixels(CGI
 for language in ["en", "ko"] {
   for (stem, frameCount, seconds, matchingBoundaries) in [
     ("sideby-readme-loop", 100, 10.0, true),
-    ("sideby-brand-film", 76, 7.6, false)
+    ("sideby-brand-film", 76, 7.6, false),
+    ("sideby-triptych", 74, 7.4, false)
   ] {
     let url = directory.appendingPathComponent("\(stem)-\(language).gif")
     let loop = CGImageSourceCreateWithURL(url as CFURL, nil)!
@@ -96,19 +98,18 @@ for language in ["en", "ko"] {
   }
 }
 
-// Ensure both READMEs use their localized repository assets and versioned film links.
+// Ensure both READMEs use their localized repository assets.
 let linkPattern = try NSRegularExpression(pattern: #"(?:\]\(|(?:src|href)=\")([^\)\"\s]+)"#)
 for language in ["en", "ko"] {
     let name = language == "en" ? "README.md" : "README.ko.md"
     let body = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
-    for asset in expected.keys where asset.contains("-\(language).") && !asset.contains("poster") {
+    for stem in ["triptych", "context-capture", "settings-workspaces", "onboarding-workspaces", "onboarding-roundtrip"] {
+        let asset = "sideby-\(stem)-\(language).png"
         precondition(body.contains(asset), "\(name) does not use \(asset)")
     }
-    precondition(body.contains("sideby-readme-loop-\(language).gif") && body.contains("⌥⇧Tab"))
-    for stem in ["promo-v2-21s", "promo-v2-21s-vertical"] {
-        precondition(body.contains("https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-\(stem)-\(language).mp4"),
-                     "Missing versioned film link in \(name)")
-    }
+    precondition(body.contains("sideby-triptych-\(language).gif") && body.contains("⌥⇧Tab"))
+    precondition(!body.contains("sideby-brand-film-") && !body.contains("sideby-readme-loop-"),
+                 "README should use one current preview, without duplicate archived demos")
 }
 
 let releaseNotes = try FileManager.default.contentsOfDirectory(at: root.appendingPathComponent("docs/releases"),
@@ -119,6 +120,8 @@ for document in documents {
     let body = try String(contentsOf: document, encoding: .utf8)
     for match in linkPattern.matches(in: body, range: NSRange(body.startIndex..., in: body)) {
         let path = String(body[Range(match.range(at: 1), in: body)!])
+        precondition(!(path.contains("github.com/ethznn/sideby/releases/download/") && path.hasSuffix(".mp4")),
+                     "\(document.lastPathComponent) links to a promotional release attachment")
         if path.hasPrefix("https:") || path.hasPrefix("http:") || path.hasPrefix("#") { continue }
         let local = path.components(separatedBy: "#")[0].components(separatedBy: "?")[0]
         let target = document.deletingLastPathComponent().appendingPathComponent(local).standardizedFileURL

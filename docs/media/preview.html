@@ -40,18 +40,14 @@
 <main>
   <div class="label">Sideby · 0.12.0</div>
   <h1>하던 작업으로 한 번에 돌아오세요.</h1>
-  <p>코드와 참고 문서를 <strong>결제 개발</strong>로 묶어 두고, 리뷰 요청이 오면 <strong>PR 리뷰</strong>로 전환하세요. Mac 화면 하나에서도, 외부 화면과 함께 사용할 때도 작업별로 데스크탑을 오갈 수 있습니다.</p>
   <figure>
-    <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4"><img src="../images/sideby-brand-film-ko.gif" width="960" height="540" alt="Sideby 움직이는 미리보기: 단축키로 화면 세 개를 한 번에, 제자리로."></a>
-    <figcaption><a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4">▶ 영상 보기 · 21초 · 소리와 함께</a></figcaption>
+    <img id="demo" src="../images/sideby-triptych-ko.png" width="960" height="540" alt="Sideby 시연 미리보기: 따로 전환되던 세 화면이 단축키 하나로 함께 다른 작업으로 전환되고, 하던 작업으로 돌아옵니다.">
+    <figcaption>가상 데이터를 넣은 시연용 화면입니다. 화면 전환은 사용 흐름을 설명하는 애니메이션이며 실제 속도 측정 영상은 아닙니다.</figcaption>
   </figure>
-  <figure>
-    <img id="demo" src="../images/sideby-readme-loop-ko.png" width="960" height="540" alt="결제 개발의 코드와 API 문서를 PR 리뷰와 실행 화면으로 바꾸고, 같은 Option-Shift-Tab으로 왕복하는 시뮬레이션 데모">
-    <figcaption>MacBook과 외부 모니터 2대의 가상 작업을 전환하는 10초 반복 영상입니다. 실제 화면 녹화가 아닙니다.</figcaption>
-  </figure>
-  <button id="playback" type="button" aria-controls="demo" aria-pressed="false">데모 재생</button>
-  <a href="../images/sideby-readme-loop-ko.gif">GIF 원본</a>
-  <p>21초 브랜드 영상: <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4">한국어 MP4</a> · <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4">English MP4</a> · 세로 9:16: <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-ko.mp4">한국어</a> · <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-en.mp4">English</a>. 오리지널 음악과 함께 감상하세요.</p>
+  <p>여러 모니터의 데스크탑을 작업별로 묶고, 단축키 하나로 함께 전환하세요. 화면 하나만으로도 사용할 수 있습니다.</p>
+  <button id="playback" type="button" aria-controls="demo" aria-pressed="false">미리보기 재생</button>
+  <a href="../images/sideby-triptych-ko.png">정지 이미지</a> · <a href="../images/sideby-triptych-ko.gif">GIF 원본</a>
+  <p><a href="https://github.com/ethznn/sideby/releases">Sideby 다운로드</a> · macOS 14 이상 · 한국어·영어 지원</p>
   <h2>작업 선택과 구성 편집을 메뉴에서 바로</h2>
   <ul>
     <li><strong>화면을 함께 전환:</strong> 작업의 ‘이동’ 버튼을 누르면 각 화면의 배정된 데스크탑으로 이동합니다.</li>
@@ -84,12 +80,13 @@
   let playing = false;
   function setPlayback(value) {
     playing = value;
-    demo.src = value ? '../images/sideby-readme-loop-ko.gif' : '../images/sideby-readme-loop-ko.png';
-    playback.textContent = value ? '정지 이미지로 보기' : '데모 재생';
+    demo.src = value ? '../images/sideby-triptych-ko.gif' : '../images/sideby-triptych-ko.png';
+    playback.textContent = value ? '정지 이미지로 보기' : '미리보기 재생';
     playback.setAttribute('aria-pressed', String(value));
   }
   playback.addEventListener('click', () => setPlayback(!playing));
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setPlayback(true);
-  else document.querySelector('img[src$="sideby-brand-film-ko.gif"]').src = '../images/sideby-brand-film-ko.png';
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  if (!reducedMotion.matches) setPlayback(true);
+  reducedMotion.addEventListener('change', event => { if (event.matches) setPlayback(false); });
 </script>
 </html>

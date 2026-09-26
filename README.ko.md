@@ -4,32 +4,17 @@
 
 **하던 작업으로 한 번에 돌아오세요.**
 
-코드와 참고 문서를 **결제 개발**로 묶어 두고, 리뷰 요청이 오면 **PR 리뷰**로 전환하세요. Sideby는 Mac과 외부 화면의 데스크탑을 작업별로 묶어, 화면마다 따로 전환하지 않아도 하던 일을 이어가도록 돕습니다. 화면 하나만으로도 사용할 수 있습니다.
-
-[Sideby 0.12.0](docs/releases/0.12.0.md)에서는 데스크탑마다 이름을 붙이고, 단축키를 누른 채 빠른 매트릭스를 열고, 이동한 뒤에도 메뉴에서 작업을 이어갈 수 있습니다.
-
 <p align="center">
-  <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4">
-    <img src="./docs/images/sideby-brand-film-ko.gif" width="720" alt="Sideby 움직이는 미리보기: 어디까지 했더라? 단축키를 누르고 작업을 선택하면 화면 세 개가 한 번에 하던 일로 돌아옵니다." />
-  </a>
+  <img src="./docs/images/sideby-triptych-ko.gif" width="720" alt="Sideby 시연 미리보기: 따로 전환되던 세 화면이 단축키 하나로 함께 다른 작업으로 전환되고, 하던 작업으로 돌아옵니다." />
 </p>
 
-**[▶ 영상 보기 · 21초 · 소리와 함께](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4)** · [정지 이미지 보기](docs/images/sideby-brand-film-ko.png)
+여러 모니터의 데스크탑을 작업별로 묶고, 단축키 하나로 함께 전환하세요. 화면 하나만으로도 사용할 수 있습니다.
 
-**21초 브랜드 영상 — 흐름은 끊겨도, 일은 제자리에:** [한국어 MP4](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4) · [English MP4](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4) · 쇼츠·릴스용 9:16: [한국어](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-ko.mp4) · [English](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-en.mp4). “어디까지 했더라?”에서 시작해 화면 세 개가 한 번에 하던 일로 돌아오는 순간을 담았습니다. Sideby 화면은 시연 데이터를 넣은 실제 앱 캡처이고, 모니터 속 화면은 시연용 그림입니다. 음악은 이 영상을 위해 직접 만든 오리지널 곡입니다.
+*가상 데이터를 넣은 시연용 화면입니다. 화면 전환은 사용 흐름을 설명하는 애니메이션이며 실제 속도 측정 영상은 아닙니다.* [정지 이미지 보기](docs/images/sideby-triptych-ko.png).
 
 [Sideby 다운로드](https://github.com/ethznn/sideby/releases) · macOS 14 이상 · 한국어·영어 지원
 
-<details>
-<summary>10초 작업 전환 데모 보기</summary>
-
-<p align="center">
-  <img src="./docs/images/sideby-readme-loop-ko.gif" width="720" alt="시뮬레이션 데모: 결제 코드와 API 문서를 PR 리뷰와 실행 화면으로 전환하고, Option-Shift-Tab으로 두 작업을 반복해서 왕복합니다." />
-</p>
-
-결제 개발 → PR 리뷰 → 결제 개발. 같은 `⌥⇧Tab` 단축키로 오갑니다. MacBook과 외부 모니터 2대, 각 화면의 내용은 모두 가상 데이터입니다. 화면 전환은 사용 흐름을 설명하는 애니메이션이며 실제 성능 측정 영상은 아닙니다. [정지 이미지 보기](docs/images/sideby-readme-loop-ko.png).
-
-</details>
+[Sideby 0.12.0](docs/releases/0.12.0.md)에서는 데스크탑마다 이름을 붙이고, 단축키를 누른 채 빠른 매트릭스를 열고, 이동한 뒤에도 메뉴에서 작업을 이어갈 수 있습니다.
 
 ## Sideby로 할 수 있는 일
 
@@ -143,7 +128,7 @@ swift build --product SidebyDevApp
 
 `SidebyApp`은 제품 앱, `SidebyDevApp`은 로컬 진단과 API 실험용 앱입니다. 직접 확인할 앱 번들을 만들 때는 공개 [Sparkle 피드](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml)의 최신 `sparkle:version`에 1을 더한 값을 `SIDEBY_BUILD_NUMBER`로 지정하고 `scripts/build_app_bundle.sh`를 실행하세요. 공개 배포 이후에는 스크립트의 기본 빌드 번호를 사용하지 않습니다.
 
-앱 스크린샷은 실제 외부 화면 없이 샘플 데이터로 다시 만들 수 있습니다. 캡처 명령과 자료 설명은 [README 미디어](docs/media/README.md)를 참고하세요. 영상 제작 소스는 로컬에서 관리하며 MP4는 GitHub Release 첨부 파일로 배포합니다.
+앱 스크린샷은 실제 외부 화면 없이 샘플 데이터로 다시 만들 수 있습니다. 캡처 명령과 자료 설명은 [README 미디어](docs/media/README.md)를 참고하세요. 홍보 MP4와 제작 소스는 로컬에서 관리하며, README에는 저장소의 GIF와 정지 이미지를 사용합니다.
 
 ### 아키텍처
 

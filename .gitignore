@@ -34,5 +34,5 @@ docs/plans/
 docs/SPACE_*_RESEARCH.md
 
 # Local marketing workspace: films, production sources, render scripts and renders.
-# Publish only finished assets: README GIF/PNG into docs/images/, MP4s as release attachments.
+# Publish README GIF/PNG into docs/images/; keep promotional MP4s local, out of releases.
 /marketing/

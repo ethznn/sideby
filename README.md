@@ -4,32 +4,17 @@ English | [한국어](README.ko.md)
 
 **Back to your work, in one action.**
 
-Keep code and reference material together as **Checkout**, then switch to **PR review** when a review comes in. Sideby groups the desktops on your Mac and external displays into named workspaces, so you can return without switching every screen yourself. It also works with a single display.
-
-[Sideby 0.12.0](docs/releases/0.12.0.md) adds desktop names, a quick matrix you open by holding a shortcut, and a menu that stays with you while switching.
-
 <p align="center">
-  <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4">
-    <img src="./docs/images/sideby-brand-film-en.gif" width="720" alt="Animated Sideby preview: Where was I? Hold the shortcut, choose a workspace, and return all three displays to the work you left." />
-  </a>
+  <img src="./docs/images/sideby-triptych-en.gif" width="720" alt="Sideby illustrated preview: three displays switch separately, then a keyboard shortcut switches them together between workspaces and back." />
 </p>
 
-**[▶ Watch the film · 21 seconds · Sound on](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4)** · [Still image](docs/images/sideby-brand-film-en.png)
+Group the desktops across your displays into workspaces, then switch them together with one shortcut. Sideby also works with a single display.
 
-**21-second brand film — Interrupted. Never lost.:** [English MP4](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4) · [한국어 MP4](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4) · 9:16 for Shorts and Reels: [English](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-en.mp4) · [한국어](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-ko.mp4). From “Where was I?” to three displays returning to the work you left at once. Sideby screens are captured from the actual app with sample data; the desktops on the displays are illustrations. Original score.
+*Illustrated screens and sample data; transitions demonstrate the workflow, not measured switching speed.* [Still image](docs/images/sideby-triptych-en.png).
 
 [Download Sideby](https://github.com/ethznn/sideby/releases) · macOS 14 or later · English and Korean
 
-<details>
-<summary>See the 10-second switching demo</summary>
-
-<p align="center">
-  <img src="./docs/images/sideby-readme-loop-en.gif" width="720" alt="Illustrated demo: a MacBook and two external displays switch from Checkout to PR review and back with Option-Shift-Tab." />
-</p>
-
-Checkout → PR review → Checkout, using the same `⌥⇧Tab` shortcut. The MacBook, two external displays and their contents are fictional; transitions illustrate the workflow, not measured hardware performance. [View the still image](docs/images/sideby-readme-loop-en.png).
-
-</details>
+[Sideby 0.12.0](docs/releases/0.12.0.md) adds desktop names, a quick matrix you open by holding a shortcut, and a menu that stays with you while switching.
 
 ## What you can do
 
@@ -141,7 +126,7 @@ swift build --product SidebyDevApp
 
 `SidebyApp` is the product. `SidebyDevApp` is a local probe and API test harness. To build an app bundle for manual verification, check the published [Sparkle feed](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml) and run `scripts/build_app_bundle.sh` with `SIDEBY_BUILD_NUMBER` set to the latest `sparkle:version` plus one. Do not use the script’s default build number after a public release exists.
 
-Native screenshots use isolated sample data and can be regenerated without real external displays. See [README media](docs/media/README.md) for the capture command and asset details. Film production sources are maintained locally; MP4s are distributed as GitHub Release attachments.
+Native screenshots use isolated sample data and can be regenerated without real external displays. See [README media](docs/media/README.md) for the capture command and asset details. Promotional MP4s and their production sources are maintained locally; the README uses repository GIFs and still images.
 
 ### Architecture
 
