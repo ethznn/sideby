@@ -6,21 +6,36 @@ English | [한국어](README.ko.md)
 
 Keep code and reference material together as **Checkout**, then switch to **PR review** when a review comes in. Sideby groups the desktops on your Mac and external displays into named workspaces, so you can return without switching every screen yourself. It also works with a single display.
 
-See [what’s new in Sideby 0.11.1](docs/releases/0.11.1.md).
+[Sideby 0.12.0](docs/releases/0.12.0.md) adds desktop names, a quick matrix you open by holding a shortcut, and a menu that stays with you while switching.
 
 <p align="center">
-  <img src="./docs/images/sideby-demo-en.gif" width="720" alt="Simulated demo: Checkout code and API docs change to PR review and a preview, then Option-Shift-Tab switches back and forth." />
+  <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4">
+    <img src="./docs/images/sideby-brand-film-en.png" width="720" alt="Watch the 21-second Sideby brand film: Right back where you were, across a MacBook and two external displays." />
+  </a>
 </p>
 
-Checkout → PR review → Checkout, using the same `⌥⇧Tab` shortcut to go back and forth. The demo uses sample desktops and a capture of Sideby’s actual matrix; the animated desktop transitions are a simulation, not a hardware recording. [View the still image](docs/images/sideby-demo-poster-en.png).
+**[▶ Watch the film · 21 seconds · Sound on](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4)**
+
+**21-second brand film — Interrupted. Never lost.:** [English MP4](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4) · [한국어 MP4](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4) · 9:16 for Shorts and Reels: [English](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-en.mp4) · [한국어](https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-ko.mp4). From “Where was I?” to three displays returning to the work you left at once. Sideby screens are captured from the actual app with sample data; the desktops on the displays are illustrations. Original score.
 
 [Download Sideby](https://github.com/ethznn/sideby/releases) · macOS 14 or later · English and Korean
+
+<details>
+<summary>See the 10-second switching demo</summary>
+
+<p align="center">
+  <img src="./docs/images/sideby-readme-loop-en.gif" width="720" alt="Illustrated demo: a MacBook and two external displays switch from Checkout to PR review and back with Option-Shift-Tab." />
+</p>
+
+Checkout → PR review → Checkout, using the same `⌥⇧Tab` shortcut. The MacBook, two external displays and their contents are fictional; transitions illustrate the workflow, not measured hardware performance. [View the still image](docs/images/sideby-readme-loop-en.png).
+
+</details>
 
 ## What you can do
 
 - **Switch a whole task.** Choose a workspace’s **Go** button to move its assigned desktops on the selected displays.
 - **Return with the same shortcut.** Press `⌥⇧Tab` to return to the previous workspace. Press it again to switch back.
-- **Arrange work from the menu.** Open Sideby in the menu bar to see the matrix immediately. Rename workspaces, change assignments, or rebuild from the current desktop order there.
+- **Arrange work from the menu.** Open Sideby in the menu bar to see the matrix immediately. Rename workspaces, change assignments, or rebuild from the current desktop order there. The matrix stays open as you switch.
 
 <p align="center">
   <img src="./docs/images/sideby-context-capture-en.png" width="680" alt="Sideby’s dark menu with display selection and a matrix: Checkout.swift and Checkout API assigned to Checkout; PR #42 and its preview assigned to PR review." />
@@ -39,11 +54,11 @@ Columns are workspaces. Rows are displays. Each cell shows that display’s assi
 | Drag a cell onto an occupied cell in the same row | Swap the two assignments. |
 | Hold Option and drag to an empty cell in the same row | Keep the original assignment and use that desktop in another workspace too. |
 | Drag a display’s name or up/down icon | Reorder display rows. |
-| Open a cell’s menu | Assign a desktop without dragging, including with the keyboard. |
+| Open a cell’s menu | Assign a desktop without dragging, or give that desktop a name. The same desktop shares its name across workspaces. |
 
-Desktop changes are detected automatically. To start over, choose **Rebuild from current desktops…** at the top of the menu or Workspaces & Displays settings. Sideby confirms how many workspaces it will create, then replaces the selected displays’ names and assignments in current desktop order. This also replaces custom swaps and shared-desktop assignments. Other displays’ assignments are kept separately. **Restore previous setup** brings back the last saved configuration when its desktops are still available.
+Desktop changes are detected automatically. To start over, choose **Rebuild from current desktops…** at the top of the menu or Workspaces & Displays settings. Sideby confirms how many workspaces it will create, then replaces the selected displays’ names and assignments in current desktop order. This also replaces custom swaps and shared-desktop assignments. Other displays’ assignments are kept separately. Immediately after rebuilding, **Undo** in the completion message restores the previous configuration when its desktops are still available. The menu has no permanent restore button.
 
-New names use available app/window content from each display’s desktops, including desktops you are not currently viewing. These are suggestions, not native macOS Space names; Sideby falls back to a desktop number when metadata is unavailable. Names you edit yourself are preserved during routine updates, but an explicit rebuild creates fresh names.
+New names use available app/window content from each display’s desktops, including desktops you are not currently viewing. These are suggestions, not native macOS Space names; Sideby falls back to a desktop number when metadata is unavailable. Workspace names you edit are preserved during routine updates; an explicit rebuild creates fresh workspace names. Custom **desktop names** are separate: they stay attached to the same desktop through reordering, restarting and rebuilding. Choose **Use automatic name** in its cell menu to return to content suggestions. These names appear only in Sideby, not Mission Control.
 
 Display connection changes are checked automatically. Disconnected display choices and assignments are retained for reconnection; you can continue working with the selected displays that are currently available.
 
@@ -86,12 +101,13 @@ These are production views rendered with sample data, including a simulated comp
 
 | Input | Action |
 | --- | --- |
+| Hold `⌥⇧Space` | Show the quick matrix; click a workspace to switch. Release the keys or press Escape to close it. |
 | `⌥⇧Tab` | Return to the previous workspace; repeat to alternate between the last two. |
 | `⌥⇧1` … `⌥⇧9`, `⌥⇧0` | Go to workspace positions 1–10. |
 | `⌥⇧<` / `⌥⇧>` | Previous / next workspace. |
 | Option + Shift + horizontal swipe | Switch with the default gesture. |
 
-For keyboard switching, press the combination, then release Option and Shift to execute the move. Input settings explain the available gesture options.
+For numbered, previous/next and return shortcuts, release Option and Shift to execute the move. For the held matrix, keep the shortcut pressed while clicking a workspace. Change or disable its shortcut in **Settings → Input**, where you can also configure gestures.
 
 ## When your setup changes
 
@@ -107,9 +123,9 @@ Workspaces refer to existing macOS desktops. Sideby does not reopen documents or
 
 Sideby uses Accessibility for its configured global gesture and, when available, app/window title suggestions. Screen Switching access allows it to send the requested desktop-switch commands. Some command paths also need System Events Automation. Switching and desktop discovery do not request Screen Recording permission.
 
-The fixed global keyboard registrations cover only `Option + Shift + number / < / > / Tab`. Sideby does not inspect or store other typed input. Runtime desktop discovery uses read-only macOS layout queries. Numeric runtime Space IDs, window IDs, raw input events, and screenshots are not saved. Minimal desktop identity bookmarks are stored locally so assignments can follow the same desktops after a restart.
+Global keyboard registrations cover `Option + Shift + number / < / > / Tab` and the configurable held-matrix shortcut (default `⌥⇧Space`). Sideby checks release of the held shortcut to dismiss its matrix; it does not save typed input. Runtime desktop discovery uses read-only macOS layout queries. Numeric runtime Space IDs, window IDs, raw input events, and screenshots are not saved. Minimal desktop identity bookmarks are stored locally so assignments can follow the same desktops after a restart.
 
-Workspace names and assignments, the previous setup saved before a rebuild, display choices and row order, remembered display names, input preferences, and guide progress stay locally on your Mac. A content suggestion used as a workspace name becomes part of that saved name.
+Workspace names and assignments, custom desktop names, the previous setup saved before a rebuild, display choices and row order, remembered display names, input preferences, and guide progress stay locally on your Mac. A content suggestion used as a workspace name becomes part of that saved name.
 
 The direct-distribution app uses private SkyLight APIs with App Sandbox off; it is not targeting the Mac App Store. Updates are delivered through Sparkle 2, with user-approved installation.
 
@@ -125,7 +141,7 @@ swift build --product SidebyDevApp
 
 `SidebyApp` is the product. `SidebyDevApp` is a local probe and API test harness. To build an app bundle for manual verification, check the published [Sparkle feed](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml) and run `scripts/build_app_bundle.sh` with `SIDEBY_BUILD_NUMBER` set to the latest `sparkle:version` plus one. Do not use the script’s default build number after a public release exists.
 
-Regenerate the README screenshots and simulated demo with `bash scripts/render_readme_demo.sh`. This uses isolated sample data and does not need real external displays. See [media sources and reproduction](docs/media/README.md).
+Native screenshots use isolated sample data and can be regenerated without real external displays. See [README media](docs/media/README.md) for the capture command and asset details. Film production sources are maintained locally; MP4s are distributed as GitHub Release attachments.
 
 ### Architecture
 

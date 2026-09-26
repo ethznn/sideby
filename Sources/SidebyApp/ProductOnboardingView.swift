@@ -82,9 +82,11 @@ struct ProductOnboardingView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(strings.stage(stage))
-                                .font(.system(size: detailSize))
-                                .foregroundStyle(.secondary)
-                                .padding(.bottom, 8)
+                                .font(.system(size: detailSize, weight: .medium))
+                                .foregroundStyle(NativeSurfaceStyle.secondaryText)
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .background(NativeSurfaceStyle.tableBackground, in: Capsule())
+                                .padding(.bottom, 4)
                             Text(stage == .workspaces && !hasSavedAssignments ? strings.captureTitle : strings.title(stage))
                                 .font(.system(size: titleSize, weight: .semibold))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -94,14 +96,14 @@ struct ProductOnboardingView: View {
                                 .accessibilityFocused($accessibleStage, equals: stage)
                                 .id(stage)
                             Text(strings.subtitle(stage))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(NativeSurfaceStyle.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         stageContent
-                        if facts.isBusy { Text(strings.waiting).foregroundStyle(.secondary) }
+                        if facts.isBusy { Text(strings.waiting).foregroundStyle(NativeSurfaceStyle.secondaryText) }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 36)
+                    .padding(.horizontal, 32)
                     .padding(.vertical, 24)
                 }
                 .onChange(of: stage) { _, newStage in
@@ -115,7 +117,8 @@ struct ProductOnboardingView: View {
             footer
         }
         .font(.system(size: bodySize))
-        .background(Color(nsColor: .windowBackgroundColor))
+        .foregroundStyle(NativeSurfaceStyle.primaryText)
+        .background(NativeSurfaceStyle.windowBackground)
         .onAppear {
             focusedStage = stage
             accessibleStage = stage
@@ -174,18 +177,18 @@ struct ProductOnboardingView: View {
                 }
             }
             DisclosureGroup(strings.permissionDetails) {
-                Text(model.strings.inputPrivacyNote).foregroundStyle(.secondary)
+                Text(model.strings.inputPrivacyNote).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     .fixedSize(horizontal: false, vertical: true).padding(.top, 8)
             }
             Text(hasPermissions ? strings.accessReady : strings.permissionsNeeded)
-                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(NativeSurfaceStyle.secondaryText).fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var displaysContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             if !hasPermissions {
-                Text(strings.permissionsNeeded).foregroundStyle(.secondary)
+                Text(strings.permissionsNeeded).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if model.displayLayout.displays.isEmpty {
@@ -194,7 +197,7 @@ struct ProductOnboardingView: View {
             NativeDisplaySelector(displays: model.displayLayout.displays, selectedIDs: selectedIDs,
                 language: model.settings.language, isEnabled: !facts.isBusy,
                 setSelected: { model.setDisplayTarget($0, isSelected: $1) })
-            Text(strings.selectedDisplays(selectedIDs.count)).foregroundStyle(.secondary)
+            Text(strings.selectedDisplays(selectedIDs.count)).foregroundStyle(NativeSurfaceStyle.secondaryText)
             let rememberedIDs = Set(model.settings.displaySelection.knownDisplayNames.keys)
                 .union(model.settings.contextPlan.contexts.flatMap(\.displayIDs)).subtracting(connectedIDs)
             if !rememberedIDs.isEmpty {
@@ -203,7 +206,7 @@ struct ProductOnboardingView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(model.displayName(for: id))
                         Text(strings.offline(selected: model.settings.displaySelection.selectedDisplayIDs.contains(id)))
-                            .font(.system(size: detailSize)).foregroundStyle(.secondary)
+                            .font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     }
                     .fixedSize(horizontal: false, vertical: true)
                 }
@@ -213,11 +216,11 @@ struct ProductOnboardingView: View {
 
     private var workspacesContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if !hasSavedAssignments { Text(strings.captureExplanation).foregroundStyle(.secondary) }
+            if !hasSavedAssignments { Text(strings.captureExplanation).foregroundStyle(NativeSurfaceStyle.secondaryText) }
             ForEach(Array(contexts.prefix(2).enumerated()), id: \.element.id) { index, context in
                 VStack(alignment: .leading, spacing: 10) {
                     Text(index == 0 ? model.strings.workspaceGuideFirstName : model.strings.workspaceGuideSecondName)
-                        .font(.system(size: detailSize)).foregroundStyle(.secondary)
+                        .font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     NativeInlineNameField(identity: context.id, value: context.name,
                         label: index == 0 ? model.strings.workspaceGuideFirstName : model.strings.workspaceGuideSecondName) {
                         model.setContextName(contextID: context.id, name: $0)
@@ -226,10 +229,10 @@ struct ProductOnboardingView: View {
                     assignmentSummary(context)
                 }
                 .padding(14)
-                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                .background(NativeSurfaceStyle.tableBackground, in: RoundedRectangle(cornerRadius: 8))
             }
             if hasSavedAssignments {
-                Text(strings.autosave).font(.system(size: detailSize)).foregroundStyle(.secondary)
+                Text(strings.autosave).font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 Button(strings.review) { openAssignments() }.disabled(facts.isBusy)
             }
             if workspaceReadUnavailable {
@@ -240,7 +243,7 @@ struct ProductOnboardingView: View {
                 connectionContent
             }
             if let status = model.contextCaptureStatus {
-                Text(status).font(.system(size: detailSize)).foregroundStyle(.secondary)
+                Text(status).font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let request = model.pendingContextCaptureAlignment {
@@ -249,7 +252,7 @@ struct ProductOnboardingView: View {
                     cancel: { model.cancelContextCaptureAlignment() })
             }
             if hasSavedAssignments || didRequestCapture {
-                Text(strings.recaptureExplanation).font(.system(size: detailSize)).foregroundStyle(.secondary)
+                Text(strings.recaptureExplanation).font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 if !hasObservedShortage {
                     Button(strings.recapture) { capture() }.disabled(!canCapture)
@@ -287,7 +290,7 @@ struct ProductOnboardingView: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .font(.system(size: detailSize)).foregroundStyle(.secondary)
+        .font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
     }
 
     @ViewBuilder private var connectionContent: some View {
@@ -311,8 +314,13 @@ struct ProductOnboardingView: View {
             if progress.isComplete, let a = progress.originContextID, let b = progress.awayContextID {
                 NativeStatusSection(tone: .neutral, title: strings.roundTripComplete,
                                     message: strings.complete(contextName(a), contextName(b))) {}
-                Text(strings.menuHint).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(strings.menuHint).foregroundStyle(NativeSurfaceStyle.secondaryText).fixedSize(horizontal: false, vertical: true)
                 Text(strings.previousShortcutHint).fixedSize(horizontal: false, vertical: true)
+                if model.heldMatrixConfiguration.isEnabled, model.heldMatrixShortcutError == nil {
+                    Text(HeldMatrixStrings(language: model.settings.language).discover(
+                        KeyboardShortcutFormatter.shortcutText(model.heldMatrixConfiguration.shortcut)))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Button(strings.optionalInput, action: actions.openInputSettings)
             } else {
                 if let a = progress.originContextID {
@@ -323,10 +331,10 @@ struct ProductOnboardingView: View {
                     assignmentSummary(first)
                 }
                 if !hasPermissions {
-                    Text(strings.permissionsNeeded).foregroundStyle(.secondary)
+                    Text(strings.permissionsNeeded).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 } else if !model.isEnabled {
-                    Text(model.strings.workspaceTurnOnToMove).foregroundStyle(.secondary)
-                    Text(model.inputStatus).font(.system(size: detailSize)).foregroundStyle(.secondary)
+                    Text(model.strings.workspaceTurnOnToMove).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    Text(model.inputStatus).font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 }
                 connectionContent
                 if let recovery = model.workspaceRecoveryState, !recovery.isResolved {
@@ -336,7 +344,7 @@ struct ProductOnboardingView: View {
                         title: model.strings.workspaceTransitionFailed(contextName(targetID)),
                         message: model.lastSwitchResult) {}
                 }
-                if contexts.count < 2 { Text(strings.shortage).foregroundStyle(.secondary) }
+                if contexts.count < 2 { Text(strings.shortage).foregroundStyle(NativeSurfaceStyle.secondaryText) }
             }
         }
     }
@@ -367,8 +375,9 @@ struct ProductOnboardingView: View {
                 HStack { laterButton; Spacer(); backButton }
             }
         }
-        .padding(.horizontal, 24).padding(.vertical, 15)
+        .padding(.horizontal, 32).padding(.vertical, 15)
         .frame(minHeight: 62)
+        .background(NativeSurfaceStyle.tableBackground)
     }
     private var laterButton: some View {
         Button(strings.later) { dismiss(); actions.close() }.keyboardShortcut(.cancelAction)

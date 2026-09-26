@@ -44,10 +44,7 @@ struct NativeDisplaySelector: View {
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(selected ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.inputBackground)
                                 RoundedRectangle(cornerRadius: 4)
-                                    .strokeBorder(NativeSurfaceStyle.controlBorder, lineWidth: selected ? 3 : 1)
-                                if selected {
-                                    RoundedRectangle(cornerRadius: 4).strokeBorder(Color.accentColor, lineWidth: 1)
-                                }
+                                    .strokeBorder(selected ? Color.accentColor : NativeSurfaceStyle.controlBorder, lineWidth: selected ? 2 : 1)
                                 HStack(spacing: 3) {
                                     Text(strings.screenNumber(index)).monospacedDigit()
                                     if selected { Image(systemName: "checkmark").fontWeight(.bold) }
@@ -66,7 +63,7 @@ struct NativeDisplaySelector: View {
                     }
                 }
                 .background(NativeSurfaceStyle.tableBackground, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(NativeSurfaceStyle.separator))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(NativeSurfaceStyle.frameBorder))
         }
     }
 

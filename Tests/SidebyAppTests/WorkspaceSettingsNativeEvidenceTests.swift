@@ -39,10 +39,10 @@ final class WorkspaceSettingsNativeEvidenceTests: XCTestCase {
         tall.workspaceHistory.recordSuccessfulVisit(contextID: "task-0")
         tall.workspaceRebuildBackup = .init(plan: tall.settings.contextPlan, nameOrigins: [:],
                                            identity: .init(plan: tall.settings.contextPlan, spaceKeys: [:]))
-        let menu = ProductFloatingMenuPanelView(model: tall, onSwitchQueued: { _ in }, actions: .init(route: { _ in }, quit: {}), initialExpansion: .default)
+        let menu = ProductFloatingMenuPanelView(model: tall, actions: .init(route: { _ in }, quit: {}))
         try await render(menu, name: "menu-matrix-dark", width: 680, height: 620, dark: true)
         let single = makeModel(displayCount: 1, rows: 3)
-        let singleMenu = ProductFloatingMenuPanelView(model: single, onSwitchQueued: { _ in }, actions: .init(route: { _ in }, quit: {}), initialExpansion: .default)
+        let singleMenu = ProductFloatingMenuPanelView(model: single, actions: .init(route: { _ in }, quit: {}))
         try await render(singleMenu, name: "menu-matrix-single-light", width: 680, height: 620, dark: false)
         let model = makeModel(displayCount: 2, rows: 4)
         let preferences = MemoryProductUIPreferences()

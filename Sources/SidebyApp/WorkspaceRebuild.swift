@@ -65,6 +65,8 @@ extension SidebyAppModel {
     }
 
     func loadWorkspacePersistence() {
+        loadDesktopAliases()
+        loadHeldMatrixConfiguration()
         if let data = workspacePreferences?.data(forKey: Self.identitySnapshotKey) {
             if let saved = try? JSONDecoder().decode(WorkspaceIdentitySnapshot.self, from: data), saved.matches(settings.contextPlan) {
                 workspaceLastObservedSpaceKeys = saved.spaceKeys
@@ -124,7 +126,8 @@ extension SidebyAppModel {
             spaceIDsByDisplayID: observation.spaceIDsByDisplayID) ?? [:]
         guard let latest = workspaceObservation(), sameWorkspaceTopology(latest, observation),
               let contexts = WorkspaceRebuildPolicy.contexts(existing: settings.contextPlan.contexts,
-                observation: latest, selectedDisplayIDs: selectedDisplayIDs, names: names,
+                observation: latest, selectedDisplayIDs: selectedDisplayIDs,
+                names: namesIncludingDesktopAliases(names, observation: latest),
                 defaultName: { settings.language == .korean ? "데스크탑 \($0)" : "Desktop \($0)" }) else { return false }
 
         let backup = WorkspaceRebuildBackup(plan: settings.contextPlan,
@@ -145,7 +148,7 @@ extension SidebyAppModel {
         let retainedIDs = Set(contexts.map(\.id))
         workspaceNameOrigins = backup.nameOrigins.filter { retainedIDs.contains($0.key) }
         for context in contexts where !Set(context.displayIDs).isDisjoint(with: selectedDisplayIDs) {
-            workspaceNameOrigins[context.id] = context.name
+            workspaceNameOrigins[context.id] = contextUsesDesktopAlias(context) ? "" : context.name
         }
         workspacePreferences?.set(workspaceNameOrigins, forKey: Self.nameOriginsKey)
         workspaceDesktopNames = names

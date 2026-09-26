@@ -2,7 +2,7 @@
 <html lang="ko">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sideby 0.11.0 — 기능 미리보기</title>
+<title>Sideby — 0.12.0</title>
 <style>
   :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #f5f6f8; color: #20252d; }
   * { box-sizing: border-box; }
@@ -35,18 +35,23 @@
   <strong>Sideby</strong>
   <a href="../../README.ko.md">한국어 README</a>
   <a href="../../README.md">English README</a>
-  <a href="README.md">제작 방법</a>
+  <a href="README.md">미디어 안내</a>
 </nav>
 <main>
-  <div class="label">Sideby 0.11.0</div>
+  <div class="label">Sideby · 0.12.0</div>
   <h1>하던 작업으로 한 번에 돌아오세요.</h1>
   <p>코드와 참고 문서를 <strong>결제 개발</strong>로 묶어 두고, 리뷰 요청이 오면 <strong>PR 리뷰</strong>로 전환하세요. Mac 화면 하나에서도, 외부 화면과 함께 사용할 때도 작업별로 데스크탑을 오갈 수 있습니다.</p>
   <figure>
-    <img id="demo" src="../images/sideby-demo-poster-en.png" width="960" height="640" alt="결제 개발의 코드와 API 문서를 PR 리뷰와 실행 화면으로 바꾸고, 같은 Option-Shift-Tab으로 왕복하는 시뮬레이션 데모">
-    <figcaption>실제 Sideby 매트릭스와 샘플 작업 데이터를 사용했습니다. 데스크탑과 전환 애니메이션은 시뮬레이션입니다. 약 22초.</figcaption>
+    <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4"><img src="../images/sideby-brand-film-ko.png" width="960" height="540" alt="Sideby 21초 브랜드 영상 보기: 한 번에, 제자리로."></a>
+    <figcaption><a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4">▶ 영상 보기 · 21초 · 소리와 함께</a></figcaption>
+  </figure>
+  <figure>
+    <img id="demo" src="../images/sideby-readme-loop-ko.png" width="960" height="540" alt="결제 개발의 코드와 API 문서를 PR 리뷰와 실행 화면으로 바꾸고, 같은 Option-Shift-Tab으로 왕복하는 시뮬레이션 데모">
+    <figcaption>MacBook과 외부 모니터 2대의 가상 작업을 전환하는 10초 반복 영상입니다. 실제 화면 녹화가 아닙니다.</figcaption>
   </figure>
   <button id="playback" type="button" aria-controls="demo" aria-pressed="false">데모 재생</button>
-  <a href="../images/sideby-demo-en.gif">GIF 원본</a>
+  <a href="../images/sideby-readme-loop-ko.gif">GIF 원본</a>
+  <p>21초 브랜드 영상: <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-ko.mp4">한국어 MP4</a> · <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-en.mp4">English MP4</a> · 세로 9:16: <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-ko.mp4">한국어</a> · <a href="https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-promo-v2-21s-vertical-en.mp4">English</a>. 오리지널 음악과 함께 감상하세요.</p>
   <h2>작업 선택과 구성 편집을 메뉴에서 바로</h2>
   <ul>
     <li><strong>화면을 함께 전환:</strong> 작업의 ‘이동’ 버튼을 누르면 각 화면의 배정된 데스크탑으로 이동합니다.</li>
@@ -54,21 +59,21 @@
     <li><strong>메뉴에서 바로 편집:</strong> 이름 수정, 드래그 이동·맞교환, Option 드래그 복사와 현재 데스크탑 순서로 다시 구성을 지원합니다.</li>
   </ul>
   <figure>
-    <img class="native" src="../images/sideby-context-capture-ko.png" width="680" height="590" alt="한국어 메뉴의 화면 선택과 작업 매트릭스">
+    <img class="native" src="../images/sideby-context-capture-ko.png" width="680" height="640" alt="한국어 메뉴의 화면 선택과 작업 매트릭스">
     <figcaption>샘플 디스플레이 데이터를 넣은 실제 앱 뷰입니다. 작업 이름은 편집하고, 아래의 ‘이동’ 버튼으로 전환합니다.</figcaption>
   </figure>
   <details open>
     <summary>첫 사용: 작업에 이름 붙이고, 직접 왕복하기</summary>
     <p>화면별 콘텐츠 이름과 데스크탑 번호를 함께 보여 줍니다. 왕복을 마치면 메뉴에서 이어서 사용하고, 같은 단축키로 오가는 방법을 안내합니다.</p>
-    <figure><img class="native" src="../images/sideby-onboarding-workspaces-ko.png" width="640" height="700" alt="이름과 화면별 콘텐츠를 확인하는 작업 준비 온보딩"></figure>
+    <figure><img class="native" src="../images/sideby-onboarding-workspaces-ko.png" width="640" height="760" alt="이름과 화면별 콘텐츠를 확인하는 작업 준비 온보딩"></figure>
     <figure><img class="native" src="../images/sideby-onboarding-roundtrip-ko.png" width="640" height="520" alt="왕복 완료와 메뉴에서 시작하기 안내"></figure>
   </details>
   <details>
     <summary>전체 설정과 영어 화면</summary>
     <figure><img src="../images/sideby-settings-workspaces-ko.png" width="840" height="620" alt="한국어 전체 설정의 작업과 화면"></figure>
-    <figure><img class="native" src="../images/sideby-context-capture-en.png" width="680" height="590" alt="English menu with the workspace matrix"></figure>
+    <figure><img class="native" src="../images/sideby-context-capture-en.png" width="680" height="640" alt="English menu with the workspace matrix"></figure>
     <figure><img src="../images/sideby-settings-workspaces-en.png" width="840" height="620" alt="English Workspaces and Displays settings"></figure>
-    <figure><img class="native" src="../images/sideby-onboarding-workspaces-en.png" width="640" height="700" alt="English workspace preparation"></figure>
+    <figure><img class="native" src="../images/sideby-onboarding-workspaces-en.png" width="640" height="760" alt="English workspace preparation"></figure>
     <figure><img class="native" src="../images/sideby-onboarding-roundtrip-en.png" width="640" height="520" alt="English round-trip completion"></figure>
   </details>
   <p class="note">설치 방법과 전체 사용 안내는 한국어·영어 README에서 확인할 수 있습니다.</p>
@@ -79,7 +84,7 @@
   let playing = false;
   function setPlayback(value) {
     playing = value;
-    demo.src = value ? '../images/sideby-demo-en.gif' : '../images/sideby-demo-poster-en.png';
+    demo.src = value ? '../images/sideby-readme-loop-ko.gif' : '../images/sideby-readme-loop-ko.png';
     playback.textContent = value ? '정지 이미지로 보기' : '데모 재생';
     playback.setAttribute('aria-pressed', String(value));
   }

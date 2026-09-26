@@ -29,7 +29,7 @@ extension SidebyAppModel {
     }
 
     func workspaceDesktopName(displayID: String, spaceIndex: Int) -> String? {
-        workspaceDesktopNames[displayID]?[spaceIndex]
+        desktopAlias(displayID: displayID, spaceIndex: spaceIndex) ?? workspaceDesktopNames[displayID]?[spaceIndex]
     }
 
     func loadWorkspaceNamesIfNeeded() {
@@ -62,12 +62,21 @@ extension SidebyAppModel {
             let mayReplace: Bool
             if let original = origins[context.id] { mayReplace = !original.isEmpty && original == context.name }
             else { mayReplace = Self.isDefaultWorkspaceName(context.name) }
-            guard mayReplace, let name = desktopContentName(context: context) else { continue }
+            guard mayReplace, let name = desktopContentName(context: context, includesAliases: false) else { continue }
             if name != context.name {
                 updateContextPlan { $0.renameContext(id: context.id, name: name) }
                 workspaceNameRefreshCount += 1
             }
             rememberWorkspaceNameOrigin(contextID: context.id, automaticName: name)
+        }
+    }
+
+    func nameNewWorkspacesUsingDesktopAliases(previousIDs: Set<String>) {
+        for context in settings.contextPlan.contexts where !previousIDs.contains(context.id) {
+            guard contextUsesDesktopAlias(context),
+                  let name = desktopContentName(context: context, includesAliases: true) else { continue }
+            updateContextPlan { $0.renameContext(id: context.id, name: name) }
+            rememberWorkspaceNameOrigin(contextID: context.id, automaticName: nil)
         }
     }
 
@@ -78,13 +87,13 @@ extension SidebyAppModel {
         // Reconcile before resolving indexes, so a reordered/deleted Space cannot supply the wrong name.
         guard refreshWorkspaceList(), let context = settings.contextPlan.contexts.first(where: { $0.id == contextID }),
               observation.spaceIDsByDisplayID == workspaceSpaceIDs(),
-              let name = desktopContentName(context: context) else { return false }
+              let name = desktopContentName(context: context, includesAliases: true) else { return false }
         updateContextPlan { $0.renameContext(id: contextID, name: name) }
-        rememberWorkspaceNameOrigin(contextID: contextID, automaticName: name)
+        rememberWorkspaceNameOrigin(contextID: contextID, automaticName: contextUsesDesktopAlias(context) ? nil : name)
         return true
     }
 
-    private func desktopContentName(context: ContextDefinition) -> String? {
+    private func desktopContentName(context: ContextDefinition, includesAliases: Bool) -> String? {
         var names: [String] = []
         let displayOrder = displayLayout.displays.map(\.id)
         let orderedIDs = context.displayIDs.sorted {
@@ -94,7 +103,8 @@ extension SidebyAppModel {
         }
         for displayID in orderedIDs where selectedDisplayIDs.contains(displayID) {
             guard let index = context.spaceIndex(for: displayID),
-                  let name = workspaceDesktopName(displayID: displayID, spaceIndex: index), !names.contains(name) else { continue }
+                  let name = includesAliases ? workspaceDesktopName(displayID: displayID, spaceIndex: index)
+                    : workspaceDesktopNames[displayID]?[index], !names.contains(name) else { continue }
             names.append(name)
         }
         return names.isEmpty ? nil : String(names.joined(separator: " / ").prefix(160))

@@ -105,7 +105,9 @@ struct WorkspaceMatrixStrings {
     let language: AppLanguage
     private func text(_ en: String, _ ko: String) -> String { language == .korean ? ko : en }
     var title: String { text("Workspace matrix", "작업 매트릭스") }
-    var help: String { text("Drag to move or swap. Option-drag to also use a desktop in another workspace.", "드래그하여 이동·맞교환하고, ⌥ Option을 누르고 드래그하면 다른 작업에서도 함께 사용합니다.") }
+    var current: String { text("Current", "현재") }
+    var moving: String { text("Switching…", "이동 중…") }
+    var help: String { text("Drag to move or swap · Option-drag to share · Rename desktops in the cell menu", "드래그로 이동·맞교환 · ⌥ 드래그로 함께 사용 · 칸 메뉴에서 이름 변경") }
     var displays: String { text("Displays ↓", "화면 ↓") }
     var workspaces: String { text("Workspaces →", "작업 →") }
     var assign: String { text("Choose desktop", "데스크탑 선택") }

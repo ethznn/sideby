@@ -63,6 +63,7 @@ struct ProductSettingsView: View {
             }
         }
         .font(.system(size: bodySize))
+        .foregroundStyle(NativeSurfaceStyle.primaryText)
         .background(NativeSurfaceStyle.windowBackground)
         .background(ProductSettingsWindowReader { hostingWindow = $0 })
         .onChange(of: navigation.settingsRoute.pane) { _, pane in
@@ -124,8 +125,9 @@ struct ProductSettingsView: View {
 
     private var inputPane: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text(strings.inputDescription).foregroundStyle(.secondary)
+            Text(strings.inputDescription).foregroundStyle(NativeSurfaceStyle.secondaryText)
             ShortcutSettingsView(settings: settingsBinding, showsInputExperiment: false)
+            HeldMatrixShortcutSettingsView(model: model)
             if let invalidSettingsMessage {
                 Text(invalidSettingsMessage).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
@@ -143,7 +145,7 @@ struct ProductSettingsView: View {
                 .controlSize(.large).pointingHandCursor()
                 .disabled(model.permissionState != .granted)
                 if model.permissionState != .granted {
-                    Text(strings.permissionBeforePractice).foregroundStyle(.secondary)
+                    Text(strings.permissionBeforePractice).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 }
             }
         }
@@ -173,20 +175,20 @@ struct ProductSettingsView: View {
                     }
                 }
             }
-            Text(model.strings.inputPrivacyNote).foregroundStyle(.secondary)
+            Text(model.strings.inputPrivacyNote).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var generalPane: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text(strings.generalDescription).foregroundStyle(.secondary)
+            Text(strings.generalDescription).foregroundStyle(NativeSurfaceStyle.secondaryText)
             LanguageSettingsView(settings: settingsBinding)
             Divider()
             Toggle(model.strings.startAtLogin, isOn: Binding(
                 get: { model.settings.launchAtLogin }, set: { model.setLaunchAtLogin($0) }
             )).pointingHandCursor()
-            Text(model.loginItemStatus).foregroundStyle(.secondary)
+            Text(model.loginItemStatus).foregroundStyle(NativeSurfaceStyle.secondaryText)
             Divider()
             Button(model.strings.checkForUpdates, action: actions.checkForUpdates)
                 .controlSize(.large).pointingHandCursor().disabled(!canCheckForUpdates)

@@ -59,8 +59,8 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             completeProgress(model)
             model.workspaceHistory.recordSuccessfulVisit(contextID: "review")
             model.workspaceHistory.recordSuccessfulVisit(contextID: "checkout")
-            let menu = ProductFloatingMenuPanelView(model: model, onSwitchQueued: { _ in },
-                actions: .init(route: { _ in }, quit: {}), initialExpansion: .default)
+            let menu = ProductFloatingMenuPanelView(model: model,
+                actions: .init(route: { _ in }, quit: {}))
             try await render(menu, to: output.appendingPathComponent("sideby-context-capture-\(suffix).png"),
                              width: 680, height: 640, dark: true)
             let settings = ProductSettingsView(model: model,
@@ -120,7 +120,7 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         settings.displaySelection = .init(hasInitialized: true, selectedDisplayIDs: Set(ids),
             knownDisplayNames: Dictionary(uniqueKeysWithValues: displays.map { ($0.id, $0.name) }))
         settings.displayRowOrder = ids
-        let observation = displays.map { InstantCaptureDisplay(displayID: $0.id, spaceCount: 2, currentSpaceIndex: 0) }
+        let observation = displays.map { InstantCaptureDisplay(displayID: $0.id, spaceCount: fixture.workspaces.count, currentSpaceIndex: 0) }
         let model = SidebyAppModel(testSettings: settings, selectedDisplayIDs: Set(ids),
             selectedDisplaySpaces: { observation }, postEventAccessGranted: true)
         model.displayLayout = .init(displays: displays.enumerated().map { index, display in
@@ -128,7 +128,7 @@ final class ReadmeMediaRenderingTests: XCTestCase {
                   frame: .init(x: Double(index * 1920), y: index == 0 ? 300 : 0, width: 1920, height: 1080))
         })
         let spaceIDs = Dictionary(uniqueKeysWithValues: ids.enumerated().map { index, id in
-            (id, [UInt64(100 * (index + 1)), UInt64(100 * (index + 1) + 1)])
+            (id, fixture.workspaces.indices.map { UInt64(100 * (index + 1) + $0) })
         })
         model.workspaceSpaceIDsOverride = { spaceIDs }
         model.workspaceObservedDisplays = observation

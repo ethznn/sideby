@@ -5,11 +5,18 @@ let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let directory = root.appendingPathComponent("docs/images")
 let work = ProcessInfo.processInfo.environment["SIDEBY_MEDIA_WORK_DIR"].map { URL(fileURLWithPath: $0) }
     ?? root.appendingPathComponent(".build/readme-media")
-let timeline = try JSONSerialization.jsonObject(with: Data(contentsOf:
-    work.appendingPathComponent("timeline.json"))) as! [[String: Any]]
-let expectedDuration = timeline.reduce(0.0) { $0 + ($1["seconds"] as! Double) }
+let timelineURL = work.appendingPathComponent("timeline.json")
+let timeline: [[String: Any]]? = FileManager.default.fileExists(atPath: timelineURL.path)
+    ? (try JSONSerialization.jsonObject(with: Data(contentsOf: timelineURL)) as! [[String: Any]])
+    : nil
+// Verify the archived demo from a clean checkout too. A fresh render supplies
+// the full timeline for the additional per-frame timing comparison below.
+let expectedFrameCount = timeline?.count ?? 62
+let expectedDuration = timeline?.reduce(0.0) { $0 + ($1["seconds"] as! Double) } ?? 22.04
 var expected: [String: (Int, Int)] = ["sideby-demo-poster-en.png": (960, 640)]
 for language in ["en", "ko"] {
+    expected["sideby-brand-film-\(language).png"] = (1920, 1080)
+    expected["sideby-readme-loop-\(language).png"] = (960, 540)
     expected["sideby-context-capture-\(language).png"] = (1360, 1280)
     expected["sideby-settings-workspaces-\(language).png"] = (1680, 1240)
     expected["sideby-onboarding-workspaces-\(language).png"] = (1280, 1520)
@@ -23,7 +30,7 @@ for (name, size) in expected.sorted(by: { $0.key < $1.key }) {
 
 let gifURL = directory.appendingPathComponent("sideby-demo-en.gif")
 let gif = CGImageSourceCreateWithURL(gifURL as CFURL, nil)!
-precondition(CGImageSourceGetCount(gif) == timeline.count, "GIF frame count differs from source timeline")
+precondition(CGImageSourceGetCount(gif) == expectedFrameCount, "Unexpected GIF frame count")
 let properties = CGImageSourceCopyProperties(gif, nil)! as NSDictionary
 let gifProperties = properties[kCGImagePropertyGIFDictionary] as! NSDictionary
 precondition((gifProperties[kCGImagePropertyGIFLoopCount] as! NSNumber).intValue == 0)
@@ -34,8 +41,11 @@ for index in 0..<CGImageSourceGetCount(gif) {
     let frame = CGImageSourceCopyPropertiesAtIndex(gif, index, nil)! as NSDictionary
     let timing = frame[kCGImagePropertyGIFDictionary] as! NSDictionary
     let delay = (timing[kCGImagePropertyGIFUnclampedDelayTime] ?? timing[kCGImagePropertyGIFDelayTime]) as! NSNumber
-    precondition(abs(delay.doubleValue - (timeline[index]["seconds"] as! Double)) < 0.011,
-                 "GIF timing changed at frame \(index)")
+    precondition(delay.doubleValue > 0, "GIF frame must have a positive duration")
+    if let timeline {
+        precondition(abs(delay.doubleValue - (timeline[index]["seconds"] as! Double)) < 0.011,
+                     "GIF timing changed at frame \(index)")
+    }
     duration += delay.doubleValue
 }
 precondition(abs(duration - expectedDuration) < 0.02)
@@ -49,23 +59,68 @@ func pixels(_ image: CGImage) -> Data {
     context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
     return Data(bytes: context.data!, count: image.width * image.height * 4)
 }
-precondition(pixels(CGImageSourceCreateImageAtIndex(gif, 0, nil)!) == pixels(CGImageSourceCreateImageAtIndex(gif, timeline.count - 1, nil)!),
+precondition(pixels(CGImageSourceCreateImageAtIndex(gif, 0, nil)!) == pixels(CGImageSourceCreateImageAtIndex(gif, expectedFrameCount - 1, nil)!),
              "The GIF must return to the starting scene for a clean loop")
 
-// Ensure both READMEs actually use all localized assets and have no broken local links.
+// Finished README loops are repository assets; film production files are not required.
+for language in ["en", "ko"] {
+    let url = directory.appendingPathComponent("sideby-readme-loop-\(language).gif")
+    let loop = CGImageSourceCreateWithURL(url as CFURL, nil)!
+    precondition(CGImageSourceGetCount(loop) == 100, "Unexpected frame count: \(url.lastPathComponent)")
+    let properties = CGImageSourceCopyProperties(loop, nil)! as NSDictionary
+    let timing = properties[kCGImagePropertyGIFDictionary] as! NSDictionary
+    precondition((timing[kCGImagePropertyGIFLoopCount] as! NSNumber).intValue == 0)
+    var loopDuration = 0.0
+    for index in 0..<100 {
+        let frame = CGImageSourceCreateImageAtIndex(loop, index, nil)!
+        precondition(frame.width == 960 && frame.height == 540)
+        let properties = CGImageSourceCopyPropertiesAtIndex(loop, index, nil)! as NSDictionary
+        let timing = properties[kCGImagePropertyGIFDictionary] as! NSDictionary
+        let delay = (timing[kCGImagePropertyGIFUnclampedDelayTime] ?? timing[kCGImagePropertyGIFDelayTime]) as! NSNumber
+        precondition(abs(delay.doubleValue - 0.1) < 0.001)
+        loopDuration += delay.doubleValue
+    }
+    precondition(abs(loopDuration - 10) < 0.001)
+    let first = pixels(CGImageSourceCreateImageAtIndex(loop, 0, nil)!)
+    precondition(first == pixels(CGImageSourceCreateImageAtIndex(loop, 99, nil)!), "Loop boundaries differ")
+    precondition(first != pixels(CGImageSourceCreateImageAtIndex(loop, 40, nil)!), "Demo must switch workspaces")
+    let loopBytes = try Data(contentsOf: url).count
+    precondition(loopBytes <= 8 * 1024 * 1024, "GIF exceeds 8 MiB")
+    print("Verified \(url.lastPathComponent): 100 frames, 10s, matching loop boundaries")
+}
+
+// Ensure both READMEs use their localized repository assets and versioned film links.
 let linkPattern = try NSRegularExpression(pattern: #"(?:\]\(|(?:src|href)=\")([^\)\"\s]+)"#)
 for language in ["en", "ko"] {
     let name = language == "en" ? "README.md" : "README.ko.md"
     let body = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
-    for asset in expected.keys where asset.contains("-\(language).") || asset.contains("poster") {
+    for asset in expected.keys where asset.contains("-\(language).") && !asset.contains("poster") {
         precondition(body.contains(asset), "\(name) does not use \(asset)")
     }
-    precondition(body.contains("sideby-demo-en.gif") && body.contains("⌥⇧Tab"))
+    precondition(body.contains("sideby-readme-loop-\(language).gif") && body.contains("⌥⇧Tab"))
+    for stem in ["promo-v2-21s", "promo-v2-21s-vertical"] {
+        precondition(body.contains("https://github.com/ethznn/sideby/releases/download/v0.12.0/sideby-\(stem)-\(language).mp4"),
+                     "Missing versioned film link in \(name)")
+    }
+}
+
+let releaseNotes = try FileManager.default.contentsOfDirectory(at: root.appendingPathComponent("docs/releases"),
+    includingPropertiesForKeys: nil).filter { $0.pathExtension == "md" }
+let documents = ["README.md", "README.ko.md", "docs/DEVELOPMENT.md", "docs/media/README.md", "docs/media/preview.html"]
+    .map { root.appendingPathComponent($0) } + releaseNotes
+for document in documents {
+    let body = try String(contentsOf: document, encoding: .utf8)
     for match in linkPattern.matches(in: body, range: NSRange(body.startIndex..., in: body)) {
         let path = String(body[Range(match.range(at: 1), in: body)!])
         if path.hasPrefix("https:") || path.hasPrefix("http:") || path.hasPrefix("#") { continue }
-        let local = path.components(separatedBy: "#")[0]
-        precondition(FileManager.default.fileExists(atPath: root.appendingPathComponent(local).path), "Broken link: \(local)")
+        let local = path.components(separatedBy: "#")[0].components(separatedBy: "?")[0]
+        let target = document.deletingLastPathComponent().appendingPathComponent(local).standardizedFileURL
+        for ignored in ["docs/media/motion", "scripts/motion"] {
+            let excluded = root.appendingPathComponent(ignored).path
+            precondition(target.path != excluded && !target.path.hasPrefix(excluded + "/"),
+                         "\(document.lastPathComponent) links to local-only production files: \(local)")
+        }
+        precondition(FileManager.default.fileExists(atPath: target.path), "Broken link in \(document.lastPathComponent): \(local)")
     }
 }
-print("Verified 9 PNGs, bilingual README links, and GIF: \(timeline.count) frames, \(String(format: "%.2f", duration)) s, \(bytes) bytes. First and last frames match.")
+print("Verified \(expected.count) PNGs, local documentation links, and archived GIF: \(expectedFrameCount) frames, \(String(format: "%.2f", duration)) s, \(bytes) bytes. Release downloads, MP4s, and audio were not checked.")

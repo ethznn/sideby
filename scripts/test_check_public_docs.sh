@@ -50,8 +50,25 @@ remove_fixture() {
 
 expect_pass
 
+# New public files must be checked before staging, including paths with spaces.
+printf '# Local path\n\n/Users/example/Develop/sideby\n' > "$repository/docs/new release.md"
+expect_fail "local macOS path"
+rm "$repository/docs/new release.md"
+
+mkdir -p "$repository/docs/media"
+printf '<p>/Users/example/Develop/sideby</p>\n' > "$repository/docs/media/new.html"
+expect_fail "local macOS path"
+rm "$repository/docs/media/new.html"
+
+printf '{"display": "29047B54-6562-49DE-AA42-F7A696BE4F6B"}\n' > "$repository/docs/media/new.json"
+expect_fail "machine-specific UUID"
+rm "$repository/docs/media/new.json"
+
+# Ignored local research stays private, but force-staged files must still fail.
+printf 'docs/plans/\n' > "$repository/.gitignore"
 mkdir -p "$repository/docs/plans"
 printf '# Internal release plan\n' > "$repository/docs/plans/example.md"
+expect_pass
 git -C "$repository" add -f docs/plans/example.md
 expect_fail "forbidden public documentation path"
 remove_fixture docs/plans/example.md

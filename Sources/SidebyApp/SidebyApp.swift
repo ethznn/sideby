@@ -596,6 +596,13 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     var workspaceConfigurationRevision = 0
     var workspacePreferences: UserDefaults? = .standard
     @Published var workspaceDesktopNames: [String: [Int: String]] = [:]
+    @Published var workspaceDesktopAliases: [String: String] = [:]
+    @Published var heldMatrixConfiguration = HeldMatrixConfiguration()
+    @Published var heldMatrixShortcutError: String?
+    @Published var heldMatrixInputActive = false
+    var heldMatrixIsRecording = false
+    @Published var heldMatrixSwitchInFlight = false
+    var heldMatrixController: HeldWorkspaceMatrixController?
     var workspaceDesktopNameSpaceIDs: [String: [UInt64]] = [:]
     @Published var workspaceNameRefreshCount = 0
     var workspaceNameOrigins: [String: String] = [:]
@@ -680,6 +687,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.startContextKeyboardInput()
+            self.startHeldMatrixInput()
             if self.isEnabled {
                 self.resumeEnabledInputIfNeeded()
             }
@@ -821,6 +829,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func handleContextKeyboardEvent(_ event: ContextKeyboardShortcutInputEvent) {
+        guard !heldMatrixInputActive else { return }
         if !isSwitching, contextCaptureSession == nil { refreshWorkspaceStatus() }
         let action = contextKeyboardCoordinator.handle(
             event,
@@ -1048,6 +1057,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         contextID: String,
         requiresCompleteSelectedLayout: Bool = false,
         recordsWorkspaceVisit: Bool = true,
+        requestsPermissions: Bool = true,
         completion: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
         lastWorkspaceSwitchSucceeded = false
@@ -1078,7 +1088,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             completion?(false)
             return
         }
-        guard hasPostEventAccess(command: .next, label: "context") else {
+        guard hasPostEventAccess(command: .next, label: "context", requestsPermissions: requestsPermissions) else {
             completion?(false)
             return
         }
@@ -1202,7 +1212,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         } else {
             hudGeneration = nil
         }
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
             let result = Self.productRunner(
                 reader: reader, stableIDsByUUID: mapping,
                 includedDisplayIDs: targetMemberDisplayIDs,
@@ -1472,6 +1482,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         verifiedCurrentWorkspaceID = nil
         workspaceRecoveryTargetID = nil
         applyWorkspaceObservation(observation)
+        nameNewWorkspacesUsingDesktopAliases(previousIDs: Set(previousContexts.map(\.id)))
         if instantPlan.isSynchronized {
             contextCaptureStatus = strings.contextCaptureReadySummary(
                 count: instantPlan.contexts.count,
@@ -1830,7 +1841,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             uuidForDisplayID: DisplayLayoutMapper.displayUUID(for:)
         )
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
             let result = Self.productRunner(
                 reader: reader,
                 stableIDsByUUID: mapping,
@@ -2151,6 +2162,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                 self?.handleSwipeInput(event)
             }
         }
+        swipeSource.isPassthroughEnabled = heldMatrixInputActive
         let didStartSwipe = Self.didStartInputSource(swipeSource.start())
         guard didStartSwipe else {
             swipeSource.stop()
@@ -2377,7 +2389,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             steps: step.map { [$0] } ?? []
         )
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
             let transition = Self.productRunner(
                 reader: reader,
                 stableIDsByUUID: mapping,
@@ -2662,7 +2674,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             hudGeneration = nil
         }
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
             let decision = ModePolicy().decision(
                 for: mode,
                 inputMethod: inputMethod,
@@ -2813,11 +2825,11 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         ]
     }
 
-    private func hasPostEventAccess(command: SwitchCommand, label: String) -> Bool {
+    private func hasPostEventAccess(command: SwitchCommand, label: String, requestsPermissions: Bool = true) -> Bool {
         if let postEventAccessOverride {
             return postEventAccessOverride
         }
-        guard CGPreflightPostEventAccess() || CGRequestPostEventAccess() else {
+        guard CGPreflightPostEventAccess() || (requestsPermissions && CGRequestPostEventAccess()) else {
             postEventAccessGranted = false
             diagnostics = [
                 DiagnosticState(
@@ -2836,6 +2848,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func handleSwipeInput(_ event: InputEvent) {
+        guard !heldMatrixInputActive else { return }
         let event = eventWithCurrentModifierState(event)
         let timestamp = ProcessInfo.processInfo.systemUptime
 
@@ -2898,6 +2911,27 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
             currentModifiers: currentModifiers
         )
         return event.replacingModifierFlags(effectiveModifiers)
+    }
+
+    func setHeldMatrixInputActive(_ active: Bool) {
+        heldMatrixInputActive = active
+        swipeInputSource?.isPassthroughEnabled = active
+        swipePipeline = SwipeInputPipeline(settings: currentGestureSettings)
+    }
+
+    func beginHeldMatrixShortcutRecording() {
+        heldMatrixController?.suspend()
+        contextKeyboardInputSource?.stop()
+        heldMatrixIsRecording = true
+        setHeldMatrixInputActive(true)
+    }
+
+    func endHeldMatrixShortcutRecording() {
+        guard heldMatrixIsRecording else { return }
+        heldMatrixIsRecording = false
+        setHeldMatrixInputActive(false)
+        if contextKeyboardInputSource != nil { startContextKeyboardInput() }
+        if heldMatrixController != nil { startHeldMatrixInput() }
     }
 
     private func completeOnboardingGestureDetection(command: SwitchCommand) {
@@ -3065,6 +3099,12 @@ private struct MenuBarControlView: View {
                 openFloatingMenuWhenReady()
             }
             .onDisappear { didOpenFloatingMenu = false }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+                guard let window = notification.object as? NSWindow, window === menuWindow else { return }
+                // MenuBarExtra reuses its host without another onAppear.
+                didOpenFloatingMenu = false
+                openFloatingMenuWhenReady()
+            }
     }
 
     private func openFloatingMenuWhenReady(retryCount: Int = 3) {
@@ -3082,10 +3122,12 @@ private struct MenuBarControlView: View {
     private func openFloatingMenu(from sourceWindow: NSWindow?) {
         guard !didOpenFloatingMenu else { return }
         didOpenFloatingMenu = true
-        ProductFloatingMenuPanelController.shared.toggle(from: sourceWindow, model: model, actions: actions)
         let menuWindow = menuWindow
         dismiss()
-        menuWindow?.orderOut(nil)
+        // Close the MenuBarExtra's temporary host, rather than only hiding its
+        // window. Its presentation must end before the persistent panel is used.
+        menuWindow?.close()
+        ProductFloatingMenuPanelController.shared.toggle(from: sourceWindow, model: model, actions: actions)
     }
 }
 
@@ -3110,103 +3152,6 @@ private struct ProductMenuContentView: View {
                 .pointingHandCursor()
                 .font(.system(size: 12)).controlSize(.large)
         }
-    }
-}
-
-private struct ProductMenuDiagnosticsView: View {
-    let section: FloatingMenuDiagnosticsSection
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(section.items.enumerated()), id: \.offset) { index, item in
-                if index > 0 {
-                    Divider()
-                }
-
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: systemImage(for: item.severity))
-                        .foregroundStyle(tint(for: item.severity))
-                        .frame(width: 16)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title)
-                            .font(.subheadline.weight(.semibold))
-                        Text(item.message)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(10)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.7))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
-    private func systemImage(for severity: DiagnosticSeverity) -> String {
-        switch severity {
-        case .info:
-            "info.circle.fill"
-        case .warning:
-            "exclamationmark.triangle.fill"
-        case .blocker:
-            "xmark.octagon.fill"
-        }
-    }
-
-    private func tint(for severity: DiagnosticSeverity) -> Color {
-        switch severity {
-        case .info:
-            .blue
-        case .warning:
-            .orange
-        case .blocker:
-            .red
-        }
-    }
-}
-
-private struct CompactDisclosureSection<Content: View>: View {
-    let title: String
-    let systemImage: String
-    @Binding var isExpanded: Bool
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.16)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Label(title, systemImage: systemImage)
-                        .font(.subheadline.weight(.semibold))
-                    Spacer(minLength: 8)
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16, height: 16)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(title)
-            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
-            .pointingHandCursor()
-
-            if isExpanded {
-                content()
-                    .padding(.top, 8)
-            }
-        }
-        .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -3241,61 +3186,29 @@ private enum ProductMenuBarWindowConfigurator {
         window.collectionBehavior.insert(.moveToActiveSpace)
     }
 
-    static func relocate(_ window: NSWindow?, using relocation: ProductMenuBarWindowRelocation) {
-        guard let window else {
-            return
-        }
-
-        configure(window)
-        let targetScreen = targetScreen(for: relocation)
-            ?? window.screen
-            ?? NSScreen.main
-            ?? NSScreen.screens.first
-        guard let targetScreen else {
-            return
-        }
-
-        let visibleFrame = targetScreen.visibleFrame
-        let windowFrame = window.frame
-        let xRange = max(visibleFrame.width - windowFrame.width, 1)
-        let yRange = max(visibleFrame.height - windowFrame.height, 1)
-        let x = visibleFrame.minX + xRange * min(max(relocation.xRatio, 0), 1)
-        let y = visibleFrame.maxY - windowFrame.height - relocation.topInset
-        let origin = CGPoint(
-            x: min(max(x, visibleFrame.minX), visibleFrame.minX + xRange),
-            y: min(max(y, visibleFrame.minY), visibleFrame.minY + yRange)
-        )
-
-        window.setFrameOrigin(origin)
-        window.orderFrontRegardless()
-    }
-
     static func targetScreen(for relocation: ProductMenuBarWindowRelocation) -> NSScreen? {
         relocation.sourceScreen ?? NSScreen.main
     }
 }
 
 @MainActor
-private final class ProductFloatingMenuPanelController {
+final class ProductFloatingMenuPanelController {
     static let shared = ProductFloatingMenuPanelController()
 
-    private var panel: NSPanel?
-    private var switchObserver: AnyCancellable?
-    private var showWorkItem: DispatchWorkItem?
-    private var pendingRelocation: ProductMenuBarWindowRelocation?
-    private weak var pendingModel: SidebyAppModel?
-    private var pendingActions: ProductMenuPanelActions?
-    private var pendingInitialExpansion: FloatingMenuSectionExpansion = .default
-    private var didObserveSwitching = false
+    private(set) var panel: NSPanel?
     private var presentationGeneration = 0
+    private var hasFittedContent = false
+    private var switchObserver: AnyCancellable?
+    private let refreshModel: (SidebyAppModel) -> Void
 
-    private init() {}
+    init(refreshModel: @escaping (SidebyAppModel) -> Void = { $0.refresh() }) {
+        self.refreshModel = refreshModel
+    }
 
     func toggle(
         from sourceWindow: NSWindow?,
         model: SidebyAppModel,
-        actions: ProductMenuPanelActions,
-        initialExpansion: FloatingMenuSectionExpansion = .default
+        actions: ProductMenuPanelActions
     ) {
         if panel?.isVisible == true {
             close()
@@ -3305,138 +3218,49 @@ private final class ProductFloatingMenuPanelController {
         present(
             from: sourceWindow,
             model: model,
-            actions: actions,
-            initialExpansion: initialExpansion
+            actions: actions
         )
     }
 
     func present(
         from sourceWindow: NSWindow?,
         model: SidebyAppModel,
-        actions: ProductMenuPanelActions,
-        initialExpansion: FloatingMenuSectionExpansion = .default
+        actions: ProductMenuPanelActions
     ) {
         presentationGeneration += 1
-        let generation = presentationGeneration
-        model.refresh()
+        refreshModel(model)
         let relocation = ProductMenuBarWindowRelocation.capture(window: sourceWindow)
             ?? ProductMenuBarWindowRelocation.fallback()
-        clearPendingReopen()
-        switchObserver = model.$isSwitching.sink { [weak self, weak model] isSwitching in
-            Task { @MainActor [weak self, weak model] in
-                guard let self, let model, self.presentationGeneration == generation else { return }
-                if isSwitching {
-                    self.queueReopenAfterSwitch(
-                        from: self.panel, model: model, actions: actions,
-                        initialExpansion: initialExpansion, alreadySwitching: true
-                    )
-                } else if self.didObserveSwitching {
-                    self.scheduleShowPending(after: 0.22)
-                }
-            }
+        hasFittedContent = false
+        switchObserver = model.$isSwitching.removeDuplicates().dropFirst().sink { [weak self] switching in
+            guard #available(macOS 27, *) else { return }
+            guard !switching, let self, let panel = self.panel, panel.isVisible else { return }
+            // macOS 27 can leave an all-Spaces nonactivating panel visible but
+            // unable to receive clicks after a Space change. Rebind the SAME
+            // window synchronously, without animation, rebuilding, or a timer.
+            // A panel explicitly closed during the move must stay closed.
+            panel.orderOut(nil)
+            panel.makeKeyAndOrderFront(nil)
+            panel.orderFrontRegardless()
         }
 
         show(
             model: model,
             relocation: relocation,
-            actions: actions,
-            initialExpansion: initialExpansion
+            actions: actions
         )
     }
 
     func close() {
         presentationGeneration += 1
-        clearPendingReopen()
         switchObserver = nil
-        hidePanel()
-    }
-
-    private func queueReopenAfterSwitch(
-        from sourceWindow: NSWindow?,
-        model: SidebyAppModel,
-        actions: ProductMenuPanelActions,
-        initialExpansion: FloatingMenuSectionExpansion,
-        alreadySwitching: Bool = false
-    ) {
-        pendingRelocation = ProductMenuBarWindowRelocation.capture(window: sourceWindow)
-            ?? ProductMenuBarWindowRelocation.fallback()
-        pendingModel = model
-        pendingActions = actions
-        pendingInitialExpansion = initialExpansion
-        didObserveSwitching = alreadySwitching
-        showWorkItem?.cancel()
-
-        scheduleShowPending(after: 1.15)
-        hidePanel()
-    }
-
-    private func scheduleShowPending(after delay: TimeInterval) {
-        guard pendingRelocation != nil else {
-            return
-        }
-
-        showWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            Task { @MainActor in
-                self?.showPending()
-            }
-        }
-        showWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
-    }
-
-    private func showPending() {
-        guard let relocation = pendingRelocation,
-              let model = pendingModel,
-              let actions = pendingActions
-        else {
-            clearPendingReopen()
-            switchObserver = nil
-            return
-        }
-
-        guard !model.isSwitching else {
-            scheduleShowPending(after: 0.25)
-            return
-        }
-
-        if WorkspacePanelReturnPolicy.shouldReturnToWork(
-            succeeded: model.lastWorkspaceSwitchSucceeded,
-            isEditing: false,
-            isGuiding: model.isShowingFirstWorkGuide
-        ) {
-            close()
-            return
-        }
-        let initialExpansion = pendingInitialExpansion
-        clearPendingReopen()
-        show(
-            model: model,
-            relocation: relocation,
-            actions: actions,
-            initialExpansion: initialExpansion
-        )
-    }
-
-    private func clearPendingReopen() {
-        showWorkItem?.cancel()
-        showWorkItem = nil
-        pendingRelocation = nil
-        pendingModel = nil
-        pendingActions = nil
-        pendingInitialExpansion = .default
-        didObserveSwitching = false
-    }
-
-    private func hidePanel() {
         panel?.orderOut(nil)
     }
 
     private func show(
         model: SidebyAppModel,
         relocation: ProductMenuBarWindowRelocation,
-        actions: ProductMenuPanelActions,
-        initialExpansion: FloatingMenuSectionExpansion
+        actions: ProductMenuPanelActions
     ) {
         let isNewPanel = panel == nil
         let generation = presentationGeneration
@@ -3446,31 +3270,13 @@ private final class ProductFloatingMenuPanelController {
         panel.contentViewController = NSHostingController(
             rootView: ProductFloatingMenuPanelView(
                 model: model,
-                onSwitchQueued: { [weak self, weak model, weak panel] _ in
-                    guard let self, let model else {
-                        return
-                    }
-
-                    queueReopenAfterSwitch(
-                        from: panel,
-                        model: model,
-                        actions: actions,
-                        initialExpansion: initialExpansion
-                    )
-                },
                 actions: actions,
-                initialExpansion: initialExpansion,
-                onContentWidthChange: { [weak self, weak panel] width in
-                    guard let self, let panel, self.presentationGeneration == generation else { return }
-                    let visibleFrame = ProductMenuBarWindowConfigurator.targetScreen(for: relocation)?.visibleFrame
-                    let size = FloatingMenuPanelLayout.clampedContentSize(
-                        NSSize(width: width, height: panel.contentView?.bounds.height ?? 360), visibleFrame: visibleFrame)
-                    panel.setContentSize(size)
-                    self.position(panel, using: relocation)
-                },
                 onContentHeightChange: { [weak self, weak panel] height in
-                    guard let self, let panel, height > 0,
+                    guard let self, let panel, height > 0, !self.hasFittedContent,
                           self.presentationGeneration == generation, self.panel === panel else { return }
+                    // Fit once when opened. Live status/history changes stay
+                    // inside the existing scroll view without moving the window.
+                    self.hasFittedContent = true
                     let visibleFrame = ProductMenuBarWindowConfigurator.targetScreen(for: relocation)?.visibleFrame
                     let size = FloatingMenuPanelLayout.clampedContentSize(
                         NSSize(width: panel.contentView?.bounds.width ?? 400, height: ceil(height)), visibleFrame: visibleFrame)
@@ -3480,12 +3286,10 @@ private final class ProductFloatingMenuPanelController {
                 }
             )
         )
-        applyContentSize(
-            to: panel,
-            relocation: relocation,
-            isNewPanel: isNewPanel,
-            capturedExistingContentSize: capturedExistingContentSize
-        )
+        // Mounting the hosting controller can replace the window's size with
+        // its minimum. Apply the menu's width afterward, once per explicit open.
+        applyContentSize(to: panel, relocation: relocation, isNewPanel: isNewPanel,
+                         capturedExistingContentSize: capturedExistingContentSize)
         position(panel, using: relocation)
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
@@ -3501,6 +3305,7 @@ private final class ProductFloatingMenuPanelController {
         panel.onDismissShortcut = { [weak self] in
             self?.close()
         }
+        panel.animationBehavior = .none
         panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
         panel.level = .floating
@@ -3529,7 +3334,9 @@ private final class ProductFloatingMenuPanelController {
     ) {
         let visibleFrame = ProductMenuBarWindowConfigurator.targetScreen(for: relocation)?.visibleFrame
         let currentSize = panel.contentView?.bounds.size
-        let contentSize = FloatingMenuPanelLayout.presentationContentSize(
+        let contentSize = isNewPanel ? FloatingMenuPanelLayout.clampedContentSize(
+            NSSize(width: 680, height: FloatingMenuPanelLayout.defaultSize.height), visibleFrame: visibleFrame
+        ) : FloatingMenuPanelLayout.presentationContentSize(
             capturedExistingContentSize: capturedExistingContentSize,
             currentContentSize: currentSize,
             isNewPanel: isNewPanel,
@@ -3562,10 +3369,7 @@ private final class ProductFloatingMenuPanelController {
 
 struct ProductFloatingMenuPanelView: View {
     @ObservedObject var model: SidebyAppModel
-    let onSwitchQueued: (SwitchCommand) -> Void
     let actions: ProductMenuPanelActions
-    let initialExpansion: FloatingMenuSectionExpansion
-    var onContentWidthChange: (CGFloat) -> Void = { _ in }
     var onContentHeightChange: (CGFloat) -> Void = { _ in }
 
     var body: some View {
@@ -3575,7 +3379,7 @@ struct ProductFloatingMenuPanelView: View {
             .padding(.top, 16)
             .padding(.bottom, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .windowBackgroundColor))
+            .background(NativeSurfaceStyle.windowBackground)
             .background(GeometryReader { geometry in
                 Color.clear.preference(key: ProductDailyContentHeightKey.self, value: geometry.size.height)
             })
@@ -3601,8 +3405,7 @@ struct ProductFloatingMenuPanelView: View {
             maxHeight: .infinity,
             alignment: .topLeading
         )
-        .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear { onContentWidthChange(680) }
+        .background(NativeSurfaceStyle.windowBackground)
         .onPreferenceChange(ProductDailyContentHeightKey.self) { height in
             DispatchQueue.main.async { onContentHeightChange(height) }
         }
@@ -3612,35 +3415,6 @@ struct ProductFloatingMenuPanelView: View {
 private struct ProductDailyContentHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value += nextValue() }
-}
-
-private struct ProductPinnedMenuControlsView: View {
-    @ObservedObject var model: SidebyAppModel
-    let onSwitchQueued: (SwitchCommand) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(FloatingMenuPinnedHeaderContent.defaultItems, id: \.self) { item in
-                pinnedItemView(item)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func pinnedItemView(_ item: FloatingMenuPinnedHeaderItem) -> some View {
-        switch item {
-        case .masterControl:
-            MenuBarMasterControl(model: model)
-        case .navigationControls:
-            ScreenSwitchingControls(
-                model: model,
-                visibleItems: FloatingMenuSwitchSectionContent.pinnedItems,
-                showsTargetSummary: false,
-                showsHint: false,
-                onSwitchQueued: onSwitchQueued
-            )
-        }
-    }
 }
 
 private struct ProductMenuBarWindowRelocation {

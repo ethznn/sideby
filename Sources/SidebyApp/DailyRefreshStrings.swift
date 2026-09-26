@@ -22,7 +22,9 @@ struct DailyRefreshStrings {
     var finishRenaming: String { text("Done", "완료") }
     var useVisibleName: String { text("Use name from current screen", "현재 화면에서 이름 가져오기") }
     var nameUnavailable: String { text("Could not find a window name. Enter a name directly.", "창 이름을 찾지 못했습니다. 직접 이름을 입력해 주세요.") }
-    var useDesktopName: String { text("Use name from desktop content", "데스크탑 내용에서 이름 가져오기") }
+    var useDesktopName: String { text("Use desktop names for workspace", "데스크탑 이름을 작업 이름으로 사용") }
+    var desktopNameUnavailable: String { text("Could not read the desktop names. Check the display connection or enter a workspace name directly.", "데스크탑 이름을 읽을 수 없습니다. 화면 연결을 확인하거나 작업 이름을 직접 입력해 주세요.") }
+    func workspaceNamed(_ name: String) -> String { text("Workspace named “\(name)”.", "작업 이름을 변경했습니다: \(name)") }
     var nameHelp: String { text("Desktop names are suggested from window content. Your own workspace names stay unchanged.", "각 데스크탑의 창 내용으로 이름을 제안합니다. 직접 수정한 작업 이름은 유지됩니다.") }
     func refreshResult(updatedNames: Int, detectedNames: Int) -> String {
         if detectedNames == 0 { return text("No window names were available; existing names were kept.", "창 이름을 읽지 못해 기존 이름을 유지했습니다.") }

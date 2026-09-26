@@ -29,10 +29,6 @@ struct WorkspaceChooserView: View {
     var body: some View {
         let matrixCopy = WorkspaceMatrixStrings(language: model.settings.language)
         return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(matrixCopy.title).fontWeight(.semibold)
-                Spacer(minLength: 8)
-            }
             WorkspaceRebuildControls(model: model)
             stateContent
             NativeDisplaySelector(displays: model.displayLayout.displays, selectedIDs: model.selectedDisplayIDs,
@@ -48,31 +44,28 @@ struct WorkspaceChooserView: View {
                         Label(strings.workspacePrevious(row.name), systemImage: "arrow.uturn.backward")
                             .lineLimit(1)
                         Spacer(minLength: 8)
-                        Text("⌥⇧Tab").foregroundStyle(.secondary)
+                        Text("⌥⇧Tab").font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     }
                 }.buttonStyle(.borderless).pointingHandCursor().disabled(!canActivate(row))
                 .help(strings.contextKeyboardPreviousWorkspaceHint)
             }
             HStack {
                 Text(SettingsRefreshStrings(language: model.settings.language).compactAutoSave)
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 Spacer(minLength: 8)
                 Button(matrixCopy.moreSettings, action: actions.openSettings).pointingHandCursor()
             }
             if !model.firstWorkProgress.isComplete {
                 Button(copy.resume, action: actions.resumeOnboarding).buttonStyle(.borderless).pointingHandCursor()
             }
-        }.font(.system(size: bodySize))
+        }.font(.system(size: bodySize)).foregroundStyle(NativeSurfaceStyle.primaryText)
     }
 
     @ViewBuilder private var stateContent: some View {
         switch presentation.status {
         case .busy:
-            HStack(alignment: .top, spacing: 12) {
-                ProgressView().controlSize(.small)
-                Text(model.workspaceSwitchTargetName.map(strings.workspaceMovingTo) ?? copy.busy)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            // Progress is shown in the matrix toolbar, keeping its rows still.
+            EmptyView()
         case .disabled:
             NativeStatusSection(tone: .neutral, title: copy.offTitle, message: strings.workspaceTurnOnToMove) {
                 Button(copy.turnOn) { model.setSidebyEnabled(true) }.buttonStyle(.borderedProminent).pointingHandCursor()

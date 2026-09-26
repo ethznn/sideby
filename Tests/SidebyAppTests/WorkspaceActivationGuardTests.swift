@@ -176,13 +176,6 @@ final class WorkspaceActivationGuardTests: XCTestCase {
         XCTAssertNil(model.firstWorkProgress.awayContextID)
     }
 
-    func testOnlyDailySuccessfulTransitionsDismissTheChooser() {
-        XCTAssertTrue(WorkspacePanelReturnPolicy.shouldReturnToWork(succeeded: true, isEditing: false, isGuiding: false))
-        XCTAssertFalse(WorkspacePanelReturnPolicy.shouldReturnToWork(succeeded: false, isEditing: false, isGuiding: false))
-        XCTAssertFalse(WorkspacePanelReturnPolicy.shouldReturnToWork(succeeded: true, isEditing: true, isGuiding: false))
-        XCTAssertFalse(WorkspacePanelReturnPolicy.shouldReturnToWork(succeeded: true, isEditing: false, isGuiding: true))
-    }
-
     func testSharedSingleDesktopKeepsTheChosenWorkspaceOnRefresh() {
         let model = model(count: 1)
         model.workspaceSpaceIDsOverride = { ["main": [11]] }

@@ -26,7 +26,8 @@ report_content_violation() {
     fi
 }
 
-while IFS= read -r file; do
+# Include new files before staging; ignored local plans remain excluded.
+while IFS= read -r -d '' file; do
     [[ -f "$file" ]] || continue
 
     case "$file" in
@@ -56,7 +57,7 @@ while IFS= read -r file; do
         "numeric current Space ID" \
         'currentSpaceID[[:space:]]*[:=][[:space:]]*[0-9]' \
         "$file"
-done < <(git ls-files)
+done < <(git ls-files --cached --others --exclude-standard -z)
 
 if (( violations != 0 )); then
     exit 1

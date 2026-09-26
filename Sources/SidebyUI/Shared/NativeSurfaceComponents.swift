@@ -260,7 +260,7 @@ private struct NativeNameFieldEditor: View {
                 onChange(draft)
             }
         ), axis: .vertical)
-        .font(.system(size: bodySize))
+        .font(.system(size: bodySize, weight: .medium))
         .textFieldStyle(.plain)
         .padding(.horizontal, 5).padding(.vertical, compact ? 3 : 6)
         .background(NativeSurfaceStyle.inputBackground, in: RoundedRectangle(cornerRadius: 4))

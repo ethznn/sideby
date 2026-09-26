@@ -35,7 +35,7 @@ extension SidebyAppModel {
     }
 
     /// Numeric Space handles remain transient; durable identity keys are local bookmarks.
-    func workspaceObservation() -> WorkspaceLayoutObservation? {
+    func workspaceObservation(includingUnselectedDisplays: Bool = false) -> WorkspaceLayoutObservation? {
         if let workspaceObservationOverride { return workspaceObservationOverride() }
         if let selectedDisplaySpacesOverride {
             guard let displays = selectedDisplaySpacesOverride() else { return nil }
@@ -48,7 +48,8 @@ extension SidebyAppModel {
         // Never use that layout to rewrite the user's saved workspaces.
         guard isInteractiveSession, let layouts = spaceLayoutReader.readLayout() else { return nil }
         return WorkspaceLayoutObservation.make(
-            layouts: layouts, snapshots: displayObserver.currentSnapshots(), selectedDisplayIDs: selectedDisplayIDs,
+            layouts: layouts, snapshots: displayObserver.currentSnapshots(),
+            selectedDisplayIDs: includingUnselectedDisplays ? Set(displayLayout.displays.map(\.id)) : selectedDisplayIDs,
             isInteractiveSession: isInteractiveSession
         )
     }
@@ -96,6 +97,8 @@ extension SidebyAppModel {
         }
         workspaceIsReconciling = false
         rememberWorkspaceObservation(observation)
+        reconcileWorkspaceDesktopNames(observation)
+        nameNewWorkspacesUsingDesktopAliases(previousIDs: Set(existing.map(\.id)))
         return true
     }
 

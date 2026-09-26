@@ -16,6 +16,7 @@ struct WorkspaceMatrixView: View {
     @State private var resizeStart: CGFloat?
     @State private var activeDrag: WorkspaceMatrixDrag?
     @State private var pendingDeletionID: String?
+    @State private var hoveredDisplayID: String?
     @FocusState private var focusedName: String?
     private var copy: WorkspaceMatrixStrings { .init(language: model.settings.language) }
     private var strings: SettingsRefreshStrings { .init(language: model.settings.language) }
@@ -38,12 +39,26 @@ struct WorkspaceMatrixView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(copy.title).fontWeight(.semibold).accessibilityAddTraits(.isHeader)
+                if model.isSwitching || model.contextCaptureSession != nil || model.pendingContextCaptureAlignment != nil {
+                    ProgressView().controlSize(.small)
+                    Text(model.isSwitching ? copy.moving : DailyRefreshStrings(language: model.settings.language).busy)
+                        .font(.system(size: NativeSurfaceStyle.metadataSize))
+                        .foregroundStyle(NativeSurfaceStyle.secondaryText).lineLimit(1)
+                        .help(model.workspaceSwitchTargetName.map(model.strings.workspaceMovingTo)
+                              ?? DailyRefreshStrings(language: model.settings.language).busy)
+                }
                 Spacer(minLength: 4)
                 Button { model.addEmptyContext() } label: { Label(strings.addWorkspace, systemImage: "plus") }
                     .pointingHandCursor().disabled(!model.canAddContext)
             }
-            Text(copy.help).font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+            Text(copy.help).font(.system(size: NativeSurfaceStyle.descriptionSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
+            if model.heldMatrixConfiguration.isEnabled, model.heldMatrixShortcutError == nil {
+                Text(HeldMatrixStrings(language: model.settings.language).discover(
+                    KeyboardShortcutFormatter.shortcutText(model.heldMatrixConfiguration.shortcut)))
+                    .font(.system(size: NativeSurfaceStyle.metadataSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let nameMessage {
                 Text(nameMessage).font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -93,7 +108,7 @@ struct WorkspaceMatrixView: View {
                 .onChange(of: focusDisplayID) { _, _ in revealDisplay(verticalProxy) }
             }
             .background(NativeSurfaceStyle.tableBackground, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(NativeSurfaceStyle.controlBorder, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(NativeSurfaceStyle.frameBorder, lineWidth: 1))
             .accessibilityIdentifier("workspace-assignment-table")
         }
         .foregroundStyle(NativeSurfaceStyle.primaryText)
@@ -130,10 +145,14 @@ struct WorkspaceMatrixView: View {
             }
             Spacer(minLength: 0)
             Image(systemName: "arrow.up.arrow.down")
+                .font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 6).frame(height: rowHeight)
+        .background(hoveredDisplayID == id ? NativeSurfaceStyle.hoverBackground : .clear,
+                    in: RoundedRectangle(cornerRadius: NativeSurfaceStyle.rowCornerRadius))
         .contentShape(Rectangle())
+        .onHover { hoveredDisplayID = $0 && model.canEditWorkspaceDisplay(id) ? id : nil }
         .interactionCursor(.openHand, isEnabled: model.canEditWorkspaceDisplay(id))
         .help(copy.reorder + " · " + model.displayName(for: id))
         .accessibilityElement(children: .combine)
@@ -162,30 +181,52 @@ struct WorkspaceMatrixView: View {
             NativeInlineNameField(identity: context.id, value: context.name, label: strings.workspaceName, compact: true) {
                 model.setContextName(contextID: context.id, name: $0)
             }.focused($focusedName, equals: context.id).disabled(!model.canAddContext)
-            HStack {
-                if model.verifiedCurrentWorkspaceID == context.id {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor).help(strings.currentWorkspace)
-                        .accessibilityLabel(strings.currentWorkspace)
+            HStack(spacing: 4) {
+                Button { model.activateContext(contextID: context.id) } label: {
+                    HStack(spacing: 5) {
+                        Text(model.strings.goToContext)
+                        Image(systemName: "arrow.right").font(.system(size: 10, weight: .semibold))
+                    }
                 }
-                Button(model.strings.goToContext) { model.activateContext(contextID: context.id) }
-                    .accessibilityLabel(model.strings.workspaceGoTo(context.name))
-                    .pointingHandCursor().disabled(!model.canActivateContext || !model.isWorkspaceAssignmentAvailable(contextID: context.id))
+                .buttonStyle(.bordered).controlSize(.small).fixedSize()
+                .accessibilityLabel(model.strings.workspaceGoTo(context.name))
+                .pointingHandCursor().disabled(!model.canActivateContext || !model.isWorkspaceAssignmentAvailable(contextID: context.id))
                 Spacer(minLength: 2)
+                if model.verifiedCurrentWorkspaceID == context.id {
+                    HStack(spacing: 3) {
+                        Image(systemName: "checkmark").font(.system(size: 10, weight: .semibold))
+                        Text(copy.current)
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(NativeSurfaceStyle.primaryText).fixedSize()
+                    .help(strings.currentWorkspace)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(strings.currentWorkspace)
+                }
                 Menu {
                     if let shortcut = model.workspaceRows.first(where: { $0.id == context.id })?.shortcut { Text(shortcut) }
                     Button(DailyRefreshStrings(language: model.settings.language).useDesktopName) {
                         let copy = DailyRefreshStrings(language: model.settings.language)
-                        nameMessage = model.useDesktopContentName(contextID: context.id) ? model.workspaceRefreshMessage : copy.nameUnavailable
+                        if model.useDesktopContentName(contextID: context.id),
+                           let updated = model.settings.contextPlan.contexts.first(where: { $0.id == context.id }) {
+                            nameMessage = copy.workspaceNamed(updated.name)
+                        } else { nameMessage = copy.desktopNameUnavailable }
                     }.disabled(!model.canAddContext || model.pendingContextCaptureAlignment != nil)
                     Button(strings.deleteWorkspace, role: .destructive) {
                         if model.contextDeletionRequiresConfirmation(contextID: context.id) { pendingDeletionID = context.id }
                         else { _ = model.deleteContext(contextID: context.id) }
                     }.disabled(!model.canDeleteContext)
-                } label: { Image(systemName: "ellipsis") }
-                .menuStyle(.borderlessButton).fixedSize().accessibilityLabel(context.name + " · " + strings.workspaces)
+                } label: { Image(systemName: "ellipsis").frame(width: 24, height: 24) }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .accessibilityLabel(context.name + " · " + strings.workspaces)
+                .help(context.name + " · " + strings.workspaces)
                 .pointingHandCursor()
-            }.font(.system(size: 12))
-        }.padding(.horizontal, 4)
+            }.font(.system(size: 12)).frame(height: 24)
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(model.verifiedCurrentWorkspaceID == context.id ? NativeSurfaceStyle.selectionBackground : .clear,
+                    in: RoundedRectangle(cornerRadius: NativeSurfaceStyle.rowCornerRadius))
     }
 
     private func cell(_ context: ContextDefinition, displayID: String) -> some View {
@@ -209,6 +250,10 @@ private struct WorkspaceMatrixCell: View {
     let displayID: String
     @Binding var activeDrag: WorkspaceMatrixDrag?
     @State private var isDropTarget = false
+    @State private var isHovered = false
+    @State private var nameEditTarget: DesktopNameEditTarget?
+    @State private var nameError: String?
+    private var nameCopy: DesktopNameStrings { .init(language: model.settings.language) }
     private var copy: WorkspaceMatrixStrings { .init(language: model.settings.language) }
     private var strings: SettingsRefreshStrings { .init(language: model.settings.language) }
     private var index: Int? { context.spaceIndex(for: displayID) }
@@ -230,29 +275,40 @@ private struct WorkspaceMatrixCell: View {
             } else { face }
             Menu { commands } label: { Image(systemName: "chevron.down").frame(width: 24, height: 34) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().pointingHandCursor().disabled(!enabled)
-                .accessibilityLabel(context.name + " · " + model.displayName(for: displayID) + " · " + copy.assign)
+                .accessibilityLabel(context.name + " · " + model.displayName(for: displayID) + " · " + nameCopy.actions)
                 .accessibilityValue(fullLabel)
         }
-        .background(index == nil ? NativeSurfaceStyle.tableBackground : NativeSurfaceStyle.selectionBackground,
+        .background(isDropTarget ? NativeSurfaceStyle.selectionBackground :
+                    isHovered && enabled ? NativeSurfaceStyle.hoverBackground :
+                    index == nil ? NativeSurfaceStyle.inputBackground : NativeSurfaceStyle.itemBackground,
                     in: RoundedRectangle(cornerRadius: 7))
-        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(isDropTarget ? Color.accentColor : NativeSurfaceStyle.controlBorder,
+        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(isDropTarget ? Color.accentColor : NativeSurfaceStyle.itemBorder,
                                                                lineWidth: isDropTarget ? 2 : 1))
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
         .onDrop(of: [WorkspaceSpaceDragPayload.typeIdentifier], delegate: WorkspaceMatrixDropDelegate(
             model: model, contextID: context.id, displayID: displayID, activeDrag: $activeDrag, isTargeted: $isDropTarget))
         .contextMenu { commands }
+        .popover(item: $nameEditTarget, arrowEdge: .bottom) { target in
+            DesktopNameEditor(model: model, target: target) { nameEditTarget = nil }.id(target.id)
+        }
+        .alert(nameCopy.title, isPresented: Binding(get: { nameError != nil }, set: { if !$0 { nameError = nil } })) {
+            Button("OK") { nameError = nil }
+        } message: { Text(nameError ?? "") }
     }
 
     private var face: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(isDropTarget ? (NSEvent.modifierFlags.contains(.option) ? copy.dropCopy : index == nil ? copy.dropMove : copy.dropSwap) : title)
-                .font(.system(size: 12, weight: .medium)).lineLimit(1)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(index == nil && !isDropTarget ? NativeSurfaceStyle.secondaryText : NativeSurfaceStyle.primaryText)
+                .lineLimit(1)
             HStack(spacing: 4) {
                 if spaceName != nil { Text(desktopLabel) }
                 if let index, let count = model.workspaceObservedDisplays?.first(where: { $0.displayID == displayID })?.spaceCount,
                    index >= count { Text(strings.invalidDesktop) }
                 else if sharedCount > 1 { Label(copy.shared, systemImage: "link") }
-            }.font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText).lineLimit(1)
+            }.font(.system(size: NativeSurfaceStyle.metadataSize)).foregroundStyle(NativeSurfaceStyle.secondaryText).lineLimit(1)
         }
         .padding(.leading, 10).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -267,6 +323,23 @@ private struct WorkspaceMatrixCell: View {
     }
 
     @ViewBuilder private var commands: some View {
+        if let index {
+            Button(nameCopy.rename) {
+                if let target = model.prepareDesktopNameEdit(displayID: displayID, spaceIndex: index) {
+                    nameEditTarget = target
+                } else { nameError = nameCopy.unavailable }
+            }.disabled(!enabled)
+            if model.desktopAlias(displayID: displayID, spaceIndex: index) != nil {
+                Button(nameCopy.automatic) {
+                    guard let target = model.prepareDesktopNameEdit(displayID: displayID, spaceIndex: index) else {
+                        nameError = nameCopy.unavailable
+                        return
+                    }
+                    nameError = nameCopy.failure(model.saveDesktopName(nil, target: target))
+                }.disabled(!enabled)
+            }
+            Divider()
+        }
         Text(copy.assign)
         ForEach(model.workspaceDesktopChoices(displayID: displayID)) { choice in
             Button(desktopChoiceLabel(choice)) {

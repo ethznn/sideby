@@ -21,7 +21,8 @@ and set `SIDEBY_BUILD_NUMBER` to its latest `sparkle:version` plus one. If the
 published build number cannot be verified, check GitHub release metadata before
 building. Do not rely on the script's default build number after a public release.
 
-With that environment variable set, build local app bundles:
+Also set `SIDEBY_VERSION` to the version being verified. With both environment
+variables set, build local app bundles:
 
 ```bash
 scripts/build_app_bundle.sh
@@ -45,10 +46,13 @@ checkout. Do not launch a development copy from `dist` when verifying the instal
 app. The README renderer also accepts `SIDEBY_BUILD_PATH`; media intermediates
 default to its `readme-media` subdirectory.
 
-Build a Sparkle-enabled release DMG with explicit release metadata:
+Build a Sparkle-enabled release DMG with explicit release metadata. Set
+`SIDEBY_VERSION` to the intended release and `SIDEBY_BUILD_NUMBER` to a number
+higher than the published feed, then run:
 
 ```bash
-SIDEBY_VERSION=0.11.1 SIDEBY_BUILD_NUMBER=9 scripts/build_release_dmg.sh
+scripts/validate_release_metadata.sh "$SIDEBY_VERSION" "$SIDEBY_BUILD_NUMBER"
+scripts/build_release_dmg.sh
 ```
 
 The DMG script is included so release packaging stays reproducible. It requires
@@ -67,9 +71,7 @@ After the signed DMG is notarized and stapled, prepare the signed Sparkle assets
 ```bash
 # Submit the DMG to Apple's notary service, then staple it locally.
 
-SIDEBY_VERSION=0.11.1 \
-SIDEBY_BUILD_NUMBER=9 \
-SIDEBY_RELEASE_NOTES_PATH=docs/releases/0.11.1.md \
+SIDEBY_RELEASE_NOTES_PATH="docs/releases/$SIDEBY_VERSION.md" \
 scripts/prepare_sparkle_release.sh
 ```
 
@@ -145,6 +147,38 @@ xed Package.swift
 ```
 
 Use `SidebyApp` for the product app and `SidebyDevApp` for local probes. Probe-only helpers live in `SidebyDevSupport` so the product app does not carry command-line experiment runners.
+
+## Verification before release
+
+Run the full test suite and packaging guards:
+
+```bash
+swift test
+bash scripts/test_check_public_docs.sh
+bash scripts/check_public_docs.sh
+bash scripts/test_validate_release_metadata.sh
+bash scripts/test_verify_sparkle_bundle.sh
+```
+
+The public-document guard checks tracked and nonignored new files, including
+files not staged yet. Keep internal plans, real display identifiers, personal
+paths, and probe logs outside the public tree. Inspect newly added media as well;
+a text scan cannot establish whether an image or video contains personal data.
+
+In a graphical macOS session, run the opt-in native window checks with
+`SIDEBY_NATIVE_EVIDENCE=1 swift test`. Use `SIDEBY_NATIVE_EVIDENCE_OUTPUT` to send
+their screenshots to a local `.noindex` directory. These tests use sample data;
+before publishing, also verify real desktop switching, shortcut release, and
+menu interaction on the supported macOS versions and display setups available
+to the maintainer.
+
+After updating README assets, run `swift scripts/verify_readme_media.swift` as
+described in [README media](media/README.md). The repository keeps the images
+and GIFs used by the documentation; promotional MP4s and their production
+pipeline stay outside Git. CI does not require those local production files.
+When publishing the corresponding release, upload the four linked brand-film
+MP4s as release attachments and verify their downloads. Remove the release
+draft label and update both READMEs' version and download-availability notes.
 
 ## Repository Shape
 

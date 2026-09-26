@@ -234,7 +234,12 @@ public final class GlobalContextKeyboardShortcutInputSource {
 }
 
 @MainActor
-private final class CarbonContextKeyboardHotKeyRegistrar: ContextKeyboardHotKeyRegistering {
+final class CarbonContextKeyboardHotKeyRegistrar: ContextKeyboardHotKeyRegistering {
+    private let signature: OSType
+
+    init(signature: OSType = ContextKeyboardCarbonEventDecoder.signature) {
+        self.signature = signature
+    }
     private var handler: ((UInt32, ContextKeyboardHotKeyEvent) -> Void)?
     private var eventHandler: EventHandlerRef?
     private var hotKeyRefs: [EventHotKeyRef] = []
@@ -282,7 +287,7 @@ private final class CarbonContextKeyboardHotKeyRegistrar: ContextKeyboardHotKeyR
     func register(id: UInt32, shortcut: KeyboardShortcut) -> Bool {
         var hotKeyRef: EventHotKeyRef?
         let hotKeyID = EventHotKeyID(
-            signature: ContextKeyboardCarbonEventDecoder.signature,
+            signature: signature,
             id: id
         )
         let status = RegisterEventHotKey(
@@ -333,17 +338,18 @@ private final class CarbonContextKeyboardHotKeyRegistrar: ContextKeyboardHotKeyR
         )
         guard status == noErr else { return status }
 
-        guard let hotKeyEvent = ContextKeyboardCarbonEventDecoder.event(
-            signature: hotKeyID.signature,
+        let registrar = Unmanaged<CarbonContextKeyboardHotKeyRegistrar>
+            .fromOpaque(userData)
+            .takeUnretainedValue()
+        guard MainActor.assumeIsolated({ hotKeyID.signature == registrar.signature }),
+              let hotKeyEvent = ContextKeyboardCarbonEventDecoder.event(
+            signature: ContextKeyboardCarbonEventDecoder.signature,
             eventKind: GetEventKind(event)
         ) else {
             return OSStatus(eventNotHandledErr)
         }
 
         let id = hotKeyID.id
-        let registrar = Unmanaged<CarbonContextKeyboardHotKeyRegistrar>
-            .fromOpaque(userData)
-            .takeUnretainedValue()
         return MainActor.assumeIsolated {
             registrar.handler?(id, hotKeyEvent)
             return noErr

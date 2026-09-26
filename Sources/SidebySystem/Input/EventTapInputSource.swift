@@ -143,6 +143,9 @@ public enum GlobalEventTapStartResult: Equatable, Sendable {
 }
 
 public final class GlobalEventTapInputSource {
+    /// The temporary matrix owns scrolling while its shortcut is held.
+    /// Read/written on the main run loop, where this event tap is installed.
+    public var isPassthroughEnabled = false
     private let inputSource: EventTapInputSource
     private let suppressedScrollModifiers: ModifierFlags?
     private let suppressedModifierFlags: ModifierFlags?
@@ -273,6 +276,7 @@ public final class GlobalEventTapInputSource {
             return Unmanaged.passUnretained(event)
         }
 
+        if eventTapInputSource.isPassthroughEnabled { return Unmanaged.passUnretained(event) }
         eventTapInputSource.inputSource.handle(
             type: type,
             event: event,

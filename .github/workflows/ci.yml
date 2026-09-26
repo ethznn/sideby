@@ -32,6 +32,9 @@ jobs:
       - name: Run tests
         run: swift test
 
+      - name: Verify README media and links
+        run: swift scripts/verify_readme_media.swift
+
       - name: Build Sideby app
         run: swift build --product SidebyApp
 
