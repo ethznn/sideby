@@ -27,36 +27,22 @@ struct WorkspaceChooserView: View {
     }
 
     var body: some View {
-        let matrixCopy = WorkspaceMatrixStrings(language: model.settings.language)
-        return VStack(alignment: .leading, spacing: 12) {
-            WorkspaceRebuildControls(model: model)
-            stateContent
-            NativeDisplaySelector(displays: model.displayLayout.displays, selectedIDs: model.selectedDisplayIDs,
-                language: model.settings.language, isEnabled: model.canAddContext,
-                setSelected: { model.setDisplayTarget($0, isSelected: $1) })
-            WorkspaceMatrixView(model: model, compact: true)
-                .frame(height: min(440, max(240, 160 + CGFloat(model.displayLayout.displays.count) * 56)))
-            if let id = model.workspaceHistory.previousContextID,
-               id != presentation.currentContextID,
-               let row = model.workspaceRows.first(where: { $0.id == id }) {
-                Button { model.activateContext(contextID: id) } label: {
-                    HStack {
-                        Label(strings.workspacePrevious(row.name), systemImage: "arrow.uturn.backward")
-                            .lineLimit(1)
-                        Spacer(minLength: 8)
-                        Text("⌥⇧Tab").font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                    }
-                }.buttonStyle(.borderless).pointingHandCursor().disabled(!canActivate(row))
-                .help(strings.contextKeyboardPreviousWorkspaceHint)
+        VStack(alignment: .leading, spacing: 14) {
+            SavedWorkspaceBrowser(model: model, showsBrand: false)
+                .frame(height: min(660, max(410, 350 + CGFloat(model.displayLayout.displays.count) * 68)))
+            if model.workspaceRecoveryTargetID != nil { stateContent }
+            if !model.isEnabled {
+                Button(copy.turnOn) { model.setSidebyEnabled(true) }.buttonStyle(.borderedProminent).pointingHandCursor()
+            }
+            if model.permissionState != .granted || !model.hasSwitchingAccess {
+                Button(copy.permissions, action: actions.openPermissions).pointingHandCursor()
             }
             HStack {
-                Text(SettingsRefreshStrings(language: model.settings.language).compactAutoSave)
-                    .font(.system(size: detailSize)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                Spacer(minLength: 8)
-                Button(matrixCopy.moreSettings, action: actions.openSettings).pointingHandCursor()
-            }
-            if !model.firstWorkProgress.isComplete {
-                Button(copy.resume, action: actions.resumeOnboarding).buttonStyle(.borderless).pointingHandCursor()
+                Text(KeyboardShortcutFormatter.shortcutText(model.heldMatrixConfiguration.shortcut))
+                    .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                Spacer()
+                Button(model.saveCopy.text("Manage setups…", "구성 관리…"), action: actions.editWorkspaces).pointingHandCursor()
+                Button(WorkspaceMatrixStrings(language: model.settings.language).moreSettings, action: actions.openSettings).pointingHandCursor()
             }
         }.font(.system(size: bodySize)).foregroundStyle(NativeSurfaceStyle.primaryText)
     }

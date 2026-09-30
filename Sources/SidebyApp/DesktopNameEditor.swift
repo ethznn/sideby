@@ -17,7 +17,7 @@ struct DesktopNameStrings {
     var conflict: String { text("The name was changed in another window. Reopen the editor to see the latest name.", "다른 창에서 이름을 변경했습니다. 다시 열어 최신 이름을 확인해 주세요.") }
     var actions: String { text("Desktop actions", "데스크탑 메뉴") }
     func shared(_ count: Int) -> String {
-        text("Applies to all \(count) workspaces using this desktop.", "이 데스크탑을 사용하는 작업 \(count)개에 함께 적용됩니다.")
+        text("Applies to all \(count) setups using this desktop.", "이 데스크탑을 사용하는 구성 \(count)개에 함께 적용됩니다.")
     }
     func automaticPreview(_ name: String) -> String { text("Automatic: \(name)", "자동 이름: \(name)") }
     func validation(_ result: DesktopNameValidation) -> String? {

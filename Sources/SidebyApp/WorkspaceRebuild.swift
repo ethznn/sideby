@@ -97,6 +97,7 @@ extension SidebyAppModel {
     }
 
     func workspaceIdentityUnavailable(in observation: WorkspaceLayoutObservation?) -> Set<String> {
+        if settings.savedWorkspaces.initialized { return [] }
         if workspaceIdentityNeedsReview { return selectedDisplayIDs }
         guard let observation else { return [] }
         return Set(observation.displays.compactMap { display in
@@ -172,22 +173,22 @@ extension SidebyAppModel {
                 }
             }
         }
-        guard let contexts = WorkspaceLiveRefreshPolicy.contexts(existing: backup.plan.contexts,
-            observation: observation, selectedDisplayIDs: selectedDisplayIDs, previousSpaceIDs: [:],
-            previousSpaceKeys: backup.identity.spaceKeys,
-            defaultName: { settings.language == .korean ? "데스크탑 \($0)" : "Desktop \($0)" }) else { return false }
-        workspaceIdentityNeedsReview = false
-        workspaceIdentityBlockedDisplayIDs = []
-        workspaceLastObservedSpaceKeys = backup.identity.spaceKeys.merging(observation.spaceKeysByDisplayID) { _, new in new }
-        workspaceLastObservedSpaceIDs = observation.spaceIDsByDisplayID
-        updateContextPlan { plan in
-            plan = ContextPlan(contexts: contexts, currentContextID: backup.plan.currentContextID,
-                               syncState: backup.plan.syncState, isPinned: backup.plan.isPinned)
+        var next = settings
+        var library = next.savedWorkspaces
+        library.bookmarks = [:]
+        library.shortcutSlots = [:]
+        for context in backup.plan.contexts {
+            library.assignAvailableShortcut(to: context.id)
+            for (id, index) in context.displaySpaceIndexes {
+                guard let keys = backup.identity.spaceKeys[id], keys.indices.contains(index) else { continue }
+                library.bookmarks[context.id, default: [:]][id] = keys[index]
+            }
         }
-        workspaceNameOrigins = backup.nameOrigins
-        workspacePreferences?.set(workspaceNameOrigins, forKey: Self.nameOriginsKey)
-        applyWorkspaceObservation(observation)
-        saveWorkspaceIdentitySnapshot()
+        let contexts = library.resolved(backup.plan.contexts, spaceKeys: observation.spaceKeysByDisplayID)
+        next.savedWorkspaces = library
+        next.contextPlan = ContextPlan(contexts: contexts, currentContextID: backup.plan.currentContextID,
+                                      syncState: .needsSync, isPinned: backup.plan.isPinned)
+        guard commitSavedWorkspaceChange(next, label: WorkspaceRebuildStrings(language: settings.language).restored) else { return false }
         workspaceRebuildBackup = nil
         workspacePreferences?.removeObject(forKey: Self.rebuildBackupKey)
         return true

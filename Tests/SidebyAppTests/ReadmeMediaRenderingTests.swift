@@ -68,15 +68,25 @@ final class ReadmeMediaRenderingTests: XCTestCase {
                 actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {}))
             try await render(settings, to: output.appendingPathComponent("sideby-settings-workspaces-\(suffix).png"),
                              width: 840, height: 620, dark: false)
+            let empty = try makeModel(language: language, workspaceCount: 0)
+            try await render(SavedWorkspaceBrowser(model: empty).padding(18),
+                to: intermediates.appendingPathComponent("empty-\(suffix).png"), width: 680, height: 560, dark: true)
+            empty.workspaceSaveDraft = empty.prepareWorkspaceSave()
+            empty.workspaceSaveDraft?.name = language == .english ? "Checkout" : "결제 개발"
+            try await render(WorkspaceSaveView(model: empty, finish: { _ in }),
+                to: output.appendingPathComponent("sideby-save-workspace-\(suffix).png"), width: 530, height: 480, dark: false)
+            let first = try makeModel(language: language, workspaceCount: 1)
+            try await render(SavedWorkspaceBrowser(model: first).padding(18),
+                to: intermediates.appendingPathComponent("first-\(suffix).png"), width: 680, height: 560, dark: true)
+            let review = try makeModel(language: language, currentIndex: 1)
+            try await render(SavedWorkspaceBrowser(model: review).padding(18),
+                to: intermediates.appendingPathComponent("review-\(suffix).png"), width: 680, height: 560, dark: true)
+            try await render(SavedWorkspaceBrowser(model: model).padding(18),
+                to: intermediates.appendingPathComponent("return-\(suffix).png"), width: 680, height: 560, dark: true)
             let preferences = MemoryProductUIPreferences()
             preferences.onboardingStage = .workspaces
-            model.firstWorkProgress = .init()
-            try await render(onboarding(model, preferences),
-                to: output.appendingPathComponent("sideby-onboarding-workspaces-\(suffix).png"), width: 640, height: 760, dark: false)
-            preferences.onboardingStage = .roundTrip
-            completeProgress(model)
-            try await render(onboarding(model, preferences),
-                to: output.appendingPathComponent("sideby-onboarding-roundtrip-\(suffix).png"), width: 640, height: 520, dark: false)
+            try await render(onboarding(empty, preferences),
+                to: output.appendingPathComponent("sideby-onboarding-saved-workspaces-\(suffix).png"), width: 640, height: 760, dark: false)
             // Opposite appearance and one-display coverage stay outside public assets.
             try await render(onboarding(model, preferences),
                 to: evidence.appendingPathComponent("roundtrip-\(suffix)-dark.png"), width: 640, height: 520, dark: true)
@@ -106,21 +116,21 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         }
     }
 
-    private func makeModel(language: AppLanguage, displayCount: Int = 2) throws -> SidebyAppModel {
+    private func makeModel(language: AppLanguage, displayCount: Int = 2, workspaceCount: Int = 2, currentIndex: Int = 0) throws -> SidebyAppModel {
         let fixture = try JSONDecoder().decode(MediaFixture.self,
             from: Data(contentsOf: root.appendingPathComponent("docs/media/demo-data.json")))
         let displays = Array(fixture.displays.prefix(displayCount))
         let ids = displays.map(\.id)
         var settings = AppSettings.default
         settings.language = language
-        settings.contextPlan = .init(contexts: fixture.workspaces.enumerated().map { index, workspace in
+        settings.contextPlan = .init(contexts: fixture.workspaces.prefix(workspaceCount).enumerated().map { index, workspace in
             .init(id: workspace.id, order: index + 1, name: language == .english ? workspace.en : workspace.ko,
                   displaySpaceIndexes: Dictionary(uniqueKeysWithValues: ids.map { ($0, index) }))
-        }, currentContextID: "checkout")
+        }, currentContextID: fixture.workspaces[currentIndex].id)
         settings.displaySelection = .init(hasInitialized: true, selectedDisplayIDs: Set(ids),
             knownDisplayNames: Dictionary(uniqueKeysWithValues: displays.map { ($0.id, $0.name) }))
         settings.displayRowOrder = ids
-        let observation = displays.map { InstantCaptureDisplay(displayID: $0.id, spaceCount: fixture.workspaces.count, currentSpaceIndex: 0) }
+        let observation = displays.map { InstantCaptureDisplay(displayID: $0.id, spaceCount: fixture.workspaces.count, currentSpaceIndex: currentIndex) }
         let model = SidebyAppModel(testSettings: settings, selectedDisplayIDs: Set(ids),
             selectedDisplaySpaces: { observation }, postEventAccessGranted: true)
         model.displayLayout = .init(displays: displays.enumerated().map { index, display in
@@ -130,7 +140,14 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         let spaceIDs = Dictionary(uniqueKeysWithValues: ids.enumerated().map { index, id in
             (id, fixture.workspaces.indices.map { UInt64(100 * (index + 1) + $0) })
         })
+        let keys = Dictionary(uniqueKeysWithValues: ids.map { id in
+            (id, fixture.workspaces.indices.map { "sample-" + id + "-desktop-" + String($0) })
+        })
+        let layout = WorkspaceLayoutObservation(displays: observation, spaceIDsByDisplayID: spaceIDs, spaceKeysByDisplayID: keys)
+        model.workspaceObservationOverride = { layout }
         model.workspaceSpaceIDsOverride = { spaceIDs }
+        _ = model.initializeSavedWorkspaceLibrary(layout)
+        model.workspaceLatestObservation = layout
         model.workspaceObservedDisplays = observation
         model.workspaceLastObservedSpaceIDs = spaceIDs
         model.workspaceDesktopNameSpaceIDs = spaceIDs
@@ -141,7 +158,7 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         })
         _ = model.workspaceConnectionSession.confirm(spaceIDsByDisplayID: spaceIDs)
         model.workspaceConnectionStatus = .ready
-        model.verifiedCurrentWorkspaceID = "checkout"
+        model.verifiedCurrentWorkspaceID = workspaceCount == 0 ? nil : fixture.workspaces[currentIndex].id
         model.permissionState = .granted
         return model
     }

@@ -5,27 +5,27 @@ import SwiftUI
 struct HeldMatrixStrings {
     let language: AppLanguage
     private func text(_ en: String, _ ko: String) -> String { language == .korean ? ko : en }
-    var title: String { text("Quick workspace matrix", "빠른 작업 매트릭스") }
-    var hint: String { text("Hold the shortcut and click a workspace. Release to close.", "누른 채 작업을 클릭하세요. 키를 놓으면 닫힙니다.") }
+    var title: String { text("Quick setup matrix", "빠른 구성 매트릭스") }
+    var hint: String { text("Hold the shortcut and click a setup. Release to close.", "누른 채 구성을 클릭하세요. 키를 놓으면 닫힙니다.") }
     var current: String { text("Current", "현재") }
     var moving: String { text("Switching…", "이동 중…") }
     var changed: String { text("Assignments changed. Reopen to update.", "배정이 바뀌었습니다. 다시 열어 확인해 주세요.") }
     var unavailable: String { text("Check desktop connection", "데스크탑 연결 확인 필요") }
-    var off: String { text("Turn on Sideby from the menu bar to switch workspaces.", "메뉴바에서 Sideby를 켜 주세요.") }
+    var off: String { text("Turn on Sideby from the menu bar to switch setups.", "메뉴바에서 Sideby를 켜 주세요.") }
     var permission: String { text("Check switching access in Settings.", "설정에서 전환 권한을 확인해 주세요.") }
     var noDisplays: String { text("Choose the displays to switch from the menu bar.", "메뉴바에서 함께 움직일 화면을 선택해 주세요.") }
-    var empty: String { text("Create your first workspace from the menu bar.", "메뉴바에서 첫 작업을 구성해 주세요.") }
-    var busy: String { text("Finishing the current operation…", "진행 중인 작업을 마무리하고 있습니다…") }
-    var failed: String { text("Switch incomplete. Click the workspace to retry.", "일부 화면이 이동하지 못했습니다. 작업을 눌러 다시 시도하세요.") }
-    var previous: String { text("Show earlier workspaces", "앞쪽 작업 보기") }
-    var next: String { text("Show later workspaces", "뒤쪽 작업 보기") }
-    var setting: String { text("Show the quick matrix while holding a shortcut", "단축키를 누르는 동안 빠른 작업 매트릭스 보기") }
+    var empty: String { text("Create your first setup from the menu bar.", "메뉴바에서 첫 구성을 구성해 주세요.") }
+    var busy: String { text("Finishing the current operation…", "진행 중인 동작을 마무리하고 있습니다…") }
+    var failed: String { text("Switch incomplete. Click the setup to retry.", "일부 화면이 이동하지 못했습니다. 구성을 눌러 다시 시도하세요.") }
+    var previous: String { text("Show earlier setups", "앞쪽 구성 보기") }
+    var next: String { text("Show later setups", "뒤쪽 구성 보기") }
+    var setting: String { text("Show the quick matrix while holding a shortcut", "단축키를 누르는 동안 빠른 구성 매트릭스 보기") }
     var record: String { text("Change shortcut…", "단축키 변경…") }
     var recording: String { text("Press a shortcut · Esc to cancel", "단축키를 누르세요 · Esc로 취소") }
     var invalidShortcut: String { text("Use Option, Control or Command with a key. Avoid Sideby shortcuts, reserved system shortcuts and Esc.", "Option·Control·Command 중 하나와 키를 조합해 주세요. 기존 Sideby·시스템 단축키 및 Esc는 사용할 수 없습니다.") }
     var registrationFailed: String { text("This shortcut could not be registered. Choose another combination.", "단축키를 등록할 수 없습니다. 다른 조합을 선택해 주세요.") }
-    func move(_ name: String) -> String { text("Switch all assigned displays to \(name)", "배정된 화면을 모두 \(name) 작업으로 전환") }
-    func discover(_ shortcut: String) -> String { text("Hold \(shortcut) to choose a workspace quickly.", "\(shortcut)를 누른 채 작업을 빠르게 선택할 수 있습니다.") }
+    func move(_ name: String) -> String { text("Switch all assigned displays to \(name)", "배정된 화면을 모두 \(name) 구성으로 전환") }
+    func discover(_ shortcut: String) -> String { text("Hold \(shortcut) to choose a setup quickly.", "\(shortcut)를 누른 채 구성을 빠르게 선택할 수 있습니다.") }
 }
 
 struct HeldWorkspaceMatrixView: View {
@@ -39,59 +39,20 @@ struct HeldWorkspaceMatrixView: View {
     private var strings: SettingsRefreshStrings { .init(language: model.settings.language) }
     private var leadingIndex: Int { snapshot.columns.firstIndex { $0.id == leadingID } ?? 0 }
 
+    var save: () -> Void = {}
+    var edit: (String) -> Void = { _ in }
+    var persistent = false
+    var close: () -> Void = {}
+    var keepOpen: () -> Void = {}
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(copy.title).font(.system(size: 13, weight: .semibold))
-                Spacer()
-                Text(KeyboardShortcutFormatter.shortcutText(model.heldMatrixConfiguration.shortcut))
-                    .font(.system(size: 11, weight: .medium)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                    .padding(.horizontal, 7).padding(.vertical, 1)
-                    .background(NativeSurfaceStyle.tableBackground, in: RoundedRectangle(cornerRadius: 5))
-            }
-            if snapshot.columns.isEmpty {
-                Text(snapshot.displayIDs.isEmpty ? copy.noDisplays : copy.empty)
-                    .font(.system(size: 13)).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            } else {
-                ScrollView(.vertical) {
-                    HStack(alignment: .top, spacing: 8) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(strings.workspaces).font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(NativeSurfaceStyle.secondaryText)
-                                .frame(height: HeldMatrixPanelLayout.headerHeight)
-                            ForEach(snapshot.displayIDs, id: \.self) { id in
-                                Text(snapshot.displayNames[id] ?? "").font(.system(size: 12, weight: .medium))
-                                    .lineLimit(2).frame(height: HeldMatrixPanelLayout.rowHeight)
-                                    .help(snapshot.displayNames[id] ?? "")
-                            }
-                        }.padding(.vertical, 4).frame(width: HeldMatrixPanelLayout.labelWidth, alignment: .leading)
-                        ScrollView(.horizontal) {
-                            LazyHStack(alignment: .top, spacing: 8) {
-                                ForEach(snapshot.columns) { column in columnButton(column).id(column.id) }
-                            }.scrollTargetLayout().padding(.bottom, 5)
-                        }
-                        .scrollPosition(id: $leadingID, anchor: .leading)
-                    }
-                }
-            }
-            HStack(spacing: 8) {
-                Text(statusMessage ?? copy.hint).font(.system(size: 11))
-                    .foregroundStyle(NativeSurfaceStyle.secondaryText).lineLimit(2)
-                Spacer(minLength: 0)
-                if snapshot.columns.count > 1 {
-                    Button { scroll(-1) } label: { Image(systemName: "chevron.left").frame(width: 32, height: 28) }
-                        .buttonStyle(.borderless).pointingHandCursor().disabled(leadingIndex == 0).accessibilityLabel(copy.previous)
-                    Button { scroll(1) } label: { Image(systemName: "chevron.right").frame(width: 32, height: 28) }
-                        .buttonStyle(.borderless).pointingHandCursor().disabled(leadingIndex >= snapshot.columns.count - 1).accessibilityLabel(copy.next)
-                }
-            }.frame(minHeight: 28)
-        }
-        .padding(16).foregroundStyle(NativeSurfaceStyle.primaryText)
-        .background(NativeSurfaceStyle.windowBackground, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(NativeSurfaceStyle.frameBorder, lineWidth: 1))
-        .onAppear { leadingID = snapshot.initialColumnID }
-        .onChange(of: leadingID) { _, id in rememberColumn(id) }
-        .accessibilityIdentifier("held-workspace-matrix")
+        let liveSnapshot = HeldWorkspaceSnapshot(model: model)
+        SavedWorkspaceBrowser(model: model, isQuick: true, isPersistent: persistent, save: save, edit: edit,
+            select: { id in if let column = liveSnapshot.columns.first(where: { $0.id == id }) { select(column) } }, close: close, keepOpen: keepOpen)
+            .padding(18)
+            .background(NativeSurfaceStyle.windowBackground, in: RoundedRectangle(cornerRadius: 17))
+            .overlay(RoundedRectangle(cornerRadius: 17).strokeBorder(NativeSurfaceStyle.frameBorder))
+            .accessibilityIdentifier("held-workspace-matrix")
     }
 
     private var statusMessage: String? {

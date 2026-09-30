@@ -592,6 +592,7 @@ final class AppShellTests: XCTestCase {
 
     func testContextRowsReflectRenamedCurrentContext() {
         var settings = AppSettings.default
+        settings.contextPlan = .default
         settings.contextPlan.renameContext(id: "context-1", name: "Work")
         let rows = ContextListModel.rows(plan: settings.contextPlan)
 

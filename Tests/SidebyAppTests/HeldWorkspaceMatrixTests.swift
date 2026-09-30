@@ -36,7 +36,7 @@ import XCTest
         XCTAssertTrue(model.heldMatrixCanActivate(snapshot.columns[0], displayIDs: snapshot.displayIDs))
         model.selectedDisplayIDs = []
         XCTAssertFalse(model.heldMatrixCanActivate(snapshot.columns[0], displayIDs: snapshot.displayIDs))
-        XCTAssertTrue(HeldWorkspaceSnapshot(model: model).columns.isEmpty)
+        XCTAssertEqual(HeldWorkspaceSnapshot(model: model).columns.count, 1, "Saved workspaces stay visible when their displays are excluded")
     }
 
     func testConfigurationPersistenceAndInvalidShortcutPreservesPreviousChoice() throws {

@@ -17,45 +17,38 @@ struct WorkspaceSettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text(strings.pane(.workspaces)).font(.system(size: 22, weight: .semibold)).accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 4)
-            }
-            WorkspaceRebuildControls(model: model)
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(strings.displayHeading).fontWeight(.semibold)
-                    Spacer(minLength: 4)
-                    Button(strings.selectAll) { model.selectAllDisplayTargets() }.pointingHandCursor().disabled(!model.canAddContext || connectedIDs.isEmpty)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(model.saveCopy.savedWorkspaces).font(.system(size: 23, weight: .semibold)).accessibilityAddTraits(.isHeader)
+                    Text(model.saveCopy.text("Review your saved setups. Edit one setup at a time.", "저장한 구성을 살펴보고 구성 하나씩 수정하세요."))
+                        .font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 }
-                NativeDisplaySelector(displays: model.displayLayout.displays, selectedIDs: model.selectedDisplayIDs,
-                    language: model.settings.language, isEnabled: model.canAddContext,
-                    setSelected: { model.setDisplayTarget($0, isSelected: $1) })
-                if connectedIDs.isEmpty { Text(strings.noDisplays).foregroundStyle(NativeSurfaceStyle.secondaryText) }
-                if hasDisconnectedAssignments {
-                    Button(showsDisconnectedAssignments ? strings.hideDisconnectedAssignments : strings.showDisconnectedAssignments) {
-                        showsDisconnectedAssignments.toggle()
-                    }.buttonStyle(.link).pointingHandCursor()
-                }
+                Spacer()
+                Button { model.showWorkspaceSave() } label: { Label(model.saveCopy.saveConfiguration, systemImage: "plus") }
+                    .buttonStyle(.borderedProminent).tint(NativeSurfaceStyle.accent).disabled(!model.canSaveWorkspace).pointingHandCursor()
             }
-            WorkspaceMatrixView(model: model, showsDisconnected: showsDisconnectedAssignments,
+            WorkspaceMatrixView(model: model, showsDisconnected: true,
                 focusContextID: navigation.settingsRoute.contextID, focusDisplayID: navigation.settingsRoute.displayID)
-            if selection.missingContextID != nil { Text(strings.missingTarget).foregroundStyle(NativeSurfaceStyle.secondaryText) }
+            HStack {
+                if let message = model.workspaceSaveMessage { Text(message).font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.accent) }
+                Spacer()
+                Button { _ = model.undoSavedWorkspaceChange() } label: { Label(model.saveCopy.undo, systemImage: "arrow.uturn.backward") }
+                    .disabled(model.settings.savedWorkspaces.undo == nil || !model.canSaveWorkspace).pointingHandCursor()
+            }
+            DisclosureGroup(model.saveCopy.text("Display participation", "함께 움직일 화면 설정")) {
+                NativeDisplaySelector(displays: model.displayLayout.displays, selectedIDs: model.selectedDisplayIDs,
+                    language: model.settings.language, isEnabled: model.canSaveWorkspace,
+                    setSelected: { model.setDisplayTarget($0, isSelected: $1) }).padding(.top, 10)
+            }.font(.system(size: 12))
+            if model.workspaceRebuildBackup != nil {
+                WorkspaceRebuildControls(model: model)
+            }
         }
-        .foregroundStyle(NativeSurfaceStyle.primaryText)
+        .foregroundStyle(NativeSurfaceStyle.primaryText).tint(NativeSurfaceStyle.accent)
         .onAppear { model.refreshWorkspaceStatus(); revealRoute(navigation.settingsRoute) }
         .onReceive(navigation.$settingsRoute) { revealRoute($0) }
-        .onChange(of: model.settings.contextPlan.contexts.map(\.id)) { _, ids in
-            selection.reconcile(contextIDs: ids, preferredID: nil)
-        }
-        .sheet(isPresented: Binding(get: { model.pendingContextCaptureAlignment != nil },
-                                   set: { if !$0 { model.cancelContextCaptureAlignment() } })) {
-            if let request = model.pendingContextCaptureAlignment {
-                ContextCaptureAlignmentPicker(request: request, strings: model.strings,
-                    choose: { model.chooseContextCaptureAlignment(contextID: $0) }, cancel: { model.cancelContextCaptureAlignment() })
-            }
-        }
+        .onChange(of: model.settings.contextPlan.contexts.map(\.id)) { _, ids in selection.reconcile(contextIDs: ids, preferredID: nil) }
     }
 
     private func revealRoute(_ route: ProductSettingsRoute) {
@@ -70,59 +63,26 @@ struct WorkspaceAssignmentReviewFooter: View {
     @ObservedObject var model: SidebyAppModel
     @ObservedObject var navigation: ProductUINavigation
     let finishAssignmentReview: () -> Void
-    private var strings: SettingsRefreshStrings { .init(language: model.settings.language) }
-    private var hasInvalidAssignments: Bool {
-        model.settings.contextPlan.contexts.contains {
-            !(model.workspaceAssignmentReadiness(contextID: $0.id)?.invalidDisplayIDs.isEmpty ?? true)
-        }
-    }
+    private var copy: WorkspaceSaveStrings { model.saveCopy }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(strings.compactAutoSave).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-            if hasInvalidAssignments {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(strings.missingDesktopHelp).fixedSize(horizontal: false, vertical: true)
-                    Button(strings.openMissionControl) { model.openMissionControl() }.pointingHandCursor()
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(copy.text("Save changes in each setup’s editor.", "구성 편집창에서 변경사항을 저장하세요."))
+                if model.workspaceObservedDisplays == nil {
+                    Text(copy.readUnavailable).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                } else {
+                    Text(copy.text("Checking desktops keeps your saved setups intact.", "데스크탑 상태를 다시 확인해도 저장한 구성은 유지됩니다."))
+                        .foregroundStyle(NativeSurfaceStyle.secondaryText)
                 }
+            }.font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button(copy.text("Check desktops", "데스크탑 확인")) { model.refreshWorkspaceStatus() }
+                .disabled(!model.canSaveWorkspace).pointingHandCursor()
+            if navigation.settingsRoute.returnTo != nil {
+                Button(copy.text("Done", "완료"), action: finishAssignmentReview)
+                    .buttonStyle(.borderedProminent).tint(NativeSurfaceStyle.accent).pointingHandCursor()
             }
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 16) { status; Spacer(minLength: 0); confirmation }
-                VStack(alignment: .leading, spacing: 8) { status; confirmation }
-            }
-        }
-    }
-
-    @ViewBuilder private var status: some View {
-        switch model.workspaceConnectionStatus {
-        case .ready: Label(hasInvalidAssignments ? strings.usableAssignmentsConfirmed : strings.confirmed,
-                           systemImage: "checkmark.circle")
-        case .unconfirmed: Text(model.strings.workspaceNeedsConfirmation)
-        case .changed: Text(model.strings.workspaceConnectionsChanged)
-        case .unavailable:
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.strings.workspaceLayoutUnavailable)
-                Button(model.strings.workspaceCheckAgain) { model.refreshWorkspaceStatus() }.pointingHandCursor()
-            }
-        }
-    }
-
-    private var confirmation: some View {
-        Button {
-            if model.confirmWorkspaceConnections() { finishAssignmentReview() }
-        } label: {
-            Text(confirmTitle).fixedSize(horizontal: false, vertical: true)
-        }
-        .buttonStyle(.borderedProminent).pointingHandCursor().controlSize(.large)
-        .disabled(!model.canAddContext || model.selectedDisplayIDs.isEmpty)
-    }
-
-    private var confirmTitle: String {
-        switch navigation.settingsRoute.returnTo {
-        case .daily: strings.confirmReturnDaily
-        case .onboarding: strings.confirmReturnGuide
-        case nil: strings.confirmAssignments
         }
     }
 }

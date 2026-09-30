@@ -6,6 +6,61 @@ import XCTest
 @testable import SidebyApp
 
 @MainActor final class HeldWorkspaceMatrixNativeTests: XCTestCase {
+    func testDeleteAllConfirmationCancelAndUndoInQuickMatrix() async throws {
+        guard ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE"] == "1" else {
+            throw XCTSkip("Opt-in quick matrix deletion interaction")
+        }
+        let model = heldMatrixFixture(count: 4, displayCount: 1)
+        model.settings.language = .korean
+        let original = model.settings.contextPlan.contexts
+        let size = NSSize(width: 784, height: 470)
+        let window = HeldMatrixPanel(contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        var keptOpen = false
+        let view = HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model), select: { _ in },
+            keepOpen: { keptOpen = true; window.acceptsKeyboard = true; window.makeKeyAndOrderFront(nil) })
+        let host = HeldMatrixHostingView(rootView: view.frame(width: size.width, height: size.height))
+        window.contentView = host
+        window.orderFrontRegardless()
+        try await Task.sleep(for: .milliseconds(200))
+        func click(_ point: NSPoint) throws {
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                window.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: point,
+                    modifierFlags: [.option, .shift], timestamp: ProcessInfo.processInfo.systemUptime,
+                    windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)))
+            }
+        }
+        func button(_ title: String) -> NSButton? {
+            func find(_ view: NSView) -> NSButton? {
+                if let button = view as? NSButton, button.title == title { return button }
+                return view.subviews.lazy.compactMap(find).first
+            }
+            return NSApp.windows.lazy.compactMap { $0.contentView.flatMap(find) }.first
+        }
+        try click(NSPoint(x: size.width - 105, y: size.height - 171))
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(keptOpen, "Opening confirmation pins the chooser before key release")
+        try XCTUnwrap(button(model.saveCopy.cancel)).performClick(nil)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(model.settings.contextPlan.contexts, original)
+        try click(NSPoint(x: size.width - 105, y: size.height - 171))
+        try await Task.sleep(for: .milliseconds(150))
+        try XCTUnwrap(button(model.saveCopy.deleteAllAction)).performClick(nil)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+        XCTAssertTrue(window.isVisible)
+        let output = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE_OUTPUT"] ?? "/tmp/sideby-delete-all-native")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: output.appendingPathComponent("quick-matrix-deleted-all.png"))
+        try click(NSPoint(x: size.width - 100, y: 26))
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(model.settings.contextPlan.contexts, original)
+    }
+
     func testNativeLayoutAndColumnClickInBothAppearances() async throws {
         guard ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE"] == "1" else {
             throw XCTSkip("Opt-in quick matrix native rendering and click evidence")
@@ -46,7 +101,7 @@ import XCTest
                 XCTAssertTrue(host.acceptsFirstMouse(for: nil))
                 // A click in the first desktop row must activate the whole column,
                 // including when Option and Shift are down; no cell editor is opened.
-                let point = NSPoint(x: 16 + 120 + 8 + 80, y: size.height - 16 - 26 - 58 - 24)
+                let point = NSPoint(x: 18 + 132 + 80, y: size.height - 325)
                 for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
                     let event = try XCTUnwrap(NSEvent.mouseEvent(with: type, location: point,
                         modifierFlags: [.option, .shift], timestamp: ProcessInfo.processInfo.systemUptime,

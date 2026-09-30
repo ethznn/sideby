@@ -56,7 +56,6 @@ struct HeldWorkspaceSnapshot {
         displayIDs = orderedDisplayIDs
         displayNames = Dictionary(uniqueKeysWithValues: orderedDisplayIDs.map { ($0, model.displayName(for: $0)) })
         columns = model.settings.contextPlan.contexts.sorted { $0.order < $1.order }
-            .filter { !Set($0.displayIDs).isDisjoint(with: active) }
             .map { HeldWorkspaceColumn(context: $0, displayIDs: orderedDisplayIDs, model: model) }
         let preferred = model.verifiedCurrentWorkspaceID ?? previousColumnID
         initialColumnID = columns.first { $0.id == preferred }?.id ?? columns.first?.id
@@ -69,11 +68,11 @@ enum HeldMatrixPanelLayout {
     static let headerHeight: CGFloat = 44
     static let labelWidth: CGFloat = 120
 
-    static func size(columns: Int, displays: Int, visibleFrame: NSRect) -> NSSize {
-        let width = max(360, 160 + CGFloat(max(1, columns)) * 168)
-        let height = max(210, 150 + CGFloat(displays) * 56)
+    static func size(columns: Int, displays: Int, visibleFrame: NSRect, accessoryHeight: CGFloat = 0) -> NSSize {
+        let width = max(440, 168 + CGFloat(max(1, columns)) * 154)
+        let height = max(430, 350 + CGFloat(displays) * 68 + accessoryHeight)
         return NSSize(width: min(width, 1040, max(1, visibleFrame.width - 32)),
-                      height: min(height, max(1, visibleFrame.height * 0.6)))
+                      height: min(height, max(1, visibleFrame.height - 48)))
     }
 
     static func origin(size: NSSize, pointer: NSPoint, visibleFrame: NSRect) -> NSPoint {

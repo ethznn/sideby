@@ -19,29 +19,29 @@ import SidebySystem
         return model
     }
 
-    func testRefreshNamesInactiveDesktopsAndPreservesCustomNameAndMapping() {
+    func testRefreshNamesInactiveDesktopsWithoutRenamingSavedWorkspaces() {
         let model = model()
         let mappings = model.settings.contextPlan.contexts.map(\.displaySpaceIndexes)
         XCTAssertTrue(model.refreshWorkspaceList())
-        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["Code", "My review", "Docs"])
+        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["Context 1", "My review", "데스크탑 3"])
         XCTAssertEqual(model.settings.contextPlan.contexts.map(\.displaySpaceIndexes), mappings)
         XCTAssertEqual(model.workspaceDesktopNames["main"]?[1], "GitHub")
-        XCTAssertEqual(model.workspaceNameRefreshCount, 2)
+        XCTAssertEqual(model.workspaceNameRefreshCount, 0)
     }
 
-    func testRefreshUpdatesAutomaticNamesButNeverReplacesExplicitDefaultLookingName() {
+    func testRefreshPreservesNamesIncludingDefaultLookingNames() {
         let model = model()
         XCTAssertTrue(model.refreshWorkspaceList())
         model.setContextName(contextID: "c", name: "Context 3")
         model.workspaceNameSuggestionProvider = Names(value: ["main": [0: "New code", 2: "New docs"]])
         XCTAssertTrue(model.refreshWorkspaceList())
-        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["New code", "My review", "Context 3"])
+        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["Context 1", "My review", "Context 3"])
         model.workspaceNameSuggestionProvider = Names(value: [:])
         XCTAssertTrue(model.refreshWorkspaceList())
-        XCTAssertEqual(model.settings.contextPlan.contexts.first?.name, "New code")
+        XCTAssertEqual(model.settings.contextPlan.contexts.first?.name, "Context 1")
     }
 
-    func testNamesBelongToDisplayAndDesktopAndFollowMatrixAssignment() {
+    func testDesktopLabelsFollowAssignmentsWithoutChangingSavedWorkspaceNames() {
         let model = model()
         model.displayLayout = .init(displays: [
             .init(id: "main", name: "Mac", isPrimary: true, isBuiltin: true),
@@ -56,24 +56,24 @@ import SidebySystem
         model.workspaceNameSuggestionProvider = Names(value: ["main": [0: "Code", 1: "Review", 2: "Notes"],
                                                             "external": [0: "API docs", 1: "Preview"]])
         XCTAssertTrue(model.refreshWorkspaceList())
-        XCTAssertEqual(model.settings.contextPlan.contexts[0].spaceIndex(for: "external"), 0)
+        XCTAssertNil(model.settings.contextPlan.contexts[0].spaceIndex(for: "external"))
         XCTAssertEqual(model.workspaceDesktopName(displayID: "main", spaceIndex: 0), "Code")
         XCTAssertEqual(model.workspaceDesktopName(displayID: "external", spaceIndex: 0), "API docs")
-        XCTAssertEqual(model.settings.contextPlan.contexts[0].name, "Code / API docs")
+        XCTAssertEqual(model.settings.contextPlan.contexts[0].name, "Context 1")
         XCTAssertTrue(model.assignWorkspaceDesktop(displayID: "external", spaceIndex: 1, toContextID: "a"))
-        XCTAssertEqual(model.settings.contextPlan.contexts[0].name, "Code / Preview")
+        XCTAssertEqual(model.settings.contextPlan.contexts[0].name, "Context 1")
         XCTAssertEqual(model.settings.contextPlan.contexts[1].name, "My review")
         XCTAssertTrue(model.assignWorkspaceDesktop(displayID: "main", spaceIndex: 0, toContextID: "c"))
-        XCTAssertEqual(model.settings.contextPlan.contexts[2].name, "Code")
+        XCTAssertEqual(model.settings.contextPlan.contexts[2].name, "데스크탑 3")
     }
 
-    func testDragSwapsSpaceNamesAndUpdatesOnlyAutomaticWorkspaceNames() {
+    func testDragSwapsAssignmentsWhilePreservingWorkspaceNames() {
         let model = model()
         model.displayLayout = .init(displays: [.init(id: "main", name: "Mac", isPrimary: true, isBuiltin: true)])
         XCTAssertTrue(model.refreshWorkspaceList())
         XCTAssertTrue(model.dropWorkspaceDesktop(.init(sourceContextID: "a", displayID: "main", spaceIndex: 0),
             targetDisplayID: "main", targetContextID: "c", copying: false))
-        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["Docs", "My review", "Code"])
+        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["Context 1", "My review", "데스크탑 3"])
         XCTAssertEqual(model.workspaceDesktopName(displayID: "main", spaceIndex: 0), "Code")
         XCTAssertTrue(model.dropWorkspaceDesktop(.init(sourceContextID: "c", displayID: "main", spaceIndex: 0),
             targetDisplayID: "main", targetContextID: "b", copying: true))
@@ -92,11 +92,11 @@ import SidebySystem
         XCTAssertNil(model.workspaceDesktopName(displayID: "other", spaceIndex: 0))
     }
 
-    func testUnchangedFieldCommitDoesNotDisableAutomaticNaming() {
+    func testUnchangedFieldCommitPreservesSavedName() {
         let model = model()
         model.setContextName(contextID: "a", name: "Context 1")
         XCTAssertTrue(model.refreshWorkspaceList())
-        XCTAssertEqual(model.settings.contextPlan.contexts[0].name, "Code")
+        XCTAssertEqual(model.settings.contextPlan.contexts[0].name, "Context 1")
     }
 
     func testFirstSuccessfulMoveRemembersVerifiedOriginAndFailureDoesNotChangeHistory() {

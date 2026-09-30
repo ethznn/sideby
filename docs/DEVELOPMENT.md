@@ -15,6 +15,25 @@ Run tests:
 swift test
 ```
 
+Native workspace interaction and appearance checks are opt-in. They mount the
+production views with isolated workspace data; they do not switch the user's
+real desktops or modify saved workspaces:
+
+```bash
+SIDEBY_NATIVE_EVIDENCE=1 SIDEBY_NATIVE_EVIDENCE_OUTPUT=/tmp/sideby-native-evidence swift test
+SIDEBY_NATIVE_WINDOW_FOCUS=1 swift test --filter ProductWindowCoordinatorTests/testSettingsOpensInFrontWhileAccessoryApplicationActivationIsPending
+```
+
+Run the foreground-window check in its own process. When both flags are enabled
+together, the delete-confirmation fixture can leave a closed `HeldMatrixPanel`
+in the Window Server's on-screen list, interfering with the foreground assertion.
+This test-host cleanup issue remains unresolved. The isolated check must still
+pass; do not remove its assertion to make the combined run green.
+
+These checks do not replace manual verification of the global shortcut's
+press/release behavior, actual desktop transitions, physical display reconnection,
+or keyboard focus and Return/Escape in the installed app's confirmation sheet.
+
 Before building a local product bundle, read the current published
 [Sparkle feed](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml)
 and set `SIDEBY_BUILD_NUMBER` to its latest `sparkle:version` plus one. If the
@@ -176,7 +195,7 @@ After updating README assets, run `swift scripts/verify_readme_media.swift` as
 described in [README media](media/README.md). The repository keeps the images
 and GIFs used by the documentation; promotional MP4s and their production
 pipeline stay in the Git-ignored `marketing/` directory (see
-[README media](media/README.md#marketing-workspace-and-publishing)). CI does not require those local production files.
+[README media](media/README.md#marketing-setup-and-publishing)). CI does not require those local production files.
 Publish README previews as repository GIFs and still images. Keep promotional
 MP4s local; release attachments are for installers, release notes, and update
 metadata. A documentation-media update does not require a new app release or

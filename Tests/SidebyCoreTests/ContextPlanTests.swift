@@ -68,7 +68,7 @@ final class ContextPlanTests: XCTestCase {
         let original = plan
 
         XCTAssertFalse(plan.deleteContext(id: "context-3", minimumContextCount: 3))
-        XCTAssertFalse(plan.deleteContext(id: "context-3", minimumContextCount: 0))
+        XCTAssertFalse(plan.deleteContext(id: "context-3", minimumContextCount: -1))
         XCTAssertEqual(plan, original)
     }
 

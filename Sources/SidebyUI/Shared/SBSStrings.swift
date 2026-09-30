@@ -552,8 +552,8 @@ public struct SBSStrings: Sendable {
     public var onboardingDoneTitle: String { text("You're set.", "준비됐습니다.") }
     public var onboardingDoneBody: String {
         text(
-            "Next, choose the displays that should move together, name your workspaces, and try moving there and back.",
-            "이제 함께 움직일 화면을 선택하고 작업에 이름을 붙인 뒤, 다른 작업으로 갔다가 돌아와 보세요."
+            "Next, choose the displays that should move together, name your setups, and try moving there and back.",
+            "이제 함께 움직일 화면을 선택하고 구성에 이름을 붙인 뒤, 다른 구성으로 갔다가 돌아와 보세요."
         )
     }
     public func stepAccessibilityLabel(current: Int, total: Int) -> String {
@@ -573,7 +573,7 @@ public struct SBSStrings: Sendable {
         text("Previous / Next Context: ⌥⇧< / ⌥⇧>", "이전 / 다음 Context: ⌥⇧< / ⌥⇧>")
     }
     public var contextKeyboardPreviousWorkspaceHint: String {
-        text("Return to last workspace: ⌥⇧Tab · press again to switch back", "직전 작업으로 돌아가기: ⌥⇧Tab · 다시 누르면 두 작업 사이를 왕복합니다")
+        text("Return to last setup: ⌥⇧Tab · press again to switch back", "직전 구성으로 돌아가기: ⌥⇧Tab · 다시 누르면 두 구성 사이를 왕복합니다")
     }
     public var contextKeyboardLayerHint: String {
         text(

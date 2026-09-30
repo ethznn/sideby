@@ -104,22 +104,22 @@ extension SidebyAppModel {
 struct WorkspaceMatrixStrings {
     let language: AppLanguage
     private func text(_ en: String, _ ko: String) -> String { language == .korean ? ko : en }
-    var title: String { text("Workspace matrix", "작업 매트릭스") }
+    var title: String { text("Setup matrix", "구성 매트릭스") }
     var current: String { text("Current", "현재") }
     var moving: String { text("Switching…", "이동 중…") }
     var help: String { text("Drag to move or swap · Option-drag to share · Rename desktops in the cell menu", "드래그로 이동·맞교환 · ⌥ 드래그로 함께 사용 · 칸 메뉴에서 이름 변경") }
     var displays: String { text("Displays ↓", "화면 ↓") }
-    var workspaces: String { text("Workspaces →", "작업 →") }
+    var workspaces: String { text("Setups →", "구성 →") }
     var assign: String { text("Choose desktop", "데스크탑 선택") }
-    var share: String { text("Also use in…", "다른 작업에도 사용") }
-    var move: String { text("Move to…", "다른 작업으로 이동·교환") }
-    var clear: String { text("Remove this assignment", "이 작업에서 배정 해제") }
+    var share: String { text("Also use in…", "다른 구성에도 사용") }
+    var move: String { text("Move to…", "다른 구성으로 이동·교환") }
+    var clear: String { text("Remove this assignment", "이 구성에서 배정 해제") }
     var shared: String { text("Shared", "함께 사용") }
     var dropMove: String { text("Move here", "여기로 이동") }
     var dropSwap: String { text("Swap desktops", "서로 교환") }
     var dropCopy: String { text("Also use here", "여기서도 사용") }
     var resize: String { text("Drag to resize display names", "드래그하여 화면 이름 너비 조절") }
     var reorder: String { text("Move display before…", "화면 행 앞으로 이동") }
-    var back: String { text("Back to workspaces", "작업 선택으로") }
+    var back: String { text("Back to setups", "구성 선택으로") }
     var moreSettings: String { text("All settings…", "전체 설정…") }
 }

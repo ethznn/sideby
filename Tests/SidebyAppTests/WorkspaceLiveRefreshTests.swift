@@ -15,7 +15,7 @@ final class WorkspaceLiveRefreshTests: XCTestCase {
         .init(displays: [.init(displayID: "main", spaceCount: ids.count, currentSpaceIndex: index)], spaceIDsByDisplayID: ["main": ids])
     }
 
-    func testRefreshAddsNewDesktopWithoutReplacingNamesOrCustomAssignments() {
+    func testRefreshDoesNotCreateTasksForNewDesktops() {
         let model = model([
             .init(id: "a", order: 1, name: "개발", displaySpaceIndexes: ["main": 1, "offline": 0]),
             .init(id: "b", order: 2, name: "리뷰", displaySpaceIndexes: ["main": 0])
@@ -24,13 +24,12 @@ final class WorkspaceLiveRefreshTests: XCTestCase {
         model.refreshWorkspaceStatus()
         model.workspaceObservationOverride = { self.observation([11, 12, 13], index: 2) }
         model.refreshWorkspaceStatus()
-        XCTAssertEqual(model.settings.contextPlan.contexts.count, 3)
+        XCTAssertEqual(model.settings.contextPlan.contexts.count, 2)
         XCTAssertEqual(model.settings.contextPlan.contexts[0].name, "개발")
         XCTAssertEqual(model.settings.contextPlan.contexts[0].displaySpaceIndexes, ["main": 1, "offline": 0])
         XCTAssertEqual(model.settings.contextPlan.contexts[1].displaySpaceIndexes, ["main": 0])
-        let added = model.settings.contextPlan.contexts.last!
-        XCTAssertEqual(added.spaceIndex(for: "main"), 2)
-        XCTAssertEqual(model.verifiedCurrentWorkspaceID, added.id)
+        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.id), ["a", "b"])
+        XCTAssertNil(model.verifiedCurrentWorkspaceID)
         let saved = model.settings.contextPlan
         model.refreshWorkspaceStatus()
         XCTAssertEqual(model.settings.contextPlan, saved)
@@ -46,7 +45,8 @@ final class WorkspaceLiveRefreshTests: XCTestCase {
         model.refreshWorkspaceStatus()
         model.workspaceObservationOverride = { self.observation([11, 13], index: 1) }
         model.refreshWorkspaceStatus()
-        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.id), ["a", "c"])
+        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.id), ["a", "b", "c"])
+        XCTAssertFalse(model.isWorkspaceAssignmentAvailable(contextID: "b"))
         XCTAssertEqual(model.settings.contextPlan.contexts.last?.spaceIndex(for: "main"), 1)
         XCTAssertEqual(model.verifiedCurrentWorkspaceID, "c")
     }
@@ -78,11 +78,11 @@ final class WorkspaceLiveRefreshTests: XCTestCase {
         XCTAssertEqual(model.settings.contextPlan.contexts, saved)
     }
 
-    func testManualRefreshCanPrepareEmptyPlanAndDoesNotDuplicateRows() {
+    func testManualRefreshPreservesUnassignedLegacyTasks() {
         let model = model([.init(id: "placeholder", order: 1, name: "Context 1")])
         model.workspaceObservationOverride = { self.observation([11, 12]) }
         XCTAssertTrue(model.refreshWorkspaceList())
-        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["데스크탑 1", "데스크탑 2"])
+        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["Context 1"])
         let saved = model.settings.contextPlan.contexts
         XCTAssertTrue(model.refreshWorkspaceList())
         XCTAssertEqual(model.settings.contextPlan.contexts, saved)
@@ -91,7 +91,7 @@ final class WorkspaceLiveRefreshTests: XCTestCase {
         XCTAssertEqual(model.settings.contextPlan.contexts, saved)
     }
 
-    func testAdditionalDisplayDesktopsJoinExistingWorkspacesWithoutChangingTheirMappings() {
+    func testAdditionalDisplayDoesNotChangeExistingMemberships() {
         let model = model([
             .init(id: "a", order: 1, name: "개발", displaySpaceIndexes: ["main": 1]),
             .init(id: "b", order: 2, name: "리뷰", displaySpaceIndexes: ["main": 0])
@@ -103,10 +103,9 @@ final class WorkspaceLiveRefreshTests: XCTestCase {
                   spaceIDsByDisplayID: ["main": [11, 12], "external": [21, 22, 23]])
         }
         XCTAssertTrue(model.refreshWorkspaceList())
-        XCTAssertEqual(model.settings.contextPlan.contexts.count, 3)
-        XCTAssertEqual(model.settings.contextPlan.contexts[0].displaySpaceIndexes, ["main": 1, "external": 1])
-        XCTAssertEqual(model.settings.contextPlan.contexts[1].displaySpaceIndexes, ["main": 0, "external": 0])
-        XCTAssertEqual(model.settings.contextPlan.contexts[2].displaySpaceIndexes, ["external": 2])
+        XCTAssertEqual(model.settings.contextPlan.contexts.count, 2)
+        XCTAssertEqual(model.settings.contextPlan.contexts[0].displaySpaceIndexes, ["main": 1])
+        XCTAssertEqual(model.settings.contextPlan.contexts[1].displaySpaceIndexes, ["main": 0])
     }
 
     func testRefreshDoesNotRecreateAnIntentionallyUnusedDesktopAfterSharing() {

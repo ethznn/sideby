@@ -57,6 +57,7 @@ extension SidebyAppModel {
     }
 
     func updateAutomaticWorkspaceNames() {
+        if settings.savedWorkspaces.initialized { return }
         let origins = workspacePreferences?.dictionary(forKey: Self.nameOriginsKey) as? [String: String] ?? workspaceNameOrigins
         for context in settings.contextPlan.contexts {
             let mayReplace: Bool

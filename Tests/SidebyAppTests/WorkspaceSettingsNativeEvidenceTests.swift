@@ -120,7 +120,7 @@ final class WorkspaceSettingsNativeEvidenceTests: XCTestCase {
             inspect(host)
             XCTAssertEqual(scrolls.count, 3, "One sidebar and exactly one table scroll owner per axis")
             XCTAssertTrue(scrolls.contains { $0.contentView.bounds.minX > 0 }, "Requested workspace column must be revealed")
-            // The offline display is now a row. It may already fit vertically in the tall fixture.
+            // Offline assignments stay in storage; the table shows connected displays only.
         }
         let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
         host.cacheDisplay(in: host.bounds, to: bitmap)

@@ -36,17 +36,32 @@ public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendab
     }
 
     public func save(_ settings: AppSettings) {
-        guard let data = try? JSONEncoder().encode(settings) else {
-            return
-        }
+        _ = saveChecked(settings)
+    }
 
+    public var hasUnreadableSettings: Bool {
+        guard let data = userDefaults.data(forKey: key)
+                ?? fallbackUserDefaults?.data(forKey: key) else { return false }
+        return (try? JSONDecoder().decode(AppSettings.self, from: data)) == nil
+    }
+
+    public func saveChecked(_ settings: AppSettings) -> Bool {
+        guard !hasUnreadableSettings, let data = try? JSONEncoder().encode(settings) else { return false }
+        let previous = userDefaults.data(forKey: key)
+        if previous == data { return true }
         userDefaults.set(data, forKey: key)
+        guard userDefaults.synchronize(), userDefaults.data(forKey: key) == data else {
+            if let previous { userDefaults.set(previous, forKey: key) }
+            else { userDefaults.removeObject(forKey: key) }
+            return false
+        }
         DistributedNotificationCenter.default().postNotificationName(
             Self.settingsDidChangeNotification,
             object: nil,
             userInfo: nil,
             deliverImmediately: true
         )
+        return true
     }
 
     private static func sharedUserDefaults() -> UserDefaults {
@@ -68,6 +83,10 @@ public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendab
     private func migrateIfNeeded(_ settings: AppSettings) -> AppSettings {
         let migratedSettings = migrate(settings)
         if migratedSettings != settings {
+            if settings.version < 15, userDefaults.data(forKey: key + ".before-saved-workspaces") == nil,
+               let original = userDefaults.data(forKey: key) {
+                userDefaults.set(original, forKey: key + ".before-saved-workspaces")
+            }
             save(migratedSettings)
         }
         return migratedSettings

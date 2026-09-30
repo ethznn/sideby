@@ -23,7 +23,7 @@ public enum AppLanguage: String, CaseIterable, Codable, Identifiable, Sendable {
 }
 
 public struct AppSettings: Equatable, Codable, Sendable {
-    public static let currentVersion = 14
+    public static let currentVersion = 15
     public static let defaultGestureModifiers: ModifierFlags = [.option, .shift]
     public static let defaultShortcutModifiers: ModifierFlags = [.option, .shift]
 
@@ -41,6 +41,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
     public var displaySpacePlan: DisplaySpacePlan
     public var displayRowOrder: [String]
     public var displaySelection: DisplaySelection
+    public var savedWorkspaces: SavedWorkspaceLibrary
 
     public init(
         version: Int,
@@ -56,7 +57,8 @@ public struct AppSettings: Equatable, Codable, Sendable {
         contextPlan: ContextPlan,
         displaySpacePlan: DisplaySpacePlan,
         displayRowOrder: [String] = [],
-        displaySelection: DisplaySelection = DisplaySelection()
+        displaySelection: DisplaySelection = DisplaySelection(),
+        savedWorkspaces: SavedWorkspaceLibrary = SavedWorkspaceLibrary()
     ) {
         self.version = version
         self.mode = mode
@@ -72,6 +74,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         self.displaySpacePlan = displaySpacePlan
         self.displayRowOrder = displayRowOrder
         self.displaySelection = displaySelection
+        self.savedWorkspaces = savedWorkspaces
     }
 
     public static let `default` = AppSettings(
@@ -85,7 +88,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         inputExecutionStrategy: .modifierRelease,
         horizontalThreshold: 80,
         launchAtLogin: false,
-        contextPlan: .default,
+        contextPlan: .empty,
         displaySpacePlan: .default,
         displayRowOrder: []
     )
@@ -105,6 +108,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         case displaySpacePlan
         case displayRowOrder
         case displaySelection
+        case savedWorkspaces
     }
 
     public init(from decoder: Decoder) throws {
@@ -129,6 +133,7 @@ public struct AppSettings: Equatable, Codable, Sendable {
         self.displaySpacePlan = try container.decodeIfPresent(DisplaySpacePlan.self, forKey: .displaySpacePlan) ?? .default
         self.displayRowOrder = try container.decodeIfPresent([String].self, forKey: .displayRowOrder) ?? []
         self.displaySelection = try container.decodeIfPresent(DisplaySelection.self, forKey: .displaySelection) ?? DisplaySelection()
+        self.savedWorkspaces = try container.decodeIfPresent(SavedWorkspaceLibrary.self, forKey: .savedWorkspaces) ?? SavedWorkspaceLibrary()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -146,10 +151,18 @@ public struct AppSettings: Equatable, Codable, Sendable {
         try container.encode(contextPlan, forKey: .contextPlan)
         try container.encode(displayRowOrder, forKey: .displayRowOrder)
         try container.encode(displaySelection, forKey: .displaySelection)
+        try container.encode(savedWorkspaces, forKey: .savedWorkspaces)
     }
 }
 
 public protocol SettingsStoring: Sendable {
     func load() -> AppSettings
     func save(_ settings: AppSettings)
+    func saveChecked(_ settings: AppSettings) -> Bool
+    var hasUnreadableSettings: Bool { get }
+}
+
+public extension SettingsStoring {
+    func saveChecked(_ settings: AppSettings) -> Bool { save(settings); return true }
+    var hasUnreadableSettings: Bool { false }
 }

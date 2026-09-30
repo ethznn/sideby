@@ -235,7 +235,8 @@ struct ContextKeyboardCommandCoordinator {
         isSwitching: Bool,
         isCapturing: Bool,
         at timestamp: Double,
-        previousContextID: String? = nil
+        previousContextID: String? = nil,
+        shortcutSlots: [String: Int]? = nil
     ) -> ContextKeyboardAction {
         switch event {
         case .pressed(let command):
@@ -249,7 +250,8 @@ struct ContextKeyboardCommandCoordinator {
                 isSidebyEnabled: isSidebyEnabled,
                 isSwitching: isSwitching,
                 isCapturing: isCapturing,
-                previousContextID: previousContextID
+                previousContextID: previousContextID,
+                shortcutSlots: shortcutSlots
             )
             switch action {
             case .activate, .move:
@@ -576,6 +578,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published private(set) var contextDeletionMinimumCount: Int? = nil
     @Published var workspaceConnectionStatus: WorkspaceConnectionStatus = .unconfirmed
     @Published var workspaceObservedDisplays: [InstantCaptureDisplay]?
+    var workspaceLatestObservation: WorkspaceLayoutObservation?
     @Published var verifiedCurrentWorkspaceID: String?
     @Published var workspaceRecoveryTargetID: String?
     @Published var workspaceHistory = WorkspaceVisitHistory()
@@ -594,6 +597,11 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     var workspaceSpaceIDsOverride: (() -> [String: [UInt64]]?)?
     var workspaceGuideIsRecording = false
     var workspaceConfigurationRevision = 0
+    @Published var workspaceSaveDraft: WorkspaceSaveDraft?
+    @Published var workspaceSaveMessage: String?
+    @Published var workspaceSavedFocusID: String?
+    var workspaceSaveController: WorkspaceSaveWindowController?
+    var workspaceLegacyRuntimeBookmarks: [String: [String: UInt64]] = [:]
     var workspacePreferences: UserDefaults? = .standard
     @Published var workspaceDesktopNames: [String: [Int: String]] = [:]
     @Published var workspaceDesktopAliases: [String: String] = [:]
@@ -829,16 +837,17 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func handleContextKeyboardEvent(_ event: ContextKeyboardShortcutInputEvent) {
-        guard !heldMatrixInputActive else { return }
+        guard !heldMatrixInputActive, workspaceSaveDraft == nil else { return }
         if !isSwitching, contextCaptureSession == nil { refreshWorkspaceStatus() }
         let action = contextKeyboardCoordinator.handle(
             event,
-            contextPlan: workspaceKeyboardPlan,
+            contextPlan: settings.contextPlan,
             isSidebyEnabled: isEnabled,
             isSwitching: isSwitching,
             isCapturing: contextCaptureSession != nil,
             at: ProcessInfo.processInfo.systemUptime,
-            previousContextID: workspaceHistory.previousContextID
+            previousContextID: workspaceHistory.previousContextID,
+            shortcutSlots: settings.savedWorkspaces.initialized ? settings.savedWorkspaces.shortcutSlots : nil
         )
 
         routeContextKeyboardAction(action)
@@ -859,7 +868,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         case .activate, .move:
             guard let execution = ContextKeyboardExecutionResolver.execution(
                 for: action,
-                contextPlan: workspaceKeyboardPlan
+                contextPlan: settings.contextPlan
             ) else {
                 return
             }
@@ -979,22 +988,12 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     var canAddContext: Bool {
-        !isSwitching && contextCaptureSession == nil
+        !isSwitching && contextCaptureSession == nil && !settingsStore.hasUnreadableSettings
     }
 
-    var canDeleteContext: Bool {
-        canAddContext && ContextEditPolicy.canDelete(
-            contextCount: settings.contextPlan.contexts.count,
-            minimumContextCount: contextDeletionMinimumCount
-        )
-    }
+    var canDeleteContext: Bool { canSaveWorkspace && !settings.contextPlan.contexts.isEmpty }
 
-    func addEmptyContext() {
-        guard canAddContext else { return }
-        updateContextPlan { plan in
-            plan.addEmptyContext()
-        }
-    }
+    func addEmptyContext() { showWorkspaceSave() }
 
     func contextDeletionRequiresConfirmation(contextID: String) -> Bool {
         ContextEditAction.requiresDeleteConfirmation(
@@ -1004,25 +1003,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     @discardableResult
-    func deleteContext(contextID: String) -> Bool {
-        guard canAddContext else {
-            refreshContextEditAvailability()
-            return false
-        }
-
-        var deleted = false
-        updateContextPlan { plan in
-            deleted = ContextEditAction.deleteContext(
-                id: contextID,
-                from: &plan,
-                isEditingAllowed: canAddContext,
-                selectedDisplayIDs: selectedDisplayIDs,
-                readLiveDisplays: selectedDisplaySpaces
-            )
-        }
-        refreshContextEditAvailability()
-        return deleted
-    }
+    func deleteContext(contextID: String) -> Bool { deleteSavedWorkspace(contextID) }
 
     func setContextName(contextID: String, name: String) {
         guard let context = settings.contextPlan.contexts.first(where: { $0.id == contextID }),
@@ -1034,7 +1015,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     var canActivateContext: Bool {
-        ContextActivationAvailability.canActivate(
+        workspaceSaveDraft == nil && !settingsStore.hasUnreadableSettings && ContextActivationAvailability.canActivate(
             isSidebyEnabled: isEnabled,
             isSwitching: isSwitching,
             isCapturing: contextCaptureSession != nil
@@ -1061,6 +1042,18 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         completion: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
         lastWorkspaceSwitchSucceeded = false
+        guard workspaceSaveDraft == nil, !settingsStore.hasUnreadableSettings else { completion?(false); return }
+        refreshWorkspaceStatus()
+        if verifiedCurrentWorkspaceID == contextID {
+            completion?(true)
+            return
+        }
+        guard let checkedTarget = settings.contextPlan.contexts.first(where: { $0.id == contextID }),
+              unresolvedWorkspaceMembers(checkedTarget).isEmpty else {
+            workspaceSaveMessage = saveCopy.missingDesktop
+            completion?(false)
+            return
+        }
         guard isEnabled else {
             diagnostics = [
                 DiagnosticState(
@@ -2848,7 +2841,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     private func handleSwipeInput(_ event: InputEvent) {
-        guard !heldMatrixInputActive else { return }
+        guard !heldMatrixInputActive, workspaceSaveDraft == nil else { return }
         let event = eventWithCurrentModifierState(event)
         let timestamp = ProcessInfo.processInfo.systemUptime
 
@@ -3018,7 +3011,34 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         }
 
         let previousPlan = settings.contextPlan
-        settings.contextPlan = plan
+        var next = settings
+        next.contextPlan = plan
+        if plan.contexts != previousPlan.contexts && next.savedWorkspaces.initialized {
+            let valid = Set(plan.contexts.map(\.id))
+            next.savedWorkspaces.bookmarks = next.savedWorkspaces.bookmarks.filter { valid.contains($0.key) }
+            next.savedWorkspaces.shortcutSlots = next.savedWorkspaces.shortcutSlots.filter { valid.contains($0.key) }
+            for context in plan.contexts {
+                let old = previousPlan.contexts.first { $0.id == context.id }
+                next.savedWorkspaces.assignAvailableShortcut(to: context.id)
+                for displayID in Set(old?.displayIDs ?? []).union(context.displayIDs)
+                    where old?.spaceIndex(for: displayID) != context.spaceIndex(for: displayID) {
+                    if let index = context.spaceIndex(for: displayID), let keys = workspaceLastObservedSpaceKeys[displayID], keys.indices.contains(index) {
+                        next.savedWorkspaces.bookmarks[context.id, default: [:]][displayID] = keys[index]
+                    } else {
+                        next.savedWorkspaces.bookmarks[context.id]?.removeValue(forKey: displayID)
+                    }
+                    if let index = context.spaceIndex(for: displayID), let ids = workspaceLastObservedSpaceIDs[displayID], ids.indices.contains(index) {
+                        workspaceLegacyRuntimeBookmarks[context.id, default: [:]][displayID] = ids[index]
+                    } else { workspaceLegacyRuntimeBookmarks[context.id]?.removeValue(forKey: displayID) }
+                }
+            }
+            next.savedWorkspaces.undo = SavedWorkspaceUndo(contexts: previousPlan.contexts,
+                bookmarks: settings.savedWorkspaces.bookmarks, shortcutSlots: settings.savedWorkspaces.shortcutSlots,
+                label: saveCopy.text("Setup edit", "구성 편집"), resultingContexts: plan.contexts,
+                resultingBookmarks: next.savedWorkspaces.bookmarks)
+        }
+        guard settingsStore.saveChecked(next) else { workspaceSaveMessage = saveCopy.saveFailed; return }
+        settings = next
         workspaceConfigurationChanged(from: previousPlan, selectedIDs: selectedDisplayIDs)
         let validIDs = Set(plan.contexts.map(\.id))
         workspaceHistory.reconcile(validContextIDs: validIDs)

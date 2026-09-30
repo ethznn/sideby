@@ -1,6 +1,15 @@
 import Foundation
 import SidebyCore
 
+extension SidebyAppModel {
+    /// The chooser shows the current display setup. Offline connections belong
+    /// to the saved workspace and remain available in its individual editor.
+    var connectedWorkspaceDisplayIDs: [String] {
+        WorkspaceTablePresentation.displayIDs(connected: displayLayout.displays.map(\.id),
+            remembered: [], assigned: [], order: settings.displayRowOrder)
+    }
+}
+
 /// Presentation only: preserves stored order and remembered values without observing or moving Spaces.
 struct WorkspaceTablePresentation {
     let sidebarWidth: CGFloat

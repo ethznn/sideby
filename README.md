@@ -2,83 +2,78 @@
 
 English | [한국어](README.ko.md)
 
-**Back to your work, in one action.**
+**Keep the setup you're using. Come back in one action.**
 
 <p align="center">
-  <img src="./docs/images/sideby-triptych-en.gif" width="720" alt="Sideby illustrated preview: three displays switch separately, then a keyboard shortcut switches them together between workspaces and back." />
+  <img src="./docs/images/sideby-save-flow-en.gif" width="720" alt="Save a desktop setup as Checkout, keep a second setup for PR review, and choose Checkout again from Sideby’s matrix." />
 </p>
 
-Group the desktops across your displays into workspaces, then switch them together with one shortcut. Sideby also works with a single display.
+Save the desktops you're using across your displays as a setup. Choose it later to switch those displays together. One display works too.
 
-*Illustrated screens and sample data; transitions demonstrate the workflow, not measured switching speed.* [Still image](docs/images/sideby-triptych-en.png).
+*Actual Sideby views with fictional sample data, edited into a walkthrough. This is not a recording of desktop switching speed.* [Still image](docs/images/sideby-save-flow-en.png).
 
 [Download Sideby](https://github.com/ethznn/sideby/releases) · macOS 14 or later · English and Korean
 
-[Sideby 0.12.0](docs/releases/0.12.0.md) adds desktop names, a quick matrix you open by holding a shortcut, and a menu that stays with you while switching.
+[Sideby 0.13.0](docs/releases/0.13.0.md) introduces saving the current setup, individual setup editing, undo, and a refreshed interface that follows your Mac’s light or dark appearance.
 
-## What you can do
+## Save while you work
 
-- **Switch a whole task.** Choose a workspace’s **Go** button to move its assigned desktops on the selected displays.
-- **Return with the same shortcut.** Press `⌥⇧Tab` to return to the previous workspace. Press it again to switch back.
-- **Arrange work from the menu.** Open Sideby in the menu bar to see the matrix immediately. Rename workspaces, change assignments, or rebuild from the current desktop order there. The matrix stays open as you switch.
+1. **Arrange your desktops as usual.** Open the work you need on each display.
+2. **Hold `⌥⇧Space` and choose “Save this setup.”** Release the shortcut, enter a name, check the displays to remember, and save.
+3. **Choose that setup when you need it again.** Its included displays move together. Press `⌥⇧Tab` to return to the previous setup.
+
+Start with one useful setup and add another when you actually use it. A new installation begins with an empty list. Saving adds one setup and preserves everything you already saved.
 
 <p align="center">
-  <img src="./docs/images/sideby-context-capture-en.png" width="680" alt="Sideby’s dark menu with display selection and a matrix: Checkout.swift and Checkout API assigned to Checkout; PR #42 and its preview assigned to PR review." />
+  <img src="./docs/images/sideby-save-workspace-en.png" width="530" alt="Save this setup: a Checkout name field, checked MacBook Pro and Studio Display rows, and Cancel and Save setup buttons." />
 </p>
 
-*Actual Sideby interface rendered with sample workspaces and display data.*
+Sideby remembers connections to existing macOS desktops. It does not capture screenshots, reopen apps or documents, or restore window positions.
 
-## Make the matrix yours
+## Choose and adjust a setup
 
-Columns are workspaces. Rows are displays. Each cell shows that display’s assigned desktop, including a content label when one is available.
+Columns are saved setups; rows are currently connected displays. Choose a setup column to switch. You can also use **List** when you prefer a compact view.
+
+<p align="center">
+  <img src="./docs/images/sideby-context-capture-en.png" width="680" alt="Sideby’s dark menu showing the current setup, Save this setup, and the Checkout and PR review setup columns." />
+</p>
 
 | Action | Result |
 | --- | --- |
-| Edit the name at the top of a column | Rename that workspace. Use **Go** below it to switch. |
-| Drag a cell to an empty cell in the same display row | Move the desktop assignment. |
-| Drag a cell onto an occupied cell in the same row | Swap the two assignments. |
-| Hold Option and drag to an empty cell in the same row | Keep the original assignment and use that desktop in another workspace too. |
-| Drag a display’s name or up/down icon | Reorder display rows. |
-| Open a cell’s menu | Assign a desktop without dragging, or give that desktop a name. The same desktop shares its name across workspaces. |
+| **Save this setup** | Add the current desktop combination under a new name. An identical saved setup is pointed out instead of added twice. |
+| A setup’s **Edit** action | Rename it, include or exclude a display, or choose another desktop. Only that setup changes. |
+| **Use current setup** in the editor | Update the draft to the desktops now in use. Review the changes before saving. |
+| **Undo last change** | Restore the last setup addition, edit, or deletion. One undo is retained across app restarts until the next setup change. |
+| **Delete all saved setups…** | Confirm removal of the saved list, including setups on disconnected displays. Actual desktops, apps, and other settings remain. You can undo the deletion. |
 
-Desktop changes are detected automatically. To start over, choose **Rebuild from current desktops…** at the top of the menu or Workspaces & Displays settings. Sideby confirms how many workspaces it will create, then replaces the selected displays’ names and assignments in current desktop order. This also replaces custom swaps and shared-desktop assignments. Other displays’ assignments are kept separately. Immediately after rebuilding, **Undo** in the completion message restores the previous configuration when its desktops are still available. The menu has no permanent restore button.
-
-New names use available app/window content from each display’s desktops, including desktops you are not currently viewing. These are suggestions, not native macOS Space names; Sideby falls back to a desktop number when metadata is unavailable. Workspace names you edit are preserved during routine updates; an explicit rebuild creates fresh workspace names. Custom **desktop names** are separate: they stay attached to the same desktop through reordering, restarting and rebuilding. Choose **Use automatic name** in its cell menu to return to content suggestions. These names appear only in Sideby, not Mission Control.
-
-Display connection changes are checked automatically. Disconnected display choices and assignments are retained for reconnection; you can continue working with the selected displays that are currently available.
+Disconnected displays do not add rows to the everyday matrix. Their saved connections remain in setup editing and return when the displays reconnect. Saving a new setup includes only the available displays you select.
 
 <details>
-<summary>See the full Workspaces & Displays settings</summary>
+<summary>Setups & Displays settings</summary>
 
-The same matrix is available in **All settings → Workspaces & Displays**. Input, Permissions, and General settings have their own panes.
+Open **All settings → Setups & Displays** for display selection and the same saved setup browser. **Check desktops** rereads the current layout without recreating or replacing your setups. Input, Permissions, and General each have their own pane.
 
 <p align="center">
-  <img src="./docs/images/sideby-settings-workspaces-en.png" width="720" alt="Light Workspaces & Displays settings with a display diagram, rebuild action, and the same editable workspace matrix." />
+  <img src="./docs/images/sideby-settings-workspaces-en.png" width="720" alt="Light Setups & Displays settings with the saved setup matrix and a collapsed display-selection section." />
 </p>
 
 </details>
 
-## Your first round trip
+## Get started
 
-1. **Install and allow access.** Download the DMG from [GitHub Releases](https://github.com/ethznn/sideby/releases), move Sideby to Applications, and open it. Follow the guide for Accessibility and Screen Switching access.
-2. **Choose your displays.** Click the display diagram or checkboxes. One display is enough; a round trip needs two different desktop arrangements. The guide points you to Mission Control if more desktops are needed.
-3. **Name your workspaces.** Read the desktop arrangement, name two workspaces, and check which content belongs to each display.
-4. **Go there, then come back.** Follow the guide’s buttons to visit the other workspace and return. Finish with **Open Sideby menu**. You can use shortcuts or gestures afterward.
+1. Download the DMG from [GitHub Releases](https://github.com/ethznn/sideby/releases), move Sideby to Applications, and open it.
+2. Follow the guide to check Accessibility and Screen Switching access and select your displays.
+3. Save your first setup from the matrix. Use Mission Control to prepare another desktop setup, then save that one too.
+4. Choose a saved setup to go there; use `⌥⇧Tab` to come back.
 
-You can continue the guide later. Its completion is based on a successful round trip; a skipped step or a failed move does not count.
+**Upgrading from an earlier version?** Existing setups are kept, including entries that older versions created automatically. They are not newly generated by 0.13.0. To start with your own saved setups, use **Delete all saved setups…**, then save the setup you want. **Undo last change** restores the list until your next setup change.
 
 <details>
-<summary>See workspace preparation and the completed round trip</summary>
+<summary>See the first-setup guide</summary>
 
 <p align="center">
-  <img src="./docs/images/sideby-onboarding-workspaces-en.png" width="640" alt="Onboarding workspace preparation with editable Checkout and PR review names and content labels for both displays." />
+  <img src="./docs/images/sideby-onboarding-saved-workspaces-en.png" width="640" alt="Sideby’s first-setup guide explains how to save a current setup and shows an empty saved setup list." />
 </p>
-
-<p align="center">
-  <img src="./docs/images/sideby-onboarding-roundtrip-en.png" width="640" alt="Completed round-trip guide with the Option-Shift-Tab hint and Open Sideby menu button." />
-</p>
-
-These are production views rendered with sample data, including a simulated completed guide.
 
 </details>
 
@@ -86,33 +81,29 @@ These are production views rendered with sample data, including a simulated comp
 
 | Input | Action |
 | --- | --- |
-| Hold `⌥⇧Space` | Show the quick matrix; click a workspace to switch. Release the keys or press Escape to close it. |
-| `⌥⇧Tab` | Return to the previous workspace; repeat to alternate between the last two. |
-| `⌥⇧1` … `⌥⇧9`, `⌥⇧0` | Go to workspace positions 1–10. |
-| `⌥⇧<` / `⌥⇧>` | Previous / next workspace. |
+| Hold `⌥⇧Space` | Show the quick matrix near the pointer. Choose a setup or save the current setup. |
+| `⌥⇧Tab` | Return to the previous setup; repeat to alternate between the last two. |
+| `⌥⇧1` … `⌥⇧9`, `⌥⇧0` | Activate the setup with that numbered shortcut. Existing numbers stay assigned when another setup is deleted. |
+| `⌥⇧<` / `⌥⇧>` | Previous / next setup. |
 | Option + Shift + horizontal swipe | Switch with the default gesture. |
 
-For numbered, previous/next and return shortcuts, release Option and Shift to execute the move. For the held matrix, keep the shortcut pressed while clicking a workspace. Change or disable its shortcut in **Settings → Input**, where you can also configure gestures.
+Numbered, previous/next, and return shortcuts execute after Option and Shift are released. The quick matrix closes when you release its shortcut or press Escape. Choosing **Save this setup** or **Edit** opens a separate form that stays open so you can release the keys and type. The menu-bar matrix stays open while you switch. Configure shortcuts and gestures in **Settings → Input**.
 
 ## When your setup changes
 
-Sideby reads the live desktop layout and checks requested moves. Routine additions, removals, and reordered desktops are reflected automatically while the matrix is open and checked before switching. Saved workspaces follow the same surviving desktops across an app restart; reordering desktops does not reset custom workspace assignments. Workspaces that only use disconnected displays are hidden from the everyday matrix and do not take a shortcut position.
+Saved connections follow the same surviving desktops when they are reordered or Sideby restarts. Adding a desktop does not create a setup. If a saved desktop is missing, edit that setup to choose its replacement. Sideby does not silently redirect it to another desktop at the same position.
 
-If an older version’s assignments already point at the wrong desktops, use **Rebuild from current desktops…** once to start again in the current order. Older versions did not save enough identity information to recover a desktop’s previous position after the fact.
+If the layout changes while a save form is open, reread it before saving. If Sideby cannot read the desktop connections or write your settings, it reports the problem and keeps the existing saved configuration. Incomplete moves can be retried for displays that have not arrived.
 
-If a move is incomplete, Sideby can retry the displays that have not reached the destination. If a required desktop is missing or its layout cannot be read, check the assignment in the menu, or rebuild to start over. The previous setup stays saved if a desktop needed for restoration is missing.
-
-Workspaces refer to existing macOS desktops. Sideby does not reopen documents or restore window contents and positions. Deleting a workspace removes its Sideby assignments, never the macOS desktops themselves.
+Available app/window titles can help identify desktop contents; otherwise Sideby shows desktop numbers. These labels are not native Mission Control names.
 
 ## Privacy and platform notes
 
-Sideby uses Accessibility for its configured global gesture and, when available, app/window title suggestions. Screen Switching access allows it to send the requested desktop-switch commands. Some command paths also need System Events Automation. Switching and desktop discovery do not request Screen Recording permission.
+Sideby uses Accessibility for its configured global gesture and available app/window title suggestions. Screen Switching access allows the requested desktop-switch commands; some paths also need System Events Automation. Switching and desktop discovery do not request Screen Recording permission.
 
-Global keyboard registrations cover `Option + Shift + number / < / > / Tab` and the configurable held-matrix shortcut (default `⌥⇧Space`). Sideby checks release of the held shortcut to dismiss its matrix; it does not save typed input. Runtime desktop discovery uses read-only macOS layout queries. Numeric runtime Space IDs, window IDs, raw input events, and screenshots are not saved. Minimal desktop identity bookmarks are stored locally so assignments can follow the same desktops after a restart.
+Setup names, desktop connection bookmarks, custom desktop names, display choices, shortcut assignments, undo data, migration backups, input preferences, and guide progress stay locally on your Mac. Runtime numeric Space IDs, window IDs, raw input events, and screenshots are not saved. Sideby does not save typed input from its global shortcut handling.
 
-Workspace names and assignments, custom desktop names, the previous setup saved before a rebuild, display choices and row order, remembered display names, input preferences, and guide progress stay locally on your Mac. A content suggestion used as a workspace name becomes part of that saved name.
-
-The direct-distribution app uses private SkyLight APIs with App Sandbox off; it is not targeting the Mac App Store. Updates are delivered through Sparkle 2, with user-approved installation.
+The direct-distribution app uses private SkyLight APIs with App Sandbox off. Updates use Sparkle 2, with user-approved installation.
 
 ## Development
 
@@ -124,24 +115,10 @@ swift build --product SidebyApp
 swift build --product SidebyDevApp
 ```
 
-`SidebyApp` is the product. `SidebyDevApp` is a local probe and API test harness. To build an app bundle for manual verification, check the published [Sparkle feed](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml) and run `scripts/build_app_bundle.sh` with `SIDEBY_BUILD_NUMBER` set to the latest `sparkle:version` plus one. Do not use the script’s default build number after a public release exists.
+`SidebyApp` is the product; `SidebyDevApp` is a local probe. Before a local app bundle build, read the published [Sparkle feed](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml) and set `SIDEBY_BUILD_NUMBER` to the latest `sparkle:version` plus one when running `scripts/build_app_bundle.sh`.
 
-Native screenshots use isolated sample data and can be regenerated without real external displays. See [README media](docs/media/README.md) for the capture command and asset details. Promotional MP4s and their production sources are maintained locally; the README uses repository GIFs and still images.
-
-### Architecture
-
-- `SidebyApp`: menu bar, windows, product onboarding, and application coordination.
-- `SidebyCore`: pure Swift workspace, gesture, settings, and recovery rules.
-- `SidebySystem`: macOS input, display, layout, and command adapters.
-- `SidebyUI`: reusable SwiftUI views and view models.
-- `SidebyDevApp` / `SidebyDevSupport`: local probes and diagnostics.
-
-Space switching goes through `ContextSwitchEngine` and `SpaceCommandExecutor`. SwiftUI owns reusable interfaces; AppKit handles menu bar, window, and system integration.
-
-See [Development](docs/DEVELOPMENT.md) and [Decisions](docs/DECISIONS.md) for implementation and distribution details.
+See [Development](docs/DEVELOPMENT.md), [Decisions](docs/DECISIONS.md), and [README media](docs/media/README.md). Native documentation views use isolated sample data. The repository contains GIF previews and still images; full MP4 exports stay local.
 
 ## Contributing, security, and license
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request, and run `swift test` for code changes. Discuss changes involving permissions, input, switching, packaging, or distribution in an issue first.
-
-Report vulnerabilities through the process in [SECURITY.md](SECURITY.md), not a public issue. Sideby is released under the [MIT License](LICENSE).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request. Report vulnerabilities through [SECURITY.md](SECURITY.md). Sideby is released under the [MIT License](LICENSE).

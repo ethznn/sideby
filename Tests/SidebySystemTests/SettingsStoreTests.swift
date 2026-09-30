@@ -11,6 +11,31 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.load(), .default)
     }
 
+    func testCorruptSettingsAreNotOverwrittenBySaveOrMigration() {
+        let defaults = makeDefaults()
+        let damaged = Data([0, 1, 2])
+        defaults.set(damaged, forKey: "settings")
+        let store = UserDefaultsSettingsStore(userDefaults: defaults, key: "settings")
+        _ = store.load()
+        XCTAssertTrue(store.hasUnreadableSettings)
+        XCTAssertFalse(store.saveChecked(.default))
+        XCTAssertEqual(defaults.data(forKey: "settings"), damaged)
+    }
+
+    func testSavedWorkspaceMigrationRetainsOriginalSettingsBackup() throws {
+        let defaults = makeDefaults()
+        var old = AppSettings.default
+        old.version = 14
+        old.contextPlan = .default
+        let data = try JSONEncoder().encode(old)
+        defaults.set(data, forKey: "settings")
+        let store = UserDefaultsSettingsStore(userDefaults: defaults, key: "settings")
+        XCTAssertEqual(store.load().contextPlan.contexts, old.contextPlan.contexts)
+        XCTAssertEqual(defaults.data(forKey: "settings.before-saved-workspaces"), data)
+        XCTAssertEqual(store.load().version, 15)
+        XCTAssertEqual(defaults.data(forKey: "settings.before-saved-workspaces"), data)
+    }
+
     func testSavesAndLoadsSettings() {
         let defaults = makeDefaults()
         let store = UserDefaultsSettingsStore(userDefaults: defaults, key: "settings")

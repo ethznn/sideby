@@ -244,6 +244,8 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         isPinned: true
     )
 
+    public static let empty = ContextPlan(contexts: [], currentContextID: "", syncState: .needsSync)
+
     public var currentContext: ContextDefinition? {
         contexts.first { $0.id == currentContextID }
     }
@@ -276,7 +278,7 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         id: String,
         minimumContextCount: Int
     ) -> Bool {
-        guard minimumContextCount >= 1,
+        guard minimumContextCount >= 0,
               contexts.count > minimumContextCount,
               let removedIndex = contexts.firstIndex(where: { $0.id == id })
         else {
@@ -288,7 +290,7 @@ public struct ContextPlan: Equatable, Codable, Sendable {
         contexts = Self.normalizedContexts(contexts)
         if removedCurrentContext {
             let fallbackIndex = max(min(removedIndex - 1, contexts.count - 1), 0)
-            currentContextID = contexts[fallbackIndex].id
+            currentContextID = contexts.isEmpty ? "" : contexts[fallbackIndex].id
             syncState = .needsSync
         }
         return true
@@ -551,9 +553,7 @@ public struct ContextPlan: Equatable, Codable, Sendable {
 
     private static func normalizedContexts(_ contexts: [ContextDefinition]) -> [ContextDefinition] {
         let sorted = contexts.sorted { $0.order < $1.order }
-        guard !sorted.isEmpty else {
-            return Self.default.contexts
-        }
+        guard !sorted.isEmpty else { return [] }
 
         let reservedIDs = Set(sorted.map(\.id).filter { !$0.isEmpty })
         var usedIDs = Set<String>()
@@ -590,8 +590,9 @@ public struct ContextPlan: Equatable, Codable, Sendable {
 
     private mutating func ensureValidCurrentContext() {
         if contexts.isEmpty {
-            contexts = Self.default.contexts
-            currentContextID = Self.default.currentContextID
+            currentContextID = ""
+            syncState = .needsSync
+            return
         }
         contexts = Self.normalizedContexts(contexts)
         if !contexts.contains(where: { $0.id == currentContextID }),

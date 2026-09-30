@@ -1,130 +1,100 @@
 # README media
 
-The repository keeps the native screenshots, localized GIFs, and still images
-used by the [English README](../../README.md), [한국어 README](../../README.ko.md),
-and [visual preview](preview.html). Promotional MP4s and their editing,
-soundtrack, and rendering sources are maintained locally and are not needed
-to build or test Sideby. Release attachments are reserved for installers,
-release notes, and update metadata.
+The current English and Korean READMEs explain the 0.13.0 workflow: save the
+setup you are using, add another when needed, and choose a saved setup to
+return. All current screenshots use actual production views backed by fictional
+sample data. No live desktop, personal window title, or account is captured.
 
-## Native screenshots
+## Current walkthrough
 
-Screenshots use production `ProductFloatingMenuPanelView`, `ProductSettingsView`,
-`ProductOnboardingView`, and `WorkspaceMatrixView` views with the fictional
-two-display, two-workspace data in [demo-data.json](demo-data.json).
-The in-memory model uses discarding settings stores, fake layout observations,
-and sample content names. It does not request permissions, run Space commands,
-launch Sideby, or write personal settings. The completed onboarding image
-simulates a successful guide; it is not evidence of a real hardware round trip.
+[English GIF](../images/sideby-save-flow-en.gif) ·
+[한국어 GIF](../images/sideby-save-flow-ko.gif) ·
+[English still](../images/sideby-save-flow-en.png) ·
+[한국어 정지 이미지](../images/sideby-save-flow-ko.png)
 
-| Asset | Size | Appearance |
-| --- | --- | --- |
-| `sideby-context-capture-{en,ko}.png` | 1360 × 1280 | Dark menu with the matrix |
-| `sideby-settings-workspaces-{en,ko}.png` | 1680 × 1240 | Light Settings |
-| `sideby-onboarding-workspaces-{en,ko}.png` | 1280 × 1520 | Light workspace preparation |
-| `sideby-onboarding-roundtrip-{en,ko}.png` | 1280 × 1040 | Light completion and menu handoff |
+The 960 × 760 walkthrough lasts 15 seconds, with 75 GIF frames at 5 fps. Its five
+scenes show an empty list, the save form, the first setup, a second setup,
+and the first setup selected again. Crossfades explain the sequence; they do
+not measure or reproduce actual macOS desktop-switching timing.
 
-From a graphical macOS session with the repository's Swift toolchain:
+The [visual preview](preview.html) includes a playback toggle, starts with a still
+when reduced motion is requested, and shows both languages. The native screenshots
+below the preview cover the menu, save form, settings, and first-setup guide.
 
-```bash
-SIDEBY_RENDER_MEDIA=1 swift test --filter ReadmeMediaRenderingTests/testRenderReadmeMedia
-```
+## Regenerate production views and video
 
-`SIDEBY_MEDIA_OUTPUT` redirects screenshots from `docs/images`;
-`SIDEBY_MEDIA_WORK_DIR` redirects additional review images and intermediates
-from `.build/readme-media`. Real external displays and Screen Recording
-permission are not required. This command does not build an installable app,
-sign, notarize, or publish.
-
-## Current README showreel: Triptych
-
-Both READMEs lead with a localized, silent 7.4-second Triptych preview:
-[English GIF](../images/sideby-triptych-en.gif) ·
-[한국어 GIF](../images/sideby-triptych-ko.gif).
-Each is 960 × 540, with 74 frames at 10 fps, and loops continuously.
-The cut shows displays switching separately, the keyboard shortcut, and all
-three displays switching together and back. It omits the dense matrix scene
-and the long logo ending. Fine film grain is omitted in the GIF to reduce size.
-
-The 1920 × 1080 still alternatives show the three displays together:
-[English PNG](../images/sideby-triptych-en.png) ·
-[한국어 PNG](../images/sideby-triptych-ko.png).
-The [visual preview](preview.html) has a playback toggle and starts with a still
-image when reduced motion is requested. The READMEs link to their still images.
-
-All desktops in this showreel are illustrations with fictional planning,
-AI-agent and code content; they are not actual app captures or measurements of
-macOS switching speed. The native screenshots below the showreel in each README
-remain actual production views with sample data.
-
-Full 15-second English and Korean MP4 exports with the original score stay in
-the ignored local marketing directory, together with their production files.
-The README uses only repository GIFs and PNGs, so its media can be viewed and
-verified from a clean checkout without a release attachment or production files.
-
-## Archived README loops and brand film
-
-The English and Korean `docs/images/sideby-readme-loop-{en,ko}.gif` files are
-960 × 540, with 100 frames over 10 seconds. Matching PNG files provide still
-alternatives. The MacBook, two external displays, and desktop windows are
-fictional illustrations of grouped switching, not recordings of macOS
-performance. These are finished documentation assets; their production
-pipeline is kept locally.
-
-The 21-second v2 brand film uses actual Sideby views with sample data and
-illustrated desktops. It contains no live action and uses an original,
-synthesized score. The English and Korean MP4s in landscape (1920 × 1080)
-and vertical (1080 × 1920) formats are kept locally. Promotional MP4 attachments
-were removed from the 0.12.0 release; the repository previews remain available.
-The archived `docs/images/sideby-brand-film-{en,ko}.gif` files are
-7.6-second silent previews cut from the final film
-(hook → shortcut and matrix → all three displays switching → brand and logo).
-Each 960 × 540 GIF has 76 frames at 10 fps and loops continuously.
-The 1920 × 1080 PNGs with the same names remain available as still alternatives.
-These files and the 10-second loops are retained for existing links; the current
-READMEs use only Triptych to avoid repeating the same switching explanation.
-
-## Marketing workspace and publishing
-
-Promotional films, their edit sources, scores, render scripts and full-resolution
-renders live in the local `marketing/` directory at the repository root. The
-whole directory is ignored by Git, so drafts and large files never enter history.
-
-Publish a finished asset only when a document needs it:
-
-| Asset | Where it goes | Tracked |
-| --- | --- | --- |
-| README preview GIF and still PNG | `docs/images/` | Yes |
-| Full film MP4 (with sound, landscape or vertical) | Local `marketing/` directory | No |
-| Edit sources, scores, stills, contact sheets, drafts | `marketing/` | No |
-
-When you copy a GIF or PNG into `docs/images/`, add it to both READMEs, update the
-expected sizes and frame counts in `scripts/verify_readme_media.swift`, and run
-the checks below. Documentation must not link into `marketing/` or to promotional
-MP4 release attachments. Keep app downloads and update metadata separate from
-marketing media.
-
-## Verification
+Run from the repository root in a graphical macOS session:
 
 ```bash
+SIDEBY_RENDER_MEDIA=1 swift test --filter ReadmeMediaRenderingTests
+swift scripts/render_workspace_preview.swift
 swift scripts/verify_readme_media.swift
 bash scripts/check_public_docs.sh
 ```
 
-These checks use repository assets only. They verify image dimensions, GIF
-timing and loop boundaries, local documentation links, and public-document
-content. They do not verify Release download availability, MP4 playback, or
-audio. Review those separately before publishing a release.
+The opt-in test renders SwiftUI/AppKit product views offscreen with discarding
+settings stores. It does not launch the product, send global input, move desktops,
+or request permissions. `docs/media/demo-data.json` supplies fictional names.
+`SIDEBY_MEDIA_WORK_DIR` can override the default `.build/readme-media` directory;
+use the same value for the test and the video renderer.
 
-Run `swift test` for product regressions. Native screenshot rendering remains
-opt-in. Review both languages at README display size, including workspace
-names, Go/이동 buttons, desktop labels, and onboarding actions. Update both
-READMEs and the preview together when changing the product message.
+| Current PNG | Pixels | Appearance |
+| --- | --- | --- |
+| `sideby-context-capture-{en,ko}.png` | 1360 × 1280 | Dark menu |
+| `sideby-save-workspace-{en,ko}.png` | 1060 × 960 | Light save form |
+| `sideby-settings-workspaces-{en,ko}.png` | 1680 × 1240 | Light settings |
+| `sideby-onboarding-saved-workspaces-{en,ko}.png` | 1280 × 1520 | Light first-setup guide |
+| `sideby-save-flow-{en,ko}.png` | 960 × 760 | Walkthrough still |
 
-## Archived 0.11.1 demo
+Native views render at 2×. Additional fixture images under the work directory
+cover dark appearance, one display, missing titles, and long content names.
+The walkthrough renderer produces a silent H.264 MP4 at 960 × 760, 20 fps in the
+ignored local marketing directory. It checks dimensions, duration, frame rate,
+and absence of audio. The five source scenes are saved there for visual review.
 
-The older `docs/images/sideby-demo-en.gif` and `sideby-demo-poster-en.png` remain
-for existing links. This two-display demo is 960 × 640, with 62 frames over
-22.04 seconds. The existing `bash scripts/render_readme_demo.sh` reproduces it
-from the two-display fixture and also regenerates native screenshots. It does
-not reproduce Triptych, the three-display loops, or the brand film.
+## Marketing setup and publishing
+
+| Asset | Location | Tracked |
+| --- | --- | --- |
+| Current README GIFs and PNGs | `docs/images/` | Yes |
+| Full MP4 exports and scene review images | Local `marketing/` directory | No |
+| Temporary native render fixtures | `.build/readme-media/` | No |
+
+Keep installer, release notes, and signed update metadata as the release assets.
+Documentation must not link into the ignored marketing directory or to promotional
+MP4 release attachments. Inspect every new image and all video scenes before
+publishing, and follow the maintainer’s image-approval instructions.
+
+## Verification
+
+The media verifier checks dimensions, GIF frame counts and timing, looping flags,
+animation, size limits, localized README usage, and local documentation links.
+It does not verify release download availability or establish visual correctness.
+Review both languages at their README display sizes, including name fields,
+setup labels, save actions, and the empty-state explanation. Review the MP4
+separately from the GIF.
+
+The opt-in UI renderer is separate from product regressions. Run `swift test`
+and the native user-journey checks described in [Development](../DEVELOPMENT.md)
+when changing product behavior.
+
+## Archived media
+
+Existing media remain for historical links, but the current READMEs use the
+save-setup walkthrough:
+
+- `sideby-triptych-{en,ko}.gif`: illustrated three-display sequence, 960 × 540,
+  74 frames over 7.4 seconds; matching stills are 1920 × 1080.
+- `sideby-readme-loop-{en,ko}.gif`: 960 × 540, 100 frames over 10 seconds;
+  matching stills are 960 × 540.
+- `sideby-brand-film-{en,ko}.gif`: 960 × 540, 76 frames over 7.6 seconds;
+  matching stills are 1920 × 1080.
+- `sideby-demo-en.gif`: the older two-display 0.11.1 demo, 960 × 640,
+  62 frames over 22.04 seconds, with a matching poster.
+- `sideby-onboarding-workspaces-{en,ko}.png` and
+  `sideby-onboarding-roundtrip-{en,ko}.png`: earlier onboarding views.
+
+Archived illustrated switching scenes do not measure macOS performance. Older
+films’ full MP4s and production files remain local. The older
+`scripts/render_readme_demo.sh` pipeline is for the archived demo; use the commands
+above for the current product views and save-setup walkthrough.

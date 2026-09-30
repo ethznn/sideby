@@ -199,7 +199,7 @@ import SidebySystem
         XCTAssertEqual(model.workspaceDesktopName(displayID: displayID, spaceIndex: 1), "제외된 화면")
     }
 
-    func testNewlyDiscoveredWorkspaceUsesStoredAliasWithoutChangingExistingNames() throws {
+    func testNewDesktopAliasDoesNotGenerateOrRenameSavedWorkspaces() throws {
         let model = model()
         let identity = try XCTUnwrap(DesktopNameIdentity(spaceKey: keys[4], displayID: displayID))
         model.workspaceDesktopAliases[identity.storageKey] = "다시 찾은 자료"
@@ -208,9 +208,9 @@ import SidebySystem
         model.workspaceObservationOverride = { expanded }
         XCTAssertTrue(model.refreshWorkspaceList())
         XCTAssertEqual(Array(model.settings.contextPlan.contexts.prefix(4)).map(\.name), previousNames)
-        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "다시 찾은 자료")
+        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), previousNames)
         XCTAssertTrue(model.refreshWorkspaceList())
-        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "다시 찾은 자료")
+        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), previousNames)
     }
 
     func testUnreadableAliasStorageDoesNotBlockWorkspaceOperations() throws {

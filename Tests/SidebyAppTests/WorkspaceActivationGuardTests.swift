@@ -79,7 +79,7 @@ final class WorkspaceActivationGuardTests: XCTestCase {
         XCTAssertEqual(model.firstWorkProgress.awayContextID, "b")
         model.moveDisplaySpace(displayID: "main", spaceIndex: 0, toContextID: "b")
         XCTAssertNil(model.firstWorkProgress.originContextID)
-        XCTAssertNil(model.workspaceHistory.currentContextID)
+        XCTAssertEqual(model.workspaceHistory.currentContextID, "b", "Editing assignments does not erase actual visit history")
         XCTAssertFalse(model.workspaceGuideIsRecording)
         XCTAssertEqual(model.workspaceConnectionStatus, .ready)
     }

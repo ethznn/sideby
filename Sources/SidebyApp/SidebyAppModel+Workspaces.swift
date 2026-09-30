@@ -60,9 +60,7 @@ extension SidebyAppModel {
 
     func refreshWorkspaceStatus() {
         let observation = workspaceObservation()
-        if settings.contextPlan.contexts.contains(where: { !$0.displayIDs.isEmpty }) {
-            _ = reconcileWorkspaceLayout(observation)
-        }
+        _ = reconcileWorkspaceLayout(observation)
         applyWorkspaceObservation(observation)
     }
 
@@ -77,29 +75,7 @@ extension SidebyAppModel {
     }
 
     func reconcileWorkspaceLayout(_ observation: WorkspaceLayoutObservation?, initializesEmptyPlan: Bool = false) -> Bool {
-        guard canAddContext, pendingContextCaptureAlignment == nil, let observation else { return false }
-        workspaceIdentityBlockedDisplayIDs = workspaceIdentityUnavailable(in: observation)
-        guard workspaceIdentityBlockedDisplayIDs.isEmpty else { return false }
-        let existing = settings.contextPlan.contexts
-        let isInitial = initializesEmptyPlan && existing.allSatisfy { $0.displayIDs.isEmpty }
-        guard let refreshed = WorkspaceLiveRefreshPolicy.contexts(existing: isInitial ? [] : existing,
-            observation: observation, selectedDisplayIDs: selectedDisplayIDs, previousSpaceIDs: workspaceLastObservedSpaceIDs,
-            previousSpaceCounts: workspacePreferences?.dictionary(forKey: "sideby.workspace-desktop-counts") as? [String: Int] ?? [:],
-            previousSpaceKeys: workspaceLastObservedSpaceKeys,
-            defaultName: { settings.language == .korean ? "데스크탑 \($0)" : "Desktop \($0)" }) else { return false }
-        workspaceIsReconciling = true
-        if refreshed != existing {
-            updateContextPlan { plan in
-                let pinned = plan.isPinned
-                plan.replaceContexts(refreshed, currentContextID: plan.currentContextID)
-                plan.setPinned(pinned)
-            }
-        }
-        workspaceIsReconciling = false
-        rememberWorkspaceObservation(observation)
-        reconcileWorkspaceDesktopNames(observation)
-        nameNewWorkspacesUsingDesktopAliases(previousIDs: Set(existing.map(\.id)))
-        return true
+        reconcileSavedWorkspaceLayout(observation)
     }
 
     func workspaceAssignmentReadiness(contextID: String) -> WorkspaceRecoveryState? {
@@ -109,6 +85,7 @@ extension SidebyAppModel {
     }
 
     func isWorkspaceAssignmentAvailable(contextID: String) -> Bool {
+        if let context = settings.contextPlan.contexts.first(where: { $0.id == contextID }), !unresolvedWorkspaceMembers(context).isEmpty { return false }
         if let context = settings.contextPlan.contexts.first(where: { $0.id == contextID }),
            !Set(context.displayIDs).isDisjoint(with: workspaceIdentityBlockedDisplayIDs) { return false }
         guard let state = workspaceAssignmentReadiness(contextID: contextID) else { return false }
@@ -116,6 +93,7 @@ extension SidebyAppModel {
     }
 
     func applyWorkspaceObservation(_ observation: WorkspaceLayoutObservation?) {
+        workspaceLatestObservation = observation
         workspaceObservedDisplays = observation?.displays
         reconcileWorkspaceDesktopNames(observation)
         let required = selectedDisplayIDs.intersection(Set(settings.contextPlan.contexts.flatMap(\.displayIDs)))
@@ -150,7 +128,7 @@ extension SidebyAppModel {
             return
         }
         let matches = settings.contextPlan.contexts.filter { context in
-            WorkspaceRecoveryState(
+            unresolvedWorkspaceMembers(context, observation: observation).isEmpty && WorkspaceRecoveryState(
                 targetContext: context, selectedDisplayIDs: selectedDisplayIDs, displays: displays
             ).isResolved
         }
@@ -202,7 +180,8 @@ extension SidebyAppModel {
 
     func admitWorkspaceActivation(_ target: ContextDefinition, snapshot: [String: [UInt64]]?) -> Bool {
         let required = Set(target.displayIDs).intersection(selectedDisplayIDs)
-        guard required.isDisjoint(with: workspaceIdentityBlockedDisplayIDs), !workspaceIdentityNeedsReview,
+        guard unresolvedWorkspaceMembers(target).isEmpty, required.isDisjoint(with: workspaceIdentityBlockedDisplayIDs),
+              settings.savedWorkspaces.initialized || !workspaceIdentityNeedsReview,
               settings.contextPlan.contexts.first(where: { $0.id == target.id })?.displaySpaceIndexes == target.displaySpaceIndexes,
               required.allSatisfy({ workspaceLastObservedSpaceIDs[$0] == nil || workspaceLastObservedSpaceIDs[$0] == snapshot?[$0] }) else {
             workspaceConnectionStatus = .changed(required)
@@ -276,7 +255,7 @@ extension SidebyAppModel {
         }
         if mappingChanged || previousSelected != selectedDisplayIDs {
             workspaceConfigurationRevision += 1
-            workspaceHistory = WorkspaceVisitHistory()
+            workspaceHistory.reconcile(validContextIDs: Set(settings.contextPlan.contexts.map(\.id)))
             workspaceGuideIsRecording = false
             if !firstWorkProgress.isComplete { firstWorkProgress = WorkspaceFirstRunProgress() }
         }

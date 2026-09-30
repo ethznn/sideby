@@ -11,6 +11,9 @@ import SwiftUI
     private var session = HeldMatrixSession()
     private var screenID: NSNumber?
     private var previousColumnID: String?
+    private var persistent = false
+    private var outsideMonitor: Any?
+    private var localOutsideMonitor: Any?
     private var observers: [NSObjectProtocol] = []
 
     init(model: SidebyAppModel) {
@@ -42,6 +45,8 @@ import SwiftUI
     isolated deinit {
         source?.stop()
         panel?.orderOut(nil)
+        if let outsideMonitor { NSEvent.removeMonitor(outsideMonitor) }
+        if let localOutsideMonitor { NSEvent.removeMonitor(localOutsideMonitor) }
         for token in observers {
             NotificationCenter.default.removeObserver(token)
             NSWorkspace.shared.notificationCenter.removeObserver(token)
@@ -68,14 +73,16 @@ import SwiftUI
     func suspend() {
         source?.stop()
         source = nil
+        dismiss()
         session.release()
         model?.setHeldMatrixInputActive(false)
-        hide()
     }
 
     private func receive(_ event: HeldMatrixShortcutInputSource.Event) {
         switch event {
         case .pressed:
+            if model?.workspaceSaveDraft != nil { model?.showWorkspaceSave(); return }
+            if persistent { dismiss(); return }
             guard let generation = session.press(), let model else { return }
             model.setHeldMatrixInputActive(true)
             model.refreshWorkspaceStatus()
@@ -84,12 +91,59 @@ import SwiftUI
         case .released:
             session.release()
             model?.setHeldMatrixInputActive(false)
-            hide()
+            if !persistent { hide() }
         case .cancelled: dismiss()
         }
     }
 
-    func dismiss() { session.dismiss(); hide() }
+    func dismiss() {
+        persistent = false
+        session.dismiss()
+        hide()
+        if let outsideMonitor { NSEvent.removeMonitor(outsideMonitor); self.outsideMonitor = nil }
+        if let localOutsideMonitor { NSEvent.removeMonitor(localOutsideMonitor); self.localOutsideMonitor = nil }
+    }
+
+    func showPersistent(anchor: NSRect? = nil) {
+        guard let model, model.workspaceSaveDraft == nil else { return }
+        persistent = true
+        model.refreshWorkspaceStatus()
+        show(model: model, generation: session.generation, anchor: anchor)
+        pinVisiblePanel()
+    }
+
+    // Confirmations and their undo result remain usable after the opening chord is released.
+    func pinVisiblePanel() {
+        guard let panel, panel.isVisible else { return }
+        persistent = true
+        panel.acceptsKeyboard = true
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+        if outsideMonitor == nil {
+            outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+                MainActor.assumeIsolated { if self?.persistent == true { self?.dismiss() } }
+            }
+        }
+        if localOutsideMonitor == nil {
+            localOutsideMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+                MainActor.assumeIsolated {
+                    guard let self, self.persistent, let panel = self.panel,
+                          let clicked = event.window, clicked !== panel,
+                          clicked.parent !== panel, panel.attachedSheet == nil,
+                          NSApp.modalWindow == nil, clicked.level < panel.level else { return }
+                    self.dismiss()
+                }
+                return event
+            }
+        }
+    }
+
+    private func beginSave(editingID: String? = nil) {
+        guard let model else { return }
+        let anchor = panel?.frame
+        dismiss()
+        model.showWorkspaceSave(editingID: editingID, anchor: anchor) { [weak self] in self?.showPersistent(anchor: anchor) }
+    }
 
     private func hide() {
         panel?.orderOut(nil)
@@ -97,13 +151,22 @@ import SwiftUI
         // original recipient. Every action also validates the press generation.
     }
 
-    private func show(model: SidebyAppModel, generation: Int) {
-        let pointer = NSEvent.mouseLocation
+    private func show(model: SidebyAppModel, generation: Int, anchor: NSRect? = nil) {
+        let pointer = anchor.map { NSPoint(x: $0.midX, y: $0.maxY - 62) } ?? NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else { dismiss(); return }
         let snapshot = HeldWorkspaceSnapshot(model: model, previousColumnID: previousColumnID)
-        let size = HeldMatrixPanelLayout.size(columns: snapshot.columns.count, displays: snapshot.displayIDs.count, visibleFrame: screen.visibleFrame)
+        var accessoryHeight: CGFloat = model.workspaceSaveMessage == nil ? 0 : 52
+        if let previous = model.workspaceHistory.previousContextID,
+           previous != model.verifiedCurrentWorkspaceID,
+           model.settings.contextPlan.contexts.contains(where: { $0.id == previous }) { accessoryHeight += 30 }
+        if !model.isEnabled || !model.hasSwitchingAccess { accessoryHeight += 36 }
+        let size = HeldMatrixPanelLayout.size(columns: snapshot.columns.count,
+            displays: model.connectedWorkspaceDisplayIDs.count,
+            visibleFrame: screen.visibleFrame, accessoryHeight: accessoryHeight)
         let panel = HeldMatrixPanel(contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.acceptsKeyboard = persistent
+        panel.onCancel = { [weak self] in self?.dismiss() }
         panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
         panel.level = .popUpMenu
@@ -114,11 +177,14 @@ import SwiftUI
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
-        panel.title = "Sideby — Quick workspace matrix"
+        panel.title = "Sideby — Quick setup matrix"
         panel.identifier = NSUserInterfaceItemIdentifier("sideby-held-workspace-matrix")
         let view = HeldWorkspaceMatrixView(model: model, snapshot: snapshot, select: { [weak self] column in
             self?.activate(column, snapshot: snapshot, generation: generation)
-        }, rememberColumn: { [weak self] id in self?.previousColumnID = id })
+        }, rememberColumn: { [weak self] id in self?.previousColumnID = id },
+            save: { [weak self] in self?.beginSave() }, edit: { [weak self] id in self?.beginSave(editingID: id) },
+            persistent: persistent, close: { [weak self] in self?.dismiss() },
+            keepOpen: { [weak self] in self?.pinVisiblePanel() })
         panel.contentView = HeldMatrixHostingView(rootView: view.frame(width: size.width, height: size.height))
         panel.setFrameOrigin(HeldMatrixPanelLayout.origin(size: size, pointer: pointer, visibleFrame: screen.visibleFrame))
         self.panel?.orderOut(nil)
@@ -128,16 +194,17 @@ import SwiftUI
     }
 
     private func activate(_ column: HeldWorkspaceColumn, snapshot: HeldWorkspaceSnapshot, generation: Int) {
-        guard let model, session.isVisible, session.generation == generation, source?.chordIsDown == true else { return }
+        guard let model, persistent || (session.isVisible && session.generation == generation && source?.chordIsDown == true) else { return }
         model.refreshWorkspaceStatus()
         guard model.verifiedCurrentWorkspaceID != column.id,
               model.heldMatrixCanActivate(column, displayIDs: snapshot.displayIDs),
-              session.beginTransition(session: generation) else { return }
+              persistent || session.beginTransition(session: generation) else { return }
         model.heldMatrixSwitchInFlight = true
-        model.activateContext(contextID: column.id, requestsPermissions: false) { [weak self, weak model] _ in
+        model.activateContext(contextID: column.id, requestsPermissions: false) { [weak self, weak model] success in
             self?.session.finishTransition()
             model?.heldMatrixSwitchInFlight = false
-            self?.refreshVisiblePanelInput()
+            if success && self?.persistent == true { self?.dismiss() }
+            else { self?.refreshVisiblePanelInput() }
         }
     }
 
@@ -148,7 +215,10 @@ import SwiftUI
 }
 
 final class HeldMatrixPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
+    var acceptsKeyboard = false
+    var onCancel: (() -> Void)?
+    override var canBecomeKey: Bool { acceptsKeyboard }
+    override func cancelOperation(_ sender: Any?) { onCancel?() }
     override var canBecomeMain: Bool { false }
 
     /// On macOS 27 a nonactivating panel can remain visible after a Space

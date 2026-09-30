@@ -123,7 +123,8 @@ public enum ContextKeyboardShortcutPolicy: Sendable {
         isSidebyEnabled: Bool,
         isSwitching: Bool,
         isCapturing: Bool,
-        previousContextID: String? = nil
+        previousContextID: String? = nil,
+        shortcutSlots: [String: Int]? = nil
     ) -> ContextKeyboardAction {
         guard !isSwitching, !isCapturing else {
             return .ignore
@@ -143,6 +144,11 @@ public enum ContextKeyboardShortcutPolicy: Sendable {
         case .activate(let position):
             guard (1...10).contains(position) else {
                 return .ignore
+            }
+            if let shortcutSlots {
+                guard let id = shortcutSlots.first(where: { $0.value == position })?.key,
+                      contextPlan.contexts.contains(where: { $0.id == id }) else { return .showMissingContext(position: position) }
+                return .activate(contextID: id)
             }
             let contexts = contextPlan.contexts.sorted { $0.order < $1.order }
             let index = position - 1
