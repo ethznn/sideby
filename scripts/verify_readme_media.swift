@@ -15,6 +15,7 @@ let expectedFrameCount = timeline?.count ?? 62
 let expectedDuration = timeline?.reduce(0.0) { $0 + ($1["seconds"] as! Double) } ?? 22.04
 var expected: [String: (Int, Int)] = ["sideby-demo-poster-en.png": (960, 640)]
 for language in ["en", "ko"] {
+    expected["sideby-kinetic-\(language).png"] = (1920, 1080)
     expected["sideby-setups-film-\(language).png"] = (1920, 1080)
     expected["sideby-save-flow-\(language).png"] = (960, 760)
     expected["sideby-save-workspace-\(language).png"] = (1060, 960)
@@ -74,7 +75,8 @@ for language in ["en", "ko"] {
     ("sideby-brand-film", 76, 7.6, false),
     ("sideby-triptych", 74, 7.4, false),
     ("sideby-save-flow", 75, 15.0, false),
-    ("sideby-setups-film", 120, 12.0, false)
+    ("sideby-setups-film", 120, 12.0, false),
+    ("sideby-kinetic", 375, 18.75, false)
   ] {
     let url = directory.appendingPathComponent("\(stem)-\(language).gif")
     let loop = CGImageSourceCreateWithURL(url as CFURL, nil)!
@@ -89,7 +91,7 @@ for language in ["en", "ko"] {
         let properties = CGImageSourceCopyPropertiesAtIndex(loop, index, nil)! as NSDictionary
         let timing = properties[kCGImagePropertyGIFDictionary] as! NSDictionary
         let delay = (timing[kCGImagePropertyGIFUnclampedDelayTime] ?? timing[kCGImagePropertyGIFDelayTime]) as! NSNumber
-        precondition(abs(delay.doubleValue - (stem == "sideby-save-flow" ? 0.2 : 0.1)) < 0.001)
+        precondition(abs(delay.doubleValue - (stem == "sideby-save-flow" ? 0.2 : stem == "sideby-kinetic" ? 0.05 : 0.1)) < 0.001)
         loopDuration += delay.doubleValue
     }
     precondition(abs(loopDuration - seconds) < 0.001)
@@ -109,12 +111,12 @@ let linkPattern = try NSRegularExpression(pattern: #"(?:\]\(|(?:src|href)=\")([^
 for language in ["en", "ko"] {
     let name = language == "en" ? "README.md" : "README.ko.md"
     let body = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
-    for stem in ["setups-film", "save-flow", "save-workspace", "context-capture", "settings-workspaces", "onboarding-saved-workspaces"] {
+    for stem in ["kinetic", "save-flow", "save-workspace", "context-capture", "settings-workspaces", "onboarding-saved-workspaces"] {
         let asset = "sideby-\(stem)-\(language).png"
         precondition(body.contains(asset), "\(name) does not use \(asset)")
     }
-    precondition(body.contains("sideby-setups-film-\(language).gif") && body.contains("sideby-save-flow-\(language).gif") && body.contains("⌥⇧Tab"))
-    precondition(body.range(of: "sideby-setups-film-\(language).gif")!.lowerBound < body.range(of: "sideby-save-flow-\(language).gif")!.lowerBound, "Promotional film must lead the README")
+    precondition(body.contains("sideby-kinetic-\(language).gif") && body.contains("sideby-save-flow-\(language).gif") && body.contains("⌥⇧Tab"))
+    precondition(body.range(of: "sideby-kinetic-\(language).gif")!.lowerBound < body.range(of: "sideby-save-flow-\(language).gif")!.lowerBound, "Promotional film must lead the README")
     precondition(!body.contains("sideby-brand-film-") && !body.contains("sideby-readme-loop-"),
                  "README should use one current preview, without duplicate archived demos")
 }

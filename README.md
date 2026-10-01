@@ -5,12 +5,12 @@ English | [한국어](README.ko.md)
 **Back to your work, in one action.**
 
 <p align="center">
-  <img src="./docs/images/sideby-setups-film-en.gif" width="720" alt="Sideby promotional film: save the current three-display setup, switch all displays to PR review, and return with one shortcut." />
+  <img src="./docs/images/sideby-kinetic-en.gif" width="720" alt="Sideby promotional film: save the current three-display setup, switch all displays to PR review, and return with one shortcut." />
 </p>
 
 Save the desktops you're using across your displays as a setup. Choose it later to switch those displays together. One display works too.
 
-*Illustrated desktops and a simplified save form with fictional data. Motion explains the workflow, not measured switching speed.* [Still image](docs/images/sideby-setups-film-en.png).
+*Illustrated desktops and a simplified save form with fictional data. Motion explains the workflow, not measured switching speed.* [Still image](docs/images/sideby-kinetic-en.png).
 
 [Download Sideby](https://github.com/ethznn/sideby/releases) · macOS 14 or later · English and Korean
 

@@ -5,12 +5,12 @@
 **하던 일로, 한 번에 돌아오세요.**
 
 <p align="center">
-  <img src="./docs/images/sideby-setups-film-ko.gif" width="720" alt="Sideby 홍보 영상: 지금 쓰는 세 화면 구성을 저장하고 PR 리뷰로 함께 전환한 뒤 단축키로 돌아오는 모습." />
+  <img src="./docs/images/sideby-kinetic-ko.gif" width="720" alt="Sideby 홍보 영상: 지금 쓰는 세 화면 구성을 저장하고 PR 리뷰로 함께 전환한 뒤 단축키로 돌아오는 모습." />
 </p>
 
 여러 화면에서 지금 쓰는 데스크탑을 하나의 구성으로 저장하세요. 다음에 그 구성을 고르면 필요한 화면들이 함께 전환됩니다. 화면 하나만으로도 사용할 수 있습니다.
 
-*가상 데스크탑과 단순화한 저장 화면으로 만든 홍보 영상입니다. 화면 전환은 사용 흐름을 설명하며 실제 속도를 측정한 것이 아닙니다.* [정지 이미지 보기](docs/images/sideby-setups-film-ko.png).
+*가상 데스크탑과 단순화한 저장 화면으로 만든 홍보 영상입니다. 화면 전환은 사용 흐름을 설명하며 실제 속도를 측정한 것이 아닙니다.* [정지 이미지 보기](docs/images/sideby-kinetic-ko.png).
 
 [Sideby 다운로드](https://github.com/ethznn/sideby/releases) · macOS 14 이상 · 한국어·영어 지원
 
