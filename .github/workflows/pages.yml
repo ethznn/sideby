@@ -1,0 +1,63 @@
+name: Sideby website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'scripts/build_site.py'
+      - 'scripts/check_site.py'
+      - 'docs/images/sideby-kinetic-*'
+      - 'docs/images/sideby-save-workspace-*'
+      - 'docs/images/sideby-context-capture-*'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'scripts/build_site.py'
+      - 'scripts/check_site.py'
+      - 'docs/images/sideby-kinetic-*'
+      - 'docs/images/sideby-save-workspace-*'
+      - 'docs/images/sideby-context-capture-*'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build public site
+        run: python3 scripts/build_site.py --output .build/site
+      - name: Verify content, links, metadata, and deployment files
+        run: python3 scripts/check_site.py .build/site
+      - name: Check JavaScript syntax
+        run: node --check site/site.js
+      - name: Check public documentation
+        run: bash scripts/check_public_docs.sh
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .build/site
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Sideby project site
+        id: deployment
+        uses: actions/deploy-pages@v4

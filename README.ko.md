@@ -2,6 +2,8 @@
 
 [English](README.md) | 한국어
 
+[공식 사이트](https://ethznn.github.io/sideby/ko/) · [다운로드](https://github.com/ethznn/sideby/releases/latest)
+
 **하던 일로, 한 번에 돌아오세요.**
 
 <p align="center">
