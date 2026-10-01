@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify the deployable site, including project-path links and bilingual SEO."""
 import argparse
+import hashlib
 import json
 from html.parser import HTMLParser
 from pathlib import Path
@@ -52,6 +53,8 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     assert 'noindex' not in text.lower()
     assert '${' not in text and '/Users/' not in text and '127.0.0.1' not in text
     assert all(not urlparse(tag.get('src', '')).netloc for tag in page.find('script')), 'No third-party script dependency expected'
+    script_version = hashlib.sha256((root / 'assets/site.js').read_bytes()).hexdigest()[:12]
+    assert page.find('script', src=f'{parsed_base.path}assets/site.js?v={script_version}'), 'Version the script URL so returning visitors receive playback updates'
     data = json.loads(page.json_text); app = next(item for item in data['@graph'] if item['@type'] == 'SoftwareApplication')
     assert app['name'] == 'Sideby' and app['offers']['price'] == '0'
     assert 'aggregateRating' not in app and 'review' not in app, 'Only publish actual reviews'

@@ -33,6 +33,9 @@ to the poster. Switching away pauses motion; returning resumes it only if the
 visitor had left playback enabled. No analytics, external fonts, or third-party
 JavaScript are included.
 
+The script URL includes its content hash so returning visitors receive behavior
+updates after reloading instead of reusing an older cached script.
+
 ## Deployment
 
 `.github/workflows/pages.yml` builds and checks the site on relevant pull requests.

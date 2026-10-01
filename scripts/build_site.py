@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the Sideby project site from explicit public inputs; no packages required."""
 import argparse
+import hashlib
 import html
 import json
 import shutil
@@ -24,12 +25,13 @@ assets.mkdir(exist_ok=True)
 template = Template((ROOT / 'site/template.html').read_text())
 esc = html.escape
 repo = 'https://github.com/ethznn/sideby'
+script_version = hashlib.sha256((ROOT / 'site/site.js').read_bytes()).hexdigest()[:12]
 for language in ['en', 'ko']:
     content = json.loads((ROOT / f'site/content/{language}.json').read_text())
     path = '' if language == 'en' else 'ko/'
     canonical = base + path
     values = {k: esc(v, quote=True) for k, v in content.items() if isinstance(v, str)}
-    values.update(base_url=base, base_path=parsed.path, canonical=canonical,
+    values.update(base_url=base, base_path=parsed.path, canonical=canonical, script_version=script_version,
                   home_path=parsed.path + path, repo_url=repo,
                   download_url=repo + '/releases/latest',
                   docs_url=repo + '/blob/main/' + ('README.md' if language == 'en' else 'README.ko.md'),
