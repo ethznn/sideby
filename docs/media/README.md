@@ -5,7 +5,29 @@ setup you are using, add another when needed, and choose a saved setup to
 return. All current screenshots use actual production views backed by fictional
 sample data. No live desktop, personal window title, or account is captured.
 
-## Current walkthrough
+## Current promotional film: Save it. Come back.
+
+The English and Korean READMEs lead with a new promotional edit in the visual
+style of the earlier Triptych film. It shows the cost of finding each display
+again, saving the current setup, switching three displays together, and
+returning with `⌥⇧Tab`. The save form and desktops are simplified illustrations
+with fictional data, not captures of the product or switching benchmarks.
+
+[English GIF](../images/sideby-setups-film-en.gif) ·
+[한국어 GIF](../images/sideby-setups-film-ko.gif) ·
+[English still](../images/sideby-setups-film-en.png) ·
+[한국어 정지 이미지](../images/sideby-setups-film-ko.png)
+
+The silent README cut is 12 seconds, 960 × 540, 120 frames at 10 fps. Its matching
+posters are 1920 × 1080. Full localized films are 15 seconds, 1920 × 1080 at
+60 fps, with an original synthesized stereo score timed to the new actions.
+Full MP4s, score, edit sources, and render tools stay in the ignored marketing
+directory. The earlier Triptych sources and exports are preserved there.
+
+The public preview opens with this promotional film. The READMEs keep the
+production-view save walkthrough below the save instructions, in a disclosure.
+
+## Production-view walkthrough
 
 [English GIF](../images/sideby-save-flow-en.gif) ·
 [한국어 GIF](../images/sideby-save-flow-ko.gif) ·
@@ -81,7 +103,7 @@ when changing product behavior.
 ## Archived media
 
 Existing media remain for historical links, but the current READMEs use the
-save-setup walkthrough:
+new promotional film and the production-view save walkthrough:
 
 - `sideby-triptych-{en,ko}.gif`: illustrated three-display sequence, 960 × 540,
   74 frames over 7.4 seconds; matching stills are 1920 × 1080.

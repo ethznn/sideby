@@ -2,15 +2,15 @@
 
 [English](README.md) | 한국어
 
-**지금 쓰는 구성을 기억하고, 하던 일로 가볍게 돌아가세요.**
+**하던 일로, 한 번에 돌아오세요.**
 
 <p align="center">
-  <img src="./docs/images/sideby-save-flow-ko.gif" width="720" alt="현재 화면 구성을 결제 개발로 저장하고, PR 리뷰 구성을 추가한 뒤 매트릭스에서 결제 개발을 다시 고르는 흐름." />
+  <img src="./docs/images/sideby-setups-film-ko.gif" width="720" alt="Sideby 홍보 영상: 지금 쓰는 세 화면 구성을 저장하고 PR 리뷰로 함께 전환한 뒤 단축키로 돌아오는 모습." />
 </p>
 
 여러 화면에서 지금 쓰는 데스크탑을 하나의 구성으로 저장하세요. 다음에 그 구성을 고르면 필요한 화면들이 함께 전환됩니다. 화면 하나만으로도 사용할 수 있습니다.
 
-*가상 데이터를 넣은 실제 Sideby 화면으로 사용 흐름을 구성한 영상입니다. 실제 데스크탑 전환 속도를 촬영한 영상은 아닙니다.* [정지 이미지 보기](docs/images/sideby-save-flow-ko.png).
+*가상 데스크탑과 단순화한 저장 화면으로 만든 홍보 영상입니다. 화면 전환은 사용 흐름을 설명하며 실제 속도를 측정한 것이 아닙니다.* [정지 이미지 보기](docs/images/sideby-setups-film-ko.png).
 
 [Sideby 다운로드](https://github.com/ethznn/sideby/releases) · macOS 14 이상 · 한국어·영어 지원
 
@@ -29,6 +29,17 @@
 </p>
 
 Sideby는 기존 macOS 데스크탑의 연결을 기억합니다. 스크린샷을 저장하거나 앱·문서를 다시 열고 창 위치를 복원하는 기능은 아닙니다.
+
+<details>
+<summary>실제 앱 화면으로 저장 흐름 보기</summary>
+
+<p align="center">
+  <img src="./docs/images/sideby-save-flow-ko.gif" width="720" alt="현재 화면 구성을 결제 개발로 저장하고, PR 리뷰 구성을 추가한 뒤 매트릭스에서 결제 개발을 다시 고르는 흐름." />
+</p>
+
+가상 데이터를 넣은 실제 앱 화면입니다. 첫 구성 저장, 구성 추가, 다시 고르기를 차례로 보여줍니다. [정지 이미지 보기](docs/images/sideby-save-flow-ko.png).
+
+</details>
 
 ## 구성을 고르고 필요한 부분만 바꾸세요
 

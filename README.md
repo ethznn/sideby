@@ -2,15 +2,15 @@
 
 English | [한국어](README.ko.md)
 
-**Keep the setup you're using. Come back in one action.**
+**Back to your work, in one action.**
 
 <p align="center">
-  <img src="./docs/images/sideby-save-flow-en.gif" width="720" alt="Save a desktop setup as Checkout, keep a second setup for PR review, and choose Checkout again from Sideby’s matrix." />
+  <img src="./docs/images/sideby-setups-film-en.gif" width="720" alt="Sideby promotional film: save the current three-display setup, switch all displays to PR review, and return with one shortcut." />
 </p>
 
 Save the desktops you're using across your displays as a setup. Choose it later to switch those displays together. One display works too.
 
-*Actual Sideby views with fictional sample data, edited into a walkthrough. This is not a recording of desktop switching speed.* [Still image](docs/images/sideby-save-flow-en.png).
+*Illustrated desktops and a simplified save form with fictional data. Motion explains the workflow, not measured switching speed.* [Still image](docs/images/sideby-setups-film-en.png).
 
 [Download Sideby](https://github.com/ethznn/sideby/releases) · macOS 14 or later · English and Korean
 
@@ -29,6 +29,17 @@ Start with one useful setup and add another when you actually use it. A new inst
 </p>
 
 Sideby remembers connections to existing macOS desktops. It does not capture screenshots, reopen apps or documents, or restore window positions.
+
+<details>
+<summary>See the save flow in the actual app</summary>
+
+<p align="center">
+  <img src="./docs/images/sideby-save-flow-en.gif" width="720" alt="Save a desktop setup as Checkout, keep a second setup for PR review, and choose Checkout again from Sideby’s matrix." />
+</p>
+
+Production views with fictional sample data: save a first setup, add another, and choose it again. [Still image](docs/images/sideby-save-flow-en.png).
+
+</details>
 
 ## Choose and adjust a setup
 
