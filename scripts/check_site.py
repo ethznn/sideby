@@ -62,7 +62,7 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     for tag, attrs in page.tags:
         if tag == 'img':
             assert attrs.get('alt') and attrs.get('width') and attrs.get('height')
-            assert not attrs['src'].endswith('.gif'), 'Load animation only on request'
+            assert not attrs['src'].endswith('.gif'), 'Start with a poster so JavaScript can respect reduced motion'
         for attribute in ['href', 'src', 'data-motion', 'data-poster']:
             path = attrs.get(attribute)
             if not path: continue

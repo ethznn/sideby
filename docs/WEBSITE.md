@@ -27,9 +27,11 @@ Open `http://127.0.0.1:8765/sideby/` or `/sideby/ko/`. The local preview keeps t
 production canonical URLs. Review both languages at narrow and wide widths,
 light and dark appearance, keyboard navigation, and with reduced motion.
 
-The animation is loaded only after a visitor chooses to play it. Stopping it
-returns to the poster; playing again starts from the beginning. No analytics,
-external fonts, or third-party JavaScript are included.
+The animation plays automatically when the page is visible. Visitors who prefer
+reduced motion see the poster and can choose to play it. The stop button returns
+to the poster. Switching away pauses motion; returning resumes it only if the
+visitor had left playback enabled. No analytics, external fonts, or third-party
+JavaScript are included.
 
 ## Deployment
 
