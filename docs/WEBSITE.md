@@ -63,6 +63,10 @@ requirements: <https://developers.google.com/search/docs/appearance/structured-d
 
 After the site is live:
 
+The owner's Google Search Console verification tag is included in
+`site/template.html`. Keep it in place after verification so ownership can be
+rechecked. It is a public verification token, not an API credential.
+
 1. In Google Search Console, add the **URL-prefix** property
    `https://ethznn.github.io/sideby/` using the owner's Google account.
 2. Verify ownership with Google's HTML tag in `site/template.html`, then redeploy.
