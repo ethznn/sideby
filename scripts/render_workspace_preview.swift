@@ -10,9 +10,9 @@ let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let work = ProcessInfo.processInfo.environment["SIDEBY_MEDIA_WORK_DIR"].map { URL(fileURLWithPath: $0) }
     ?? root.appendingPathComponent(".build/readme-media")
 let output = root.appendingPathComponent("docs/images")
-let local = root.appendingPathComponent("marketing/workspace-save-0.13.0")
+let local = root.appendingPathComponent("marketing/workspace-1.0.0")
 try FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
-let width = 960, height = 760, fps = 20, duration = 15, frames = 300
+let width = 960, height = 760, fps = 20, duration = 21, frames = 420
 
 func png(_ image: CGImage, _ url: URL) throws {
     guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
@@ -32,14 +32,16 @@ let accent = NSColor(srgbRed: 0.23, green: 0.29, blue: 0.84, alpha: 1)
 
 for language in ["en", "ko"] {
     let korean = language == "ko"
-    let titles = korean ? ["지금 쓰는 구성부터.", "이름을 붙여 기억해 두세요.", "저장한 구성은 이곳에.", "다른 일도 같은 방식으로.", "하던 일로, 가볍게 돌아가기."]
-        : ["Start with the setup you're using.", "Give it a name. Keep it for later.", "Your saved setup, right here.", "Save another when you need it.", "Come back in one action."]
-    let subtitles = korean ? ["⌥⇧Space를 누른 채 ‘이 구성 저장’을 선택하세요.", "키를 놓고, 함께 기억할 화면을 확인한 뒤 저장하세요.", "평소처럼 일하다가 필요한 구성을 하나씩 추가하세요.", "결제 개발과 PR 리뷰. 각 구성의 화면을 기억합니다.", "구성을 고르거나, ⌥⇧Tab으로 직전 구성으로 돌아오세요."]
-        : ["Hold ⌥⇧Space, then choose Save this setup.", "Release the keys. Choose the displays to remember. Save.", "Keep working. Add useful setups as you go.", "Checkout and PR review, each with its own desktops.", "Choose a setup, or return to the previous one with ⌥⇧Tab."]
+    let titles = korean ? ["지금 쓰는 구성부터.", "이름을 붙여 기억해 두세요.", "다른 일도 같은 방식으로.", "화면별 데스크탑을 한눈에.", "필요한 구성으로 연결하세요.", "변경사항을 확인하고 저장.", "하던 일로, 가볍게 돌아가기."]
+        : ["Start with the setup you're using.", "Give it a name. Keep it for later.", "Save another when you need it.", "Every display. Every desktop.", "Connect it to the setup you need.", "Review your changes. Save.", "Come back in one action."]
+    let subtitles = korean ? ["⌥⇧Space를 누른 채 ‘이 구성 저장’을 선택하세요.", "키를 놓고, 함께 기억할 화면을 확인한 뒤 저장하세요.", "결제 개발과 PR 리뷰. 각 구성의 화면을 기억합니다.", "설정 → 구성 관리에서 화면별로 데스크탑을 살펴보세요.", "위 카드를 아래로 끌거나, 카드를 선택한 뒤 같은 화면의 칸을 누르세요.", "화면 연결과 구성 순서를 함께 편집하고 저장할 수 있습니다.", "구성을 고르거나, ⌥⇧Tab으로 직전 구성으로 돌아오세요."]
+        : ["Hold ⌥⇧Space, then choose Save this setup.", "Release the keys. Choose the displays to remember. Save.", "Checkout and PR review, each with its own desktops.", "Open Settings → Manage setups to see desktops by display.", "Drag a card down, or select it and click a cell on the same display.", "Edit desktop connections and setup order, then save together.", "Choose a setup, or return to the previous one with ⌥⇧Tab."]
     let urls = [work.appendingPathComponent("native/empty-\(language).png"),
                 output.appendingPathComponent("sideby-save-workspace-\(language).png"),
-                work.appendingPathComponent("native/first-\(language).png"),
                 work.appendingPathComponent("native/review-\(language).png"),
+                output.appendingPathComponent("sideby-settings-workspaces-\(language).png"),
+                work.appendingPathComponent("native/composer-assigned-\(language).png"),
+                work.appendingPathComponent("native/composer-saved-\(language).png"),
                 work.appendingPathComponent("native/return-\(language).png")]
     let images = try urls.map { url -> NSImage in
         guard let image = NSImage(contentsOf: url) else { throw NSError(domain: "Missing fixture: " + url.lastPathComponent, code: 1) }
@@ -59,7 +61,8 @@ for language in ["en", "ko"] {
         text("sideby", rect: NSRect(x: 36, y: 21, width: 150, height: 24), size: 17, weight: .semibold, color: accent)
         text(titles[stage], rect: NSRect(x: 36, y: 58, width: 900, height: 45), size: 31, weight: .semibold, color: ink)
         text(subtitles[stage], rect: NSRect(x: 36, y: 105, width: 900, height: 27), size: 16, weight: .regular, color: muted)
-        let size = stage == 1 ? NSSize(width: 477, height: 432) : NSSize(width: 680, height: 560)
+        let size = stage == 1 ? NSSize(width: 477, height: 432)
+            : (3...5).contains(stage) ? NSSize(width: 760, height: 558.4) : NSSize(width: 680, height: 560)
         let rect = NSRect(x: (CGFloat(width) - size.width) / 2, y: 155 + (560 - size.height) / 2, width: size.width, height: size.height)
         NSGraphicsContext.saveGraphicsState()
         NSBezierPath(roundedRect: rect, xRadius: 13, yRadius: 13).addClip()
@@ -70,16 +73,16 @@ for language in ["en", "ko"] {
         NSGraphicsContext.restoreGraphicsState()
         text(korean ? "샘플 데이터로 구성한 실제 앱 화면" : "Production views · fictional sample data",
             rect: NSRect(x: 36, y: 730, width: 700, height: 20), size: 11, weight: .regular, color: muted)
-        for index in 0..<5 {
+        for index in titles.indices {
             (index == stage ? accent : NSColor(srgbRed: 0.80, green: 0.82, blue: 0.89, alpha: 1)).setFill()
-            NSBezierPath(roundedRect: NSRect(x: 824 + index * 20, y: 734, width: 13, height: 4), xRadius: 2, yRadius: 2).fill()
+            NSBezierPath(roundedRect: NSRect(x: 784 + index * 20, y: 734, width: 13, height: 4), xRadius: 2, yRadius: 2).fill()
         }
         NSGraphicsContext.restoreGraphicsState()
         return bitmap.cgImage!
     }
-    let scenes = try (0..<5).map(scene)
+    let scenes = try titles.indices.map(scene)
     for (index, scene) in scenes.enumerated() { try png(scene, local.appendingPathComponent("scene-\(language)-\(index).png")) }
-    try png(scenes[4], output.appendingPathComponent("sideby-save-flow-\(language).png"))
+    try png(scenes[3], output.appendingPathComponent("sideby-save-flow-\(language).png"))
     let movie = local.appendingPathComponent("sideby-save-flow-\(language).mp4")
     if FileManager.default.fileExists(atPath: movie.path) { try FileManager.default.removeItem(at: movie) }
     let writer = try AVAssetWriter(outputURL: movie, fileType: .mp4)
@@ -140,5 +143,5 @@ for language in ["en", "ko"] {
     precondition(abs(length.seconds - Double(duration)) < 0.05 && dimensions == CGSize(width: width, height: height) && rate == Float(fps))
     let audio = try await asset.loadTracks(withMediaType: .audio)
     precondition(audio.isEmpty)
-    print("Verified \(language): 15 s silent H.264, 960×760, 20 fps; GIF 75 frames at 5 fps.")
+    print("Verified \(language): 21 s silent H.264, 960×760, 20 fps; GIF 105 frames at 5 fps.")
 }

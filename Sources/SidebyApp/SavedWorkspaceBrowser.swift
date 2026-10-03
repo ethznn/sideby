@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import SidebyCore
 import SidebyUI
 
@@ -91,7 +92,7 @@ struct SavedWorkspaceBrowser: View {
                         .multilineTextAlignment(.center)
                 }.frame(maxWidth: .infinity, minHeight: 140, maxHeight: .infinity).accessibilityIdentifier("workspace-empty-state")
             } else if isQuick || viewMode == "matrix" {
-                SavedWorkspaceMatrix(model: model, select: select, edit: edit)
+                SavedWorkspaceMatrix(model: model, select: select, edit: edit, keepOpen: keepOpen)
                     .frame(minHeight: 170, maxHeight: .infinity)
             } else {
                 SavedWorkspaceList(model: model, select: select, edit: edit)
@@ -148,6 +149,11 @@ struct SavedWorkspaceMatrix: View {
     @ObservedObject var model: SidebyAppModel
     var select: ((String) -> Void)?
     var edit: ((String) -> Void)?
+    var keepOpen: (() -> Void)?
+    @State private var drag: WorkspaceComposerDrag?
+    @State private var dropID: String?
+    @State private var dropAfter = false
+    @State private var dragSession = UUID()
     @State private var deleting: ContextDefinition?
     private var copy: WorkspaceSaveStrings { model.saveCopy }
     private let columnWidth: CGFloat = 154
@@ -170,7 +176,8 @@ struct SavedWorkspaceMatrix: View {
                             Label(model.displayName(for: id), systemImage: model.displayLayout.displays.first { $0.id == id }?.isBuiltin == true ? "laptopcomputer" : "display")
                                 .font(.system(size: 11, weight: .medium)).lineLimit(2)
                             Text(model.workspaceObservedDisplays?.first { $0.displayID == id }.map { copy.desktop($0.currentSpaceIndex) }
-                                 ?? (model.displayLayout.displays.contains { $0.id == id } ? copy.excluded : copy.offline))
+                                 ?? (model.displayLayout.displays.contains { $0.id == id }
+                                     ? (model.selectedDisplayIDs.contains(id) ? copy.text("Unable to read", "읽기 실패") : copy.excluded) : copy.offline))
                                 .font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                         }.frame(maxWidth: .infinity, alignment: .leading).frame(height: rowHeight).padding(.horizontal, 12)
                             .overlay(alignment: .top) { Rectangle().fill(NativeSurfaceStyle.frameBorder).frame(height: 0.5) }
@@ -191,11 +198,17 @@ struct SavedWorkspaceMatrix: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(NativeSurfaceStyle.frameBorder))
         .accessibilityIdentifier("workspace-assignment-table")
+        .background(WorkspaceDragCompletion(dragID: drag?.id) { drag = nil; dropID = nil })
         .confirmationDialog(deleting.map { copy.deleteTitle($0.name) } ?? copy.delete,
             isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
                 Button(copy.delete, role: .destructive) { if let id = deleting?.id { _ = model.deleteSavedWorkspace(id) }; deleting = nil }
                 Button(copy.cancel, role: .cancel) { deleting = nil }
             } message: { Text(copy.deleteMessage) }
+    }
+
+    private func neighbor(_ id: String, offset: Int) -> String? {
+        guard let i = contexts.firstIndex(where: { $0.id == id }), contexts.indices.contains(i + offset) else { return nil }
+        return contexts[i + offset].id
     }
 
     private func column(_ context: ContextDefinition) -> some View {
@@ -204,14 +217,26 @@ struct SavedWorkspaceMatrix: View {
         let move = { if let select { select(context.id) } else { model.activateContext(contextID: context.id) } }
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 5) {
+                    WorkspaceReorderHandle(name: context.name, copy: copy,
+                        enabled: model.canEditWorkspaceComposer && !model.hasWorkspaceComposerChanges,
+                        moveLeft: neighbor(context.id, offset: -1).map { target in { _ = model.reorderSavedWorkspace(context.id, relativeTo: target, after: false) } },
+                        moveRight: neighbor(context.id, offset: 1).map { target in { _ = model.reorderSavedWorkspace(context.id, relativeTo: target, after: true) } },
+                        startDrag: {
+                            keepOpen?()
+                            let payload = WorkspaceComposerDrag(session: dragSession, contextID: context.id)
+                            drag = payload
+                            return NSItemProvider(object: payload.rawValue as NSString)
+                        }).accessibilityIdentifier("workspace-reorder-" + context.id)
                 Button(action: move) {
                     HStack(spacing: 6) {
-                        Image(systemName: "rectangle.stack").foregroundStyle(NativeSurfaceStyle.accent)
                         Text(context.name).font(.system(size: 13, weight: .semibold)).lineLimit(2)
                         Spacer(minLength: 0)
                     }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 }.buttonStyle(.plain).disabled(!model.canActivateContext || !available).pointingHandCursor()
                     .accessibilityIdentifier("workspace-select-" + context.id)
+                    .help(context.name)
+                }
                 HStack {
                     Text(model.workspaceShortcut(context.id) ?? "").font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     Spacer(minLength: 0)
@@ -224,7 +249,10 @@ struct SavedWorkspaceMatrix: View {
                     Text(current ? copy.current : available ? copy.text("Choose to return", "선택해 돌아가기") : copy.offlineOrMissing(context, model: model))
                 }.font(.system(size: 10)).foregroundStyle(current ? NativeSurfaceStyle.accent : NativeSurfaceStyle.secondaryText).lineLimit(1)
             }.padding(.horizontal, 11).frame(height: headerHeight)
-                .background(current ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.headerBackground)
+                .background(current || dropID == context.id ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.headerBackground)
+                .overlay(alignment: dropAfter ? .trailing : .leading) { if dropID == context.id { Rectangle().fill(NativeSurfaceStyle.accent).frame(width: 2) } }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("workspace-header-" + context.id)
             Button(action: move) {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(displayIDs, id: \.self) { id in cell(context, id: id) }
@@ -237,8 +265,22 @@ struct SavedWorkspaceMatrix: View {
         .overlay(alignment: .leading) { Rectangle().fill(NativeSurfaceStyle.frameBorder).frame(width: 0.5) }
         .contextMenu {
             Button(copy.edit) { if let edit { edit(context.id) } else { model.showWorkspaceSave(editingID: context.id) } }
-            Button(copy.delete, role: .destructive) { deleting = context }
+            let left = neighbor(context.id, offset: -1), right = neighbor(context.id, offset: 1)
+            Button(copy.text("Move left", "왼쪽으로 이동")) { if let left { _ = model.reorderSavedWorkspace(context.id, relativeTo: left, after: false) } }
+                .disabled(left == nil || !model.canEditWorkspaceComposer || model.hasWorkspaceComposerChanges)
+            Button(copy.text("Move right", "오른쪽으로 이동")) { if let right { _ = model.reorderSavedWorkspace(context.id, relativeTo: right, after: true) } }
+                .disabled(right == nil || !model.canEditWorkspaceComposer || model.hasWorkspaceComposerChanges)
+            Button(copy.delete, role: .destructive) { keepOpen?(); deleting = context }
         }
+        .onDrop(of: [UTType.plainText], delegate: WorkspaceComposerDropDelegate(session: dragSession, active: drag,
+            contextID: context.id, displayID: nil, enabled: model.canEditWorkspaceComposer && !model.hasWorkspaceComposerChanges, midpoint: columnWidth / 2,
+            hover: { entered, after in
+                if entered { dropID = context.id; dropAfter = after }
+                else if dropID == context.id { dropID = nil }
+            }, receive: { payload, after in
+                if let id = payload.contextID { _ = model.reorderSavedWorkspace(id, relativeTo: context.id, after: after) }
+                drag = nil; dropID = nil
+            }))
     }
 
     private func cell(_ context: ContextDefinition, id: String) -> some View {

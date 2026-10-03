@@ -72,7 +72,7 @@ final class ProductWindowCoordinatorTests: XCTestCase {
             XCTAssertFalse(window.isVisible)
         }
         // A small SwiftUI fitting size must not shrink the initial settings table/guide.
-        for (window, expected) in [(first, NSSize(width: 840, height: 620)), (guide, NSSize(width: 640, height: 520))] {
+        for (window, expected) in [(first, NSSize(width: 980, height: 720)), (guide, NSSize(width: 640, height: 520))] {
             let screenSize = window.screen?.visibleFrame.size ?? expected
             let chrome = window.frame.height - window.contentRect(forFrameRect: window.frame).height
             let content = window.contentRect(forFrameRect: window.frame).size
@@ -140,4 +140,31 @@ final class ProductWindowCoordinatorTests: XCTestCase {
         XCTAssertEqual(navigation.settingsRoute.contextID, "review")
         XCTAssertNil(navigation.settingsRoute.returnTo)
     }
+    func testUnsavedSettingsGateKeepsReturnRouteUntilEditingIsResolved() throws {
+        let navigation = ProductUINavigation(preferences: MemoryProductUIPreferences())
+        navigation.openSettings(.init(pane: .workspaces, returnTo: .daily))
+        let coordinator = ProductWindowCoordinator(navigation: navigation,
+            settingsContent: { _ in AnyView(EmptyView()) }, onboardingContent: { _ in AnyView(EmptyView()) },
+            closeDaily: {}, refreshState: {}, onboardingWillShow: { _ in }, onboardingWillClose: {})
+        var dirty = true
+        var pending: (@MainActor () -> Void)?
+        var returned = 0
+        coordinator.settingsHasUnsavedChanges = { dirty }
+        coordinator.resolveSettingsChanges = { _, completion in pending = completion }
+        coordinator.presentDaily = { returned += 1 }
+        let window = coordinator.makeWindow(for: .settings)
+        XCTAssertFalse(coordinator.windowShouldClose(window))
+        XCTAssertNotNil(pending)
+        pending = nil // Keep editing cancels the pending close.
+        coordinator.returnAfterAssignmentReview()
+        XCTAssertEqual(navigation.settingsRoute.returnTo, .daily)
+        XCTAssertEqual(returned, 0)
+        dirty = false
+        try XCTUnwrap(pending)()
+        XCTAssertEqual(returned, 1)
+        XCTAssertNil(navigation.settingsRoute.returnTo)
+        XCTAssertTrue(coordinator.windowShouldClose(window))
+        window.close()
+    }
+
 }

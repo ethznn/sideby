@@ -80,7 +80,9 @@ struct ProductSettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
             ForEach(ProductSettingsPane.allCases) { pane in
                 Button {
-                    navigation.selectPane(pane)
+                    if navigation.settingsRoute.pane == .workspaces && pane != .workspaces {
+                        model.resolveWorkspaceComposerBeforeLeaving(window: hostingWindow) { navigation.selectPane(pane) }
+                    } else { navigation.selectPane(pane) }
                 } label: {
                     Label(strings.pane(pane), systemImage: strings.paneSymbol(pane))
                         .fixedSize(horizontal: false, vertical: true)

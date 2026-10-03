@@ -1,15 +1,16 @@
 # README media
 
-The current English and Korean READMEs explain the 0.13.0 workflow: save the
-setup you are using, add another when needed, and choose a saved setup to
-return. All current screenshots use actual production views backed by fictional
+The current English and Korean READMEs explain the 1.0.0 workflow: save the
+setup you are using, arrange its desktop connections by display, and choose a
+saved setup to return. All current screenshots use actual production views backed by fictional
 sample data. No live desktop, personal window title, or account is captured.
 
 ## Current promotional film: Kinetic
 
 The English and Korean READMEs lead with the Kinetic edit. Large words scatter
 as displays switch separately, then gather into “This setup. Save it.” The film
-shows saving the current setup, moving three displays together, and returning
+shows saving the current setup, dragging a desktop from its display row into
+the setup matrix, saving that edit, moving three displays together, and returning
 with `⌥⇧Tab`. It reuses the earlier Triptych film’s three-panel opening, physical
 keycaps, giant “Side / by / side” typography, and animated logo.
 
@@ -21,8 +22,8 @@ not captures of the product or switching benchmarks.
 [English still](../images/sideby-kinetic-en.png) ·
 [한국어 정지 이미지](../images/sideby-kinetic-ko.png)
 
-The silent README preview shows the full 18.75-second edit at 960 × 540, with
-375 frames at 20 fps. Its posters are 1920 × 1080. Full localized MP4s are
+The silent README preview shows the full 22.5-second edit at 960 × 540, with
+450 frames at 20 fps. Its posters are 1920 × 1080. Full localized MP4s are
 1920 × 1080 at 60 fps, with an original synthesized stereo score timed to the
 motion. MP4s, score, edit sources, and render tools stay in the ignored marketing
 directory. Both the previous “Save it. Come back.” edit and the original Triptych
@@ -38,9 +39,9 @@ production-view save walkthrough below the save instructions, in a disclosure.
 [English still](../images/sideby-save-flow-en.png) ·
 [한국어 정지 이미지](../images/sideby-save-flow-ko.png)
 
-The 960 × 760 walkthrough lasts 15 seconds, with 75 GIF frames at 5 fps. Its five
-scenes show an empty list, the save form, the first setup, a second setup,
-and the first setup selected again. Crossfades explain the sequence; they do
+The 960 × 760 walkthrough lasts 21 seconds, with 105 GIF frames at 5 fps. Its seven
+scenes show an empty list, the save form, two saved setups, the composer,
+an edited connection, the saved draft, and a setup selected again. Crossfades explain the sequence; they do
 not measure or reproduce actual macOS desktop-switching timing.
 
 The [visual preview](preview.html) includes a playback toggle, starts with a still
@@ -68,7 +69,7 @@ use the same value for the test and the video renderer.
 | --- | --- | --- |
 | `sideby-context-capture-{en,ko}.png` | 1360 × 1280 | Dark menu |
 | `sideby-save-workspace-{en,ko}.png` | 1060 × 960 | Light save form |
-| `sideby-settings-workspaces-{en,ko}.png` | 1680 × 1240 | Light settings |
+| `sideby-settings-workspaces-{en,ko}.png` | 1960 × 1440 | Light composer settings |
 | `sideby-onboarding-saved-workspaces-{en,ko}.png` | 1280 × 1520 | Light first-setup guide |
 | `sideby-save-flow-{en,ko}.png` | 960 × 760 | Walkthrough still |
 
@@ -76,7 +77,7 @@ Native views render at 2×. Additional fixture images under the work directory
 cover dark appearance, one display, missing titles, and long content names.
 The walkthrough renderer produces a silent H.264 MP4 at 960 × 760, 20 fps in the
 ignored local marketing directory. It checks dimensions, duration, frame rate,
-and absence of audio. The five source scenes are saved there for visual review.
+and absence of audio. The seven source scenes are saved there for visual review.
 
 ## Marketing setup and publishing
 

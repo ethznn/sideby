@@ -63,11 +63,19 @@ final class ReadmeMediaRenderingTests: XCTestCase {
                 actions: .init(route: { _ in }, quit: {}))
             try await render(menu, to: output.appendingPathComponent("sideby-context-capture-\(suffix).png"),
                              width: 680, height: 640, dark: true)
-            let settings = ProductSettingsView(model: model,
+            let composer = try makeModel(language: language)
+            let settings = ProductSettingsView(model: composer,
                 navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
                 actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {}))
             try await render(settings, to: output.appendingPathComponent("sideby-settings-workspaces-\(suffix).png"),
-                             width: 840, height: 620, dark: false)
+                             width: 980, height: 720, dark: false)
+            XCTAssertTrue(composer.assignWorkspaceComposer(
+                .init(displayID: "display-1", key: "sample-display-1-desktop-1"), to: "checkout"))
+            try await render(settings, to: intermediates.appendingPathComponent("composer-assigned-\(suffix).png"),
+                             width: 980, height: 720, dark: false)
+            XCTAssertTrue(composer.commitWorkspaceComposer())
+            try await render(settings, to: intermediates.appendingPathComponent("composer-saved-\(suffix).png"),
+                             width: 980, height: 720, dark: false)
             let empty = try makeModel(language: language, workspaceCount: 0)
             try await render(SavedWorkspaceBrowser(model: empty).padding(18),
                 to: intermediates.appendingPathComponent("empty-\(suffix).png"), width: 680, height: 560, dark: true)
@@ -81,7 +89,22 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             let review = try makeModel(language: language, currentIndex: 1)
             try await render(SavedWorkspaceBrowser(model: review).padding(18),
                 to: intermediates.appendingPathComponent("review-\(suffix).png"), width: 680, height: 560, dark: true)
-            try await render(SavedWorkspaceBrowser(model: model).padding(18),
+            // Continue the walkthrough with the edited setup and matching sample
+            // observation, so the final matrix preserves the saved connection.
+            let previous = try XCTUnwrap(composer.workspaceLatestObservation)
+            let returned = WorkspaceLayoutObservation(displays: previous.displays.map {
+                .init(displayID: $0.displayID, spaceCount: $0.spaceCount,
+                      currentSpaceIndex: $0.displayID == "display-1" ? 1 : 0)
+            }, spaceIDsByDisplayID: previous.spaceIDsByDisplayID,
+               spaceKeysByDisplayID: previous.spaceKeysByDisplayID)
+            composer.workspaceObservationOverride = { returned }
+            composer.workspaceLatestObservation = returned
+            composer.workspaceObservedDisplays = returned.displays
+            composer.verifiedCurrentWorkspaceID = "checkout"
+            completeProgress(composer)
+            composer.workspaceHistory.recordSuccessfulVisit(contextID: "review")
+            composer.workspaceHistory.recordSuccessfulVisit(contextID: "checkout")
+            try await render(SavedWorkspaceBrowser(model: composer).padding(18),
                 to: intermediates.appendingPathComponent("return-\(suffix).png"), width: 680, height: 560, dark: true)
             let preferences = MemoryProductUIPreferences()
             preferences.onboardingStage = .workspaces

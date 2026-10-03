@@ -82,6 +82,8 @@ final class WorkspaceSettingsNativeEvidenceTests: XCTestCase {
         })
         model.permissionState = .granted
         let spaceIDs = Dictionary(uniqueKeysWithValues: ids.enumerated().map { offset, id in (id, (0..<rows).map { UInt64(100 * (offset + 1) + $0) }) })
+        let keys = spaceIDs.mapValues { $0.map { "space-\($0)" } }
+        model.workspaceObservationOverride = { .init(displays: observations, spaceIDsByDisplayID: spaceIDs, spaceKeysByDisplayID: keys) }
         model.workspaceSpaceIDsOverride = { spaceIDs }
         model.workspaceDesktopNameSpaceIDs = spaceIDs
         model.workspaceLastObservedSpaceIDs = spaceIDs
@@ -118,9 +120,9 @@ final class WorkspaceSettingsNativeEvidenceTests: XCTestCase {
                 view.subviews.forEach(inspect)
             }
             inspect(host)
-            XCTAssertEqual(scrolls.count, 3, "One sidebar and exactly one table scroll owner per axis")
+            XCTAssertEqual(scrolls.count, 5, "One sidebar; source desktops and destination matrix each share one scroll owner per axis")
             XCTAssertTrue(scrolls.contains { $0.contentView.bounds.minX > 0 }, "Requested workspace column must be revealed")
-            // Offline assignments stay in storage; the table shows connected displays only.
+            // A route to a remembered display reveals its saved assignments.
         }
         let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
         host.cacheDisplay(in: host.bounds, to: bitmap)

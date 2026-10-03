@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
 
 @main
 struct SidebyApp: App {
+    @NSApplicationDelegateAdaptor(ProductApplicationDelegate.self) private var applicationDelegate
     @StateObject private var model: SidebyAppModel
     @StateObject private var updater: SidebyUpdater
     private let preferences: UserDefaultsProductUIPreferences
@@ -70,6 +71,10 @@ struct SidebyApp: App {
                 model?.dismissFirstWorkGuide()
                 preferences.didDismissOnboarding = true
             })
+        windows.settingsHasUnsavedChanges = { [weak model] in model?.hasWorkspaceComposerChanges == true }
+        windows.resolveSettingsChanges = { [weak model] window, completion in
+            model?.resolveWorkspaceComposerBeforeLeaving(window: window, completion: completion)
+        }
         let actions = ProductMenuPanelActions(route: { [weak windows] request in
             switch ProductApplicationRouting.route(for: request) {
             case .settings(let route): windows?.showSettings(route)
@@ -84,6 +89,13 @@ struct SidebyApp: App {
         self.preferences = preferences
         self.windows = windows
         menuActions = actions
+        applicationDelegate.hasUnsavedChanges = { [weak model] in model?.hasWorkspaceComposerChanges == true }
+        applicationDelegate.resolveUnsavedChanges = { [weak model] in
+            guard let model else { return false }
+            var resolved = false
+            model.resolveWorkspaceComposerBeforeLeaving(window: nil) { resolved = true }
+            return resolved
+        }
     }
 
     var body: some Scene {
@@ -597,6 +609,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     var workspaceSpaceIDsOverride: (() -> [String: [UInt64]]?)?
     var workspaceGuideIsRecording = false
     var workspaceConfigurationRevision = 0
+    @Published var workspaceComposerDraft: WorkspaceComposerDraft?
     @Published var workspaceSaveDraft: WorkspaceSaveDraft?
     @Published var workspaceSaveMessage: String?
     @Published var workspaceSavedFocusID: String?

@@ -24,7 +24,7 @@ for language in ["en", "ko"] {
     expected["sideby-brand-film-\(language).png"] = (1920, 1080)
     expected["sideby-readme-loop-\(language).png"] = (960, 540)
     expected["sideby-context-capture-\(language).png"] = (1360, 1280)
-    expected["sideby-settings-workspaces-\(language).png"] = (1680, 1240)
+    expected["sideby-settings-workspaces-\(language).png"] = (1960, 1440)
     expected["sideby-onboarding-workspaces-\(language).png"] = (1280, 1520)
     expected["sideby-onboarding-roundtrip-\(language).png"] = (1280, 1040)
 }
@@ -74,9 +74,9 @@ for language in ["en", "ko"] {
     ("sideby-readme-loop", 100, 10.0, true),
     ("sideby-brand-film", 76, 7.6, false),
     ("sideby-triptych", 74, 7.4, false),
-    ("sideby-save-flow", 75, 15.0, false),
+    ("sideby-save-flow", 105, 21.0, false),
     ("sideby-setups-film", 120, 12.0, false),
-    ("sideby-kinetic", 375, 18.75, false)
+    ("sideby-kinetic", 450, 22.5, false)
   ] {
     let url = directory.appendingPathComponent("\(stem)-\(language).gif")
     let loop = CGImageSourceCreateWithURL(url as CFURL, nil)!

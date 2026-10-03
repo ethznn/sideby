@@ -7,6 +7,8 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
 
     let navigation: ProductUINavigation
     var presentDaily: (() -> Void)?
+    var settingsHasUnsavedChanges: () -> Bool = { false }
+    var resolveSettingsChanges: ((NSWindow, @escaping @MainActor () -> Void) -> Void)?
     private let settingsContent: (ProductWindowCoordinator) -> AnyView
     private let onboardingContent: (ProductWindowCoordinator) -> AnyView
     private let closeDaily: () -> Void
@@ -35,7 +37,7 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
 
     func makeWindow(for kind: Kind) -> NSWindow {
         if let window = controllers[kind]?.window { return window }
-        let size = kind == .settings ? NSSize(width: 840, height: 620) : NSSize(width: 640, height: 520)
+        let size = kind == .settings ? NSSize(width: 980, height: 720) : NSSize(width: 640, height: 520)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
@@ -45,7 +47,7 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
         window.title = "Sideby"
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.contentMinSize = kind == .settings ? NSSize(width: 700, height: 420) : NSSize(width: 560, height: 420)
+        window.contentMinSize = kind == .settings ? NSSize(width: 700, height: 560) : NSSize(width: 560, height: 420)
         controllers[kind] = NSWindowController(window: window)
         window.contentViewController = NSHostingController(rootView: kind == .settings ? settingsContent(self) : onboardingContent(self))
         // Hosting can resize to SwiftUI's minimum fitting size when attached.
@@ -77,6 +79,9 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
     }
 
     func returnAfterAssignmentReview() {
+        if settingsHasUnsavedChanges(), let window = controllers[.settings]?.window, let resolveSettingsChanges {
+            resolveSettingsChanges(window) { [weak self] in self?.returnAfterAssignmentReview() }; return
+        }
         guard let destination = navigation.consumeReturnDestination() else { return }
         controllers[.settings]?.window?.orderOut(nil)
         switch destination {
@@ -87,6 +92,13 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
 
     func windowDidBecomeKey(_ notification: Notification) {
         refreshState()
+    }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if sender === controllers[.settings]?.window, settingsHasUnsavedChanges(), let resolveSettingsChanges {
+            resolveSettingsChanges(sender) { [weak sender] in sender?.close() }; return false
+        }
+        return true
     }
 
     func windowWillClose(_ notification: Notification) {

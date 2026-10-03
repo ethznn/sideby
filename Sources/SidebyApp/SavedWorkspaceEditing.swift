@@ -69,7 +69,8 @@ extension SidebyAppModel {
             let context = contexts[index]
             var members = context.displaySpaceIndexes
             for (id, handle) in workspaceLegacyRuntimeBookmarks[context.id] ?? [:]
-                where next.savedWorkspaces.bookmarks[context.id]?[id] == nil {
+                where members[id] != nil && next.savedWorkspaces.bookmarks[context.id]?[id] == nil {
+                // Keep legacy handles for undo, but never restore a removed member during refresh.
                 if let position = observation.spaceIDsByDisplayID[id]?.firstIndex(of: handle) { members[id] = position }
             }
             contexts[index] = .init(id: context.id, order: context.order, name: context.name, displaySpaceIndexes: members)

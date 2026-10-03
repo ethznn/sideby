@@ -1,22 +1,92 @@
 {
-  "version": "0.13.0",
+  "version": "1.0.0",
   "displays": [
-    {"id": "display-0", "name": "MacBook Pro", "builtin": true},
-    {"id": "display-1", "name": "Studio Display", "builtin": false}
+    {
+      "id": "display-0",
+      "name": "MacBook Pro",
+      "builtin": true
+    },
+    {
+      "id": "display-1",
+      "name": "Studio Display",
+      "builtin": false
+    }
   ],
   "workspaces": [
     {
-      "id": "checkout", "en": "Checkout", "ko": "결제 개발",
+      "id": "checkout",
+      "en": "Checkout",
+      "ko": "결제 개발",
       "desktops": [
-        {"title": "Checkout.swift", "kind": "code", "heading": "Build the checkout flow", "lines": ["struct CheckoutView: View {", "  @State private var quantity = 1", "", "  var body: some View {", "    OrderSummary(quantity: quantity)", "    CheckoutButton {", "      submitOrder()", "    }", "  }", "}"]},
-        {"title": "Checkout API", "kind": "docs", "heading": "Create an order", "lines": ["POST  /v1/orders", "Create an order from the current cart.", "", "cart_id       string     required", "quantity      integer    required", "currency      string     USD", "", "201 Created", "Your order is ready for checkout."]}
+        {
+          "title": "Checkout.swift",
+          "kind": "code",
+          "heading": "Build the checkout flow",
+          "lines": [
+            "struct CheckoutView: View {",
+            "  @State private var quantity = 1",
+            "",
+            "  var body: some View {",
+            "    OrderSummary(quantity: quantity)",
+            "    CheckoutButton {",
+            "      submitOrder()",
+            "    }",
+            "  }",
+            "}"
+          ]
+        },
+        {
+          "title": "Checkout API",
+          "kind": "docs",
+          "heading": "Create an order",
+          "lines": [
+            "POST  /v1/orders",
+            "Create an order from the current cart.",
+            "",
+            "cart_id       string     required",
+            "quantity      integer    required",
+            "currency      string     USD",
+            "",
+            "201 Created",
+            "Your order is ready for checkout."
+          ]
+        }
       ]
     },
     {
-      "id": "review", "en": "PR review", "ko": "PR 리뷰",
+      "id": "review",
+      "en": "PR review",
+      "ko": "PR 리뷰",
       "desktops": [
-        {"title": "Checkout PR #42", "kind": "review", "heading": "Review the checkout changes", "lines": ["PR #42  ·  Improve order validation", "", "  func submitOrder() {", "-   api.createOrder(cart)", "+   guard cart.isValid else { return }", "+   api.createOrder(validated: cart)", "  }", "", "3 files changed   +28  −9"]},
-        {"title": "Checkout preview", "kind": "preview", "heading": "Try the review build", "lines": ["Your order", "Studio notebook", "Quantity  1", "$24.00", "Checkout", "Review build · PR #42"]}
+        {
+          "title": "Checkout PR #42",
+          "kind": "review",
+          "heading": "Review the checkout changes",
+          "lines": [
+            "PR #42  ·  Improve order validation",
+            "",
+            "  func submitOrder() {",
+            "-   api.createOrder(cart)",
+            "+   guard cart.isValid else { return }",
+            "+   api.createOrder(validated: cart)",
+            "  }",
+            "",
+            "3 files changed   +28  −9"
+          ]
+        },
+        {
+          "title": "Checkout preview",
+          "kind": "preview",
+          "heading": "Try the review build",
+          "lines": [
+            "Your order",
+            "Studio notebook",
+            "Quantity  1",
+            "$24.00",
+            "Checkout",
+            "Review build · PR #42"
+          ]
+        }
       ]
     }
   ]
