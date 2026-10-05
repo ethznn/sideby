@@ -64,15 +64,19 @@ struct WorkspaceComposerDrag: Codable, Equatable, Sendable {
     let session: UUID
     var desktop: WorkspaceDesktopReference?
     var contextID: String?
+    /// Present only when a desktop is dragged from an existing live connection cell.
+    var sourceContextID: String?
     static let prefix = "sideby-composer|"
     var rawValue: String { Self.prefix + String(decoding: (try? JSONEncoder().encode(self)) ?? Data(), as: UTF8.self) }
-    init(session: UUID, desktop: WorkspaceDesktopReference? = nil, contextID: String? = nil) {
+    init(session: UUID, desktop: WorkspaceDesktopReference? = nil, contextID: String? = nil, sourceContextID: String? = nil) {
         self.id = UUID(); self.session = session; self.desktop = desktop; self.contextID = contextID
+        self.sourceContextID = sourceContextID
     }
     init?(rawValue: String) {
         guard rawValue.hasPrefix(Self.prefix), let data = String(rawValue.dropFirst(Self.prefix.count)).data(using: .utf8),
               let value = try? JSONDecoder().decode(Self.self, from: data),
               (value.desktop != nil) != (value.contextID != nil),
+              value.sourceContextID.map({ !$0.isEmpty && value.desktop != nil }) ?? true,
               value.desktop.map({ !$0.displayID.isEmpty && !$0.key.isEmpty }) ?? !(value.contextID?.isEmpty ?? true)
         else { return nil }
         self = value
@@ -82,6 +86,39 @@ struct WorkspaceComposerDrag: Codable, Equatable, Sendable {
 extension SidebyAppModel {
     var canEditWorkspaceComposer: Bool { canSaveWorkspace && workspaceSaveDraft == nil }
     var hasWorkspaceComposerChanges: Bool { workspaceComposerDraft?.hasChanges == true }
+
+    var canUndoWorkspaceComposer: Bool {
+        canEditWorkspaceComposer && (workspaceComposerDraft?.history.isEmpty == false
+            || (!hasWorkspaceComposerChanges && settings.savedWorkspaces.undo != nil))
+    }
+
+    var canCommitWorkspaceComposer: Bool {
+        canEditWorkspaceComposer && hasWorkspaceComposerChanges
+            && workspaceComposerDraft.flatMap(workspaceComposerValidation) == nil
+    }
+
+    func workspaceComposerEntryIsCurrent(_ entry: WorkspaceComposerEntry) -> Bool {
+        verifiedCurrentWorkspaceID == entry.id
+            && entry.members == workspaceComposerDraft?.baseline.entries.first(where: { $0.id == entry.id })?.members
+    }
+
+    func workspaceComposerShortcut(_ id: String) -> String? {
+        guard let slot = workspaceComposerDraft?.state.slots[id],
+              settings.savedWorkspaces.shortcutSlots[id] == slot,
+              !failedContextKeyboardCommands.contains(.activate(position: slot)) else { return nil }
+        return "⌥⇧\(slot == 10 ? 0 : slot)"
+    }
+
+    var workspaceComposerHasExcludedConnections: Bool {
+        let excluded = Set(connectedWorkspaceDisplayIDs).subtracting(selectedDisplayIDs)
+        return workspaceComposerDraft?.state.entries.contains { !excluded.isDisjoint(with: $0.members.keys) } == true
+    }
+
+    func canUseCurrentDesktopsInWorkspaceComposer(_ contextID: String) -> Bool {
+        guard canEditWorkspaceComposer,
+              let entry = workspaceComposerDraft?.state.entries.first(where: { $0.id == contextID }) else { return false }
+        return !Set(connectedWorkspaceDisplayIDs).isDisjoint(with: entry.members.keys)
+    }
 
     func beginWorkspaceComposer() {
         guard workspaceComposerDraft == nil else {
@@ -208,6 +245,31 @@ extension SidebyAppModel {
         return id
     }
 
+    /// Update only this setup's included, connected displays; preserve offline members.
+    @discardableResult
+    func useCurrentDesktopsInWorkspaceComposer(_ contextID: String) -> Bool {
+        guard canUseCurrentDesktopsInWorkspaceComposer(contextID),
+              let entry = workspaceComposerDraft?.state.entries.first(where: { $0.id == contextID }) else { return false }
+        guard let observation = workspaceObservation(includingUnselectedDisplays: true) else {
+            workspaceComposerDraft?.error = saveCopy.readUnavailable; return false
+        }
+        var members = entry.members
+        let connected = Set(displayLayout.displays.map(\.id))
+        for id in members.keys where connected.contains(id) {
+            guard let display = observation.displays.first(where: { $0.displayID == id }),
+                  let keys = composerKeys(id, observation: observation), keys.indices.contains(display.currentSpaceIndex) else {
+                workspaceComposerDraft?.error = saveCopy.readUnavailable; return false
+            }
+            members[id] = .init(key: keys[display.currentSpaceIndex], index: display.currentSpaceIndex)
+        }
+        workspaceComposerDraft?.observation = observation
+        workspaceComposerDraft?.error = nil
+        editWorkspaceComposer { state in
+            if let index = state.entries.firstIndex(where: { $0.id == contextID }) { state.entries[index].members = members }
+        }
+        return true
+    }
+
     func workspaceComposerValidation(_ draft: WorkspaceComposerDraft) -> String? {
         for entry in draft.state.entries {
             let original = draft.baseline.entries.first { $0.id == entry.id }
@@ -228,7 +290,7 @@ extension SidebyAppModel {
     func commitWorkspaceComposer() -> Bool {
         guard canEditWorkspaceComposer, var draft = workspaceComposerDraft, draft.hasChanges else { return false }
         func fail(_ message: String) -> Bool { draft.error = message; workspaceComposerDraft = draft; return false }
-        guard WorkspaceComposerState(settings: settings) == draft.baseline else { return fail(saveCopy.conflict) }
+        guard WorkspaceComposerState(settings: settings) == draft.baseline else { return fail(saveCopy.composerConflict) }
         if let error = workspaceComposerValidation(draft) { return fail(error) }
         let observation = workspaceObservation(includingUnselectedDisplays: true)
         var contexts: [ContextDefinition] = []

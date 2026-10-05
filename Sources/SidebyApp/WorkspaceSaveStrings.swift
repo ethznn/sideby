@@ -3,7 +3,7 @@ import SidebyCore
 struct WorkspaceSaveStrings {
     let language: AppLanguage
     func text(_ en: String, _ ko: String) -> String { language == .korean ? ko : en }
-    var saveConfiguration: String { text("Save this setup", "이 구성 저장") }
+    var saveConfiguration: String { text("Save current setup", "지금 화면 저장") }
     var currentSetup: String { text("Current setup", "지금 화면") }
     var savedWorkspaces: String { text("Saved setups", "저장한 구성") }
     var matrix: String { text("By display", "화면별 보기") }
@@ -26,7 +26,7 @@ struct WorkspaceSaveStrings {
     var scope: String { text("Remembers desktop connections. Apps, documents and window positions aren't saved.", "데스크탑 연결을 기억합니다. 앱·문서·창 위치는 저장하지 않습니다.") }
     var preserve: String { text("Your other setups stay as they are.", "기존 구성은 그대로 유지됩니다.") }
     var preserveEdit: String { text("Only this setup will change.", "이 구성만 변경됩니다.") }
-    var keep: String { text("Keep as is", "그대로 유지") }
+    var keep: String { text("Don't switch this display", "이 화면은 전환하지 않음") }
     var notIncluded: String { text("Not included", "포함 안 함") }
     var offline: String { text("Not connected", "연결 안 됨") }
     var excluded: String { text("Excluded in display settings", "화면 설정에서 제외됨") }
@@ -38,6 +38,11 @@ struct WorkspaceSaveStrings {
     var readUnavailable: String { text("Couldn't read the desktop connections. Check the displays and try again.", "데스크탑 연결을 읽지 못했어요. 화면 연결을 확인하고 다시 시도해 주세요.") }
     var invalidNameOrSelection: String { text("Enter a name up to 60 characters and select at least one display.", "60자 이내의 이름과 포함할 화면을 하나 이상 선택해 주세요.") }
     var conflict: String { text("This setup changed elsewhere. Reopen it to review the latest setup.", "다른 곳에서 구성이 변경됐어요. 다시 열어 최신 구성을 확인해 주세요.") }
+    var composerConflict: String { text("Saved setups changed during editing. Cancel this draft to load the latest setups, then reapply your edits.", "편집 중 저장한 구성이 바뀌었어요. ‘취소’로 최신 구성을 불러온 뒤 다시 편집해 주세요.") }
+    var finishEditingFirst: String { text("Save or cancel your edits in Saved setups before deleting or undoing a saved change.", "삭제하거나 최근 변경을 되돌리려면 ‘저장한 구성’에서 편집을 먼저 저장하거나 취소하세요.") }
+    var displayParticipation: String { text("Display participation", "함께 움직일 화면 설정") }
+    var connectBeforeUsingCurrent: String { text("Connect a desktop on a connected display first.", "연결된 화면의 데스크탑을 먼저 하나 이상 지정하세요.") }
+    var excludedConnections: String { text("Connections on excluded displays can be saved, but those displays won't switch.", "제외한 화면의 연결도 저장할 수 있지만, 해당 화면은 전환되지 않습니다.") }
     var saveFailed: String { text("Couldn't save. Your existing setups are unchanged. Please try again.", "저장하지 못했어요. 기존 구성은 유지됩니다. 다시 시도해 주세요.") }
     var settingsUnreadable: String { text("Saved settings couldn't be read. They have been kept without overwriting. Restore the original settings to continue.", "저장된 설정을 읽지 못했어요. 원본을 덮어쓰지 않고 보존했습니다. 설정을 복구한 뒤 다시 열어 주세요.") }
     var undo: String { text("Undo last change", "최근 변경 되돌리기") }

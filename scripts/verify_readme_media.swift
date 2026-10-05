@@ -15,6 +15,10 @@ let expectedFrameCount = timeline?.count ?? 62
 let expectedDuration = timeline?.reduce(0.0) { $0 + ($1["seconds"] as! Double) } ?? 22.04
 var expected: [String: (Int, Int)] = ["sideby-demo-poster-en.png": (960, 640)]
 for language in ["en", "ko"] {
+    expected["sideby-connections-film-\(language).png"] = (1920, 1080)
+    expected["sideby-connections-settings-\(language).png"] = (2080, 1280)
+    expected["sideby-connections-\(language).png"] = (1360, 1160)
+    expected["sideby-connections-onboarding-\(language).png"] = (1360, 1280)
     expected["sideby-kinetic-\(language).png"] = (1920, 1080)
     expected["sideby-setups-film-\(language).png"] = (1920, 1080)
     expected["sideby-save-flow-\(language).png"] = (960, 760)
@@ -24,6 +28,7 @@ for language in ["en", "ko"] {
     expected["sideby-brand-film-\(language).png"] = (1920, 1080)
     expected["sideby-readme-loop-\(language).png"] = (960, 540)
     expected["sideby-context-capture-\(language).png"] = (1360, 1280)
+    expected["sideby-setup-editor-\(language).png"] = (1800, 1320)
     expected["sideby-settings-workspaces-\(language).png"] = (1960, 1440)
     expected["sideby-onboarding-workspaces-\(language).png"] = (1280, 1520)
     expected["sideby-onboarding-roundtrip-\(language).png"] = (1280, 1040)
@@ -76,7 +81,8 @@ for language in ["en", "ko"] {
     ("sideby-triptych", 74, 7.4, false),
     ("sideby-save-flow", 105, 21.0, false),
     ("sideby-setups-film", 120, 12.0, false),
-    ("sideby-kinetic", 450, 22.5, false)
+    ("sideby-kinetic", 450, 22.5, false),
+    ("sideby-connections-film", 450, 22.5, false)
   ] {
     let url = directory.appendingPathComponent("\(stem)-\(language).gif")
     let loop = CGImageSourceCreateWithURL(url as CFURL, nil)!
@@ -91,7 +97,7 @@ for language in ["en", "ko"] {
         let properties = CGImageSourceCopyPropertiesAtIndex(loop, index, nil)! as NSDictionary
         let timing = properties[kCGImagePropertyGIFDictionary] as! NSDictionary
         let delay = (timing[kCGImagePropertyGIFUnclampedDelayTime] ?? timing[kCGImagePropertyGIFDelayTime]) as! NSNumber
-        precondition(abs(delay.doubleValue - (stem == "sideby-save-flow" ? 0.2 : stem == "sideby-kinetic" ? 0.05 : 0.1)) < 0.001)
+        precondition(abs(delay.doubleValue - (stem == "sideby-save-flow" ? 0.2 : (stem == "sideby-kinetic" || stem == "sideby-connections-film") ? 0.05 : 0.1)) < 0.001)
         loopDuration += delay.doubleValue
     }
     precondition(abs(loopDuration - seconds) < 0.001)
@@ -111,14 +117,14 @@ let linkPattern = try NSRegularExpression(pattern: #"(?:\]\(|(?:src|href)=\")([^
 for language in ["en", "ko"] {
     let name = language == "en" ? "README.md" : "README.ko.md"
     let body = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
-    for stem in ["kinetic", "save-flow", "save-workspace", "context-capture", "settings-workspaces", "onboarding-saved-workspaces"] {
-        let asset = "sideby-\(stem)-\(language).png"
-        precondition(body.contains(asset), "\(name) does not use \(asset)")
+    for ext in ["gif", "png"] {
+        precondition(body.contains("sideby-connections-film-\(language).\(ext)"), "README must use its current localized film")
     }
-    precondition(body.contains("sideby-kinetic-\(language).gif") && body.contains("sideby-save-flow-\(language).gif") && body.contains("⌥⇧Tab"))
-    precondition(body.range(of: "sideby-kinetic-\(language).gif")!.lowerBound < body.range(of: "sideby-save-flow-\(language).gif")!.lowerBound, "Promotional film must lead the README")
-    precondition(!body.contains("sideby-brand-film-") && !body.contains("sideby-readme-loop-"),
-                 "README should use one current preview, without duplicate archived demos")
+    precondition(body.contains("sideby-connections-settings-\(language).png") && body.contains("⌥⇧Space") && body.contains("⌥⇧Tab"))
+    precondition(body.range(of: "sideby-connections-film-\(language).gif")!.lowerBound < body.range(of: "sideby-connections-settings-\(language).png")!.lowerBound, "Film should precede the actual product screenshot")
+    for old in ["sideby-kinetic-", "sideby-save-flow-", "sideby-save-workspace-", "sideby-brand-film-", "sideby-readme-loop-"] {
+        precondition(!body.contains(old), "README must not teach the superseded save workflow")
+    }
 }
 
 let releaseNotes = try FileManager.default.contentsOfDirectory(at: root.appendingPathComponent("docs/releases"),

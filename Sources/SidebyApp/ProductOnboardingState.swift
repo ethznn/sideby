@@ -16,27 +16,25 @@ struct ProductOnboardingState: Equatable {
     var stage: ProductOnboardingStage
 
     init(stage: ProductOnboardingStage = .preparation) {
-        self.stage = stage
+        // Old save/return guides resume at the single live connection table.
+        self.stage = stage == .preparation ? .preparation : .workspaces
     }
 
     func canContinue(using facts: ProductOnboardingFacts) -> Bool {
         guard !facts.isBusy else { return false }
-        if stage == .roundTrip { return facts.progress.isComplete }
         guard facts.hasAccessibilityPermission, facts.hasSwitchingAccess else { return false }
         if stage == .preparation { return true }
         guard facts.selectedDisplayCount > 0 else { return false }
-        if stage == .displays { return true }
-        return Set(facts.participatingContextIDs).count >= 2 && facts.connectionStatus == .ready
+        return !facts.participatingContextIDs.isEmpty && facts.connectionStatus == .ready
     }
 
     @discardableResult
     mutating func continueIfAllowed(using facts: ProductOnboardingFacts) -> Bool {
         guard canContinue(using: facts) else { return false }
         switch stage {
-        case .preparation: stage = .displays
+        case .preparation: stage = .workspaces
         case .displays: stage = .workspaces
-        case .workspaces: stage = .roundTrip
-        case .roundTrip: break // Completion is verified content, never a fifth stage.
+        case .workspaces, .roundTrip: break // The view finishes here; no save or switching rehearsal.
         }
         return true
     }
@@ -45,7 +43,7 @@ struct ProductOnboardingState: Equatable {
         switch stage {
         case .preparation: break
         case .displays: stage = .preparation
-        case .workspaces: stage = .displays
+        case .workspaces: stage = .preparation
         case .roundTrip: stage = .workspaces
         }
     }
@@ -55,13 +53,9 @@ struct ProductOnboardingState: Equatable {
         let latestEligible: ProductOnboardingStage
         if !facts.hasAccessibilityPermission || !facts.hasSwitchingAccess {
             latestEligible = .preparation
-        } else if facts.selectedDisplayCount == 0 {
-            latestEligible = .displays
-        } else if Set(facts.participatingContextIDs).count < 2 || facts.connectionStatus != .ready {
+        } else if facts.selectedDisplayCount == 0 || facts.participatingContextIDs.isEmpty || facts.connectionStatus != .ready {
             latestEligible = .workspaces
-        } else {
-            latestEligible = .roundTrip
-        }
+        } else { latestEligible = .workspaces }
         if stage.rawValue > latestEligible.rawValue { stage = latestEligible }
     }
 }

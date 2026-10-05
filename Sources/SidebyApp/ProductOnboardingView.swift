@@ -16,50 +16,64 @@ struct ProductOnboardingView: View {
     let preferences: any ProductUIPreferences
     let actions: ProductOnboardingActions
     private var strings: OnboardingRefreshStrings { .init(language: model.settings.language) }
-    private var copy: WorkspaceSaveStrings { model.saveCopy }
+    private var copy: CurrentConnectionStrings { model.connectionCopy }
+    private var facts: ProductOnboardingFacts { .init(model: model) }
     private var hasPermissions: Bool { model.permissionState == .granted && model.hasSwitchingAccess }
+    private var preparing: Bool { !hasPermissions || presentation.state.stage == .preparation }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Text(copy.text("Back to your work, in one action.", "하던 일로, 가볍게 돌아가기."))
-                        .font(.system(size: 27, weight: .semibold)).accessibilityAddTraits(.isHeader)
-                    Text(hasPermissions
-                        ? copy.text("Use your desktops as usual. When you want to remember a setup, save it here.", "평소처럼 데스크탑을 쓰다가 기억하고 싶은 구성을 저장하세요.")
-                        : copy.text("First, allow Sideby to switch desktops when you ask.", "먼저, 요청한 데스크탑으로 이동할 수 있도록 접근을 허용해 주세요."))
-                        .font(.system(size: 13)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                    if hasPermissions {
-                        HStack(spacing: 8) {
-                            Image(systemName: "keyboard")
-                            if model.heldMatrixConfiguration.isEnabled && model.heldMatrixShortcutError == nil {
-                                Text(KeyboardShortcutFormatter.shortcutText(model.heldMatrixConfiguration.shortcut))
-                                Text(copy.text("opens this matrix near your pointer.", "로 포인터 근처에서 매트릭스를 열 수 있어요."))
-                            } else { Text(copy.text("Open Sideby in the menu bar to save and choose setups.", "메뉴 막대의 Sideby에서 구성을 저장하고 선택할 수 있어요.")) }
-                        }.font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.accent)
-                        SavedWorkspaceBrowser(model: model).frame(height: 490)
-                    } else { preparationContent }
-                }.padding(28)
+                    HStack(spacing: 10) {
+                        Text(copy.text("1  Allow access", "1  접근 허용")).foregroundStyle(preparing ? NativeSurfaceStyle.primaryText : NativeSurfaceStyle.secondaryText)
+                        Image(systemName: "chevron.right").font(.system(size: 10))
+                        Text(copy.text("2  Connect Spaces", "2  Space 연결")).foregroundStyle(preparing ? NativeSurfaceStyle.secondaryText : NativeSurfaceStyle.primaryText)
+                    }.font(.system(size: 12, weight: .medium))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(preparing ? copy.text("Move your displays together.", "여러 화면을 함께 넘기세요.")
+                            : copy.text("Pair the Spaces you already use.", "지금 쓰는 Space의 짝만 맞추세요."))
+                            .font(.system(size: 25, weight: .semibold)).accessibilityAddTraits(.isHeader)
+                        Text(preparing ? copy.text("Sideby connects existing Spaces — desktops and full-screen apps — so your usual gesture can move your displays together.", "Space는 데스크탑과 전체 화면 앱을 포함하는 macOS 작업 공간입니다. 함께 볼 Space를 연결하면 평소 제스처로 여러 모니터를 함께 넘길 수 있습니다.")
+                            : copy.text("Start in the current order, then change any cell. No names or separate saves are needed.", "현재 순서로 시작한 뒤 필요한 칸만 바꾸세요. 이름을 붙이거나 따로 저장할 필요가 없습니다."))
+                            .font(.system(size: 13)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    }
+                    if preparing { preparationContent }
+                    else {
+                        CurrentConnectionsView(model: model)
+                        VStack(alignment: .leading, spacing: 9) {
+                            Label(model.strings.horizontalScrollGesture(model.settings.requiredModifiers), systemImage: "hand.draw")
+                            if let shortcut = model.availableWorkspaceChooserShortcut {
+                                Text(copy.text("Hold \(shortcut) and click a column to move your displays together.", "\(shortcut)를 누른 채 열을 눌러 함께 이동하세요."))
+                            }
+                            Text(copy.text("You can always open the same table from the menu bar.", "메뉴 막대에서도 같은 연결표를 열 수 있습니다."))
+                                .foregroundStyle(NativeSurfaceStyle.secondaryText)
+                        }.font(.system(size: 12)).padding(14)
+                            .background(NativeSurfaceStyle.headerBackground, in: RoundedRectangle(cornerRadius: 9))
+                    }
+                }.padding(24)
             }
             Divider()
             HStack {
-                Button(copy.text("Later", "나중에")) { finish() }.keyboardShortcut(.cancelAction)
+                if !preparing { Button(copy.text("Back", "뒤로")) { presentation.goBack() }.pointingHandCursor() }
+                Button(copy.text("Later", "나중에"), action: finish).pointingHandCursor().keyboardShortcut(.cancelAction)
                 Spacer()
-                if hasPermissions {
-                    Button(copy.text("Start using Sideby", "Sideby 사용하기")) {
+                Button(preparing ? copy.text("Continue", "계속") : copy.text("Start using Sideby", "Sideby 사용하기")) {
+                    model.refreshWorkspaceStatus()
+                    if preparing {
                         model.prepareFirstWorkspaceGuideIfNeeded(preferences: preferences)
+                        _ = presentation.continueIfAllowed(using: facts)
+                    } else {
                         preferences.didDismissOnboarding = true
                         model.dismissFirstWorkGuide()
                         actions.finishToDaily()
-                    }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-                } else {
-                    Button(copy.text("Check access again", "접근 권한 다시 확인")) { model.refresh() }
-                }
+                    }
+                }.buttonStyle(.borderedProminent).pointingHandCursor().keyboardShortcut(.defaultAction)
+                    .disabled(!presentation.state.canContinue(using: facts))
+                    .accessibilityIdentifier("guide-continue")
             }.controlSize(.large).padding(18).background(NativeSurfaceStyle.sidebarBackground)
         }
         .foregroundStyle(NativeSurfaceStyle.primaryText).background(NativeSurfaceStyle.windowBackground).tint(NativeSurfaceStyle.accent)
-        .onAppear { model.loadWorkspaceNamesIfNeeded() }
-        .onChange(of: model.isSwitching) { _, busy in if !busy { model.loadWorkspaceNamesIfNeeded() } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in model.refresh() }
     }
 
@@ -95,7 +109,7 @@ struct ProductOnboardingView: View {
                 Text(model.strings.inputPrivacyNote).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     .fixedSize(horizontal: false, vertical: true).padding(.top, 8)
             }
-            Text(hasPermissions ? strings.accessReady : strings.permissionsNeeded)
+            Text(hasPermissions ? copy.text("Access is ready. Continue to connect your Spaces.", "접근 권한이 준비됐어요. 계속해서 Space 연결을 확인하세요.") : strings.permissionsNeeded)
                 .foregroundStyle(NativeSurfaceStyle.secondaryText).fixedSize(horizontal: false, vertical: true)
         }
     }

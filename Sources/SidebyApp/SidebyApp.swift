@@ -57,6 +57,11 @@ struct SidebyApp: App {
                                                       displayID: displayID, returnTo: .onboarding))
                         })))
             },
+            workspaceContent: { [model, navigation] window in
+                AnyView(WorkspaceLibraryView(model: model, navigation: navigation,
+                    finish: { [weak window] in window?.returnAfterAssignmentReview() },
+                    openPermissions: { [weak window] in window?.showSettings(.init(pane: .permissions)) }))
+            },
             closeDaily: { ProductFloatingMenuPanelController.shared.close() },
             refreshState: { [weak model] in model?.refresh() },
             onboardingWillShow: { [weak model, presentation, preferences] replay in
@@ -71,13 +76,21 @@ struct SidebyApp: App {
                 model?.dismissFirstWorkGuide()
                 preferences.didDismissOnboarding = true
             })
-        windows.settingsHasUnsavedChanges = { [weak model] in model?.hasWorkspaceComposerChanges == true }
-        windows.resolveSettingsChanges = { [weak model] window, completion in
+        windows.workspaceHasUnsavedChanges = { [weak model] in model?.hasWorkspaceComposerChanges == true }
+        windows.resolveWorkspaceChanges = { [weak model] window, completion in
             model?.resolveWorkspaceComposerBeforeLeaving(window: window, completion: completion)
+        }
+        model.openWorkspaceEditor = { [weak windows, weak model] id in
+            if model?.hasWorkspaceComposerChanges == true {
+                windows?.showWorkspaces(.init(pane: .workspaces, contextID: id, returnTo: .daily))
+            } else {
+                windows?.showSettings(.init(pane: .workspaces, contextID: id))
+            }
         }
         let actions = ProductMenuPanelActions(route: { [weak windows] request in
             switch ProductApplicationRouting.route(for: request) {
-            case .settings(let route): windows?.showSettings(route)
+            case .settings(let route): windows?.showSettings(route ?? .init(pane: .workspaces))
+            case .workspaces(let route): windows?.showSettings(route)
             case .onboarding(let replay): windows?.showOnboarding(replay: replay)
             }
         }, quit: { NSApplication.shared.terminate(nil) })
@@ -107,7 +120,7 @@ struct SidebyApp: App {
         .menuBarExtraStyle(.window)
         .commands {
             CommandGroup(replacing: .appSettings) {
-                Button(DailyRefreshStrings(language: model.settings.language).settings) { windows.showSettings() }
+                Button(DailyRefreshStrings(language: model.settings.language).settings) { windows.showSettings(.init(pane: .workspaces)) }
                     .keyboardShortcut(",", modifiers: .command)
             }
         }
@@ -593,6 +606,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     var workspaceLatestObservation: WorkspaceLayoutObservation?
     @Published var verifiedCurrentWorkspaceID: String?
     @Published var workspaceRecoveryTargetID: String?
+    var openWorkspaceEditor: ((String) -> Void)?
     @Published var workspaceHistory = WorkspaceVisitHistory()
     @Published var firstWorkProgress = WorkspaceFirstRunProgress()
     @Published var isShowingFirstWorkGuide = false

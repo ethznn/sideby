@@ -32,157 +32,89 @@ final class ProductOnboardingStateTests: XCTestCase {
         XCTAssertFalse(ProductOnboardingState(stage: .displays).canContinue(using: facts))
     }
 
-    func testPermissionGrantDoesNotAdvanceUntilContinue() {
-        var state = ProductOnboardingState()
+    func testPermissionGrantWaitsForExplicitContinueThenOpensConnections() {
         var facts = readyFacts()
-        facts.hasAccessibilityPermission = false
+        facts.participatingContextIDs = []
+        var state = ProductOnboardingState()
         facts.hasSwitchingAccess = false
-        XCTAssertFalse(state.continueIfAllowed(using: facts))
-        facts.hasAccessibilityPermission = true
         XCTAssertFalse(state.continueIfAllowed(using: facts))
         facts.hasSwitchingAccess = true
         XCTAssertEqual(state.stage, .preparation)
         XCTAssertTrue(state.continueIfAllowed(using: facts))
-        XCTAssertEqual(state.stage, .displays)
+        XCTAssertEqual(state.stage, .workspaces)
+        XCTAssertFalse(state.continueIfAllowed(using: facts))
     }
 
-    func testDisplayContinueRequiresOneSelectedConnectedDisplay() {
-        var state = ProductOnboardingState(stage: .displays)
+    func testOneConnectionFinishesWithoutAnotherStageOrFabricatedPractice() {
         var facts = readyFacts()
-        facts.selectedDisplayCount = 0
-        XCTAssertFalse(state.continueIfAllowed(using: facts))
-        XCTAssertEqual(state.stage, .displays)
-        facts.selectedDisplayCount = 1
+        facts.participatingContextIDs = ["work"]
+        var state = ProductOnboardingState(stage: .workspaces)
         XCTAssertTrue(state.continueIfAllowed(using: facts))
         XCTAssertEqual(state.stage, .workspaces)
+        XCTAssertTrue(state.canContinue(using: facts))
+        XCTAssertFalse(facts.progress.isComplete)
+        XCTAssertNil(facts.progress.originContextID)
     }
 
-    func testWorkspaceContinueRequiresTwoDistinctParticipatingContextsAndConfirmation() {
-        var state = ProductOnboardingState(stage: .workspaces)
-        var facts = readyFacts()
-        for ids in [[], ["a"], ["a", "a"]] as [[String]] {
-            facts.participatingContextIDs = ids
-            XCTAssertFalse(state.continueIfAllowed(using: facts))
+    func testBusyMissingAndUnreadableSetupsCannotAdvance() {
+        for stage in [ProductOnboardingStage.preparation, .workspaces, .roundTrip] {
+            var facts = readyFacts()
+            facts.isBusy = true
+            XCTAssertFalse(ProductOnboardingState(stage: stage).canContinue(using: facts))
+            facts.isBusy = false
+            facts.hasAccessibilityPermission = false
+            XCTAssertFalse(ProductOnboardingState(stage: stage).canContinue(using: facts))
         }
-        facts.participatingContextIDs = ["a", "b"]
-        for status in [WorkspaceConnectionStatus.unconfirmed, .changed(["desk"]), .unavailable(["desk"])] {
-            facts.connectionStatus = status
-            XCTAssertFalse(state.continueIfAllowed(using: facts))
-            XCTAssertEqual(state.stage, .workspaces)
+        for stage in [ProductOnboardingStage.workspaces, .roundTrip] {
+            var facts = readyFacts()
+            facts.selectedDisplayCount = 0
+            XCTAssertFalse(ProductOnboardingState(stage: stage).canContinue(using: facts))
+            facts.selectedDisplayCount = 1
+            facts.participatingContextIDs = []
+            XCTAssertFalse(ProductOnboardingState(stage: stage).canContinue(using: facts))
+            facts.participatingContextIDs = ["a"]
+            facts.connectionStatus = .unavailable(["desk"])
+            XCTAssertFalse(ProductOnboardingState(stage: stage).canContinue(using: facts))
         }
-        facts.connectionStatus = .ready
-        XCTAssertTrue(state.continueIfAllowed(using: facts))
-        XCTAssertEqual(state.stage, .roundTrip)
     }
 
-    func testBusyNeverAdvancesAndRevokedPrerequisitesBlockLaterStages() {
+    func testLegacyGuideResumesAtConnectionsAndInvalidFactsRewindOnly() {
+        XCTAssertEqual(ProductOnboardingState(stage: .displays).stage, .workspaces)
         var facts = readyFacts()
-        facts.isBusy = true
-        for stage in ProductOnboardingStage.allCases {
-            var state = ProductOnboardingState(stage: stage)
-            XCTAssertFalse(state.continueIfAllowed(using: facts))
-            XCTAssertEqual(state.stage, stage)
-        }
-        facts.isBusy = false
-        facts.hasSwitchingAccess = false
-        XCTAssertFalse(ProductOnboardingState(stage: .workspaces).canContinue(using: facts))
-        facts.hasSwitchingAccess = true
-        facts.selectedDisplayCount = 0
-        XCTAssertFalse(ProductOnboardingState(stage: .workspaces).canContinue(using: facts))
-    }
-
-    func testCompletionRequiresVerifiedRoundTripAndStaysInFourthStage() {
-        var state = ProductOnboardingState(stage: .roundTrip)
-        var facts = readyFacts()
-        XCTAssertFalse(state.continueIfAllowed(using: facts))
-        facts.progress.recordSuccessfulVisit(contextID: "a")
-        facts.progress.recordSuccessfulVisit(contextID: "b")
-        XCTAssertFalse(state.continueIfAllowed(using: facts))
-        facts.progress.recordSuccessfulVisit(contextID: "a")
-        XCTAssertTrue(state.continueIfAllowed(using: facts))
-        XCTAssertEqual(state.stage, .roundTrip)
-    }
-
-    func testRelaunchResolvesEarliestInvalidPrerequisite() {
-        var facts = readyFacts()
-        for status in [WorkspaceConnectionStatus.unconfirmed, .changed(["desk"]), .unavailable(["desk"])] {
-            var state = ProductOnboardingState(stage: .roundTrip)
-            facts.connectionStatus = status
-            state.reconcileAfterRelaunch(using: facts)
-            XCTAssertEqual(state.stage, .workspaces)
-        }
-        facts.connectionStatus = .ready
         facts.participatingContextIDs = ["a"]
         var state = ProductOnboardingState(stage: .roundTrip)
         state.reconcileAfterRelaunch(using: facts)
         XCTAssertEqual(state.stage, .workspaces)
-        facts.selectedDisplayCount = 0
+        facts.participatingContextIDs = []
         state.reconcileAfterRelaunch(using: facts)
-        XCTAssertEqual(state.stage, .displays)
+        XCTAssertEqual(state.stage, .workspaces)
         facts.hasAccessibilityPermission = false
         state.reconcileAfterRelaunch(using: facts)
         XCTAssertEqual(state.stage, .preparation)
+        state.reconcileAfterRelaunch(using: readyFacts())
+        XCTAssertEqual(state.stage, .preparation)
     }
 
-    func testResumePreservesEligibleEarlierStageAndCurrentSessionPartialProgress() {
-        var facts = readyFacts()
-        facts.progress.recordSuccessfulVisit(contextID: "a")
-        for stage in ProductOnboardingStage.allCases {
-            var state = ProductOnboardingState(stage: stage)
-            state.reconcileAfterRelaunch(using: facts)
-            XCTAssertEqual(state.stage, stage)
-        }
-        XCTAssertEqual(facts.progress.originContextID, "a")
-        XCTAssertFalse(facts.progress.isComplete)
-    }
-
-    @MainActor
-    func testPresentationPersistsExplicitContinueBackAndResumeWithoutCompletingSetup() {
+    @MainActor func testContinueBackAndReplayPreserveUserSettingsAndVerifiedProgress() {
         let preferences = MemoryProductUIPreferences()
-        let presentation = ProductOnboardingPresentation(preferences: preferences)
-        XCTAssertTrue(presentation.continueIfAllowed(using: readyFacts()))
-        XCTAssertEqual(preferences.onboardingStage, .displays)
-        XCTAssertTrue(presentation.continueIfAllowed(using: readyFacts()))
-        XCTAssertEqual(preferences.onboardingStage, .workspaces)
-        presentation.goBack()
-        XCTAssertEqual(preferences.onboardingStage, .displays)
-        let reopened = ProductOnboardingPresentation(preferences: preferences)
-        reopened.open(replay: false, facts: readyFacts())
-        XCTAssertEqual(reopened.state.stage, .displays)
-        XCTAssertFalse(preferences.didCompletePermissionSetup)
-    }
-
-    @MainActor
-    func testReplayWhileOffPreservesCompletionAndDismissalFlags() {
-        let preferences = MemoryProductUIPreferences()
-        preferences.onboardingStage = .roundTrip
         preferences.didCompletePermissionSetup = true
         preferences.didDismissOnboarding = true
         let presentation = ProductOnboardingPresentation(preferences: preferences)
         var facts = readyFacts()
         facts.isEnabled = false
         for id in ["a", "b", "a"] { facts.progress.recordSuccessfulVisit(contextID: id) }
+        XCTAssertTrue(presentation.continueIfAllowed(using: facts))
+        XCTAssertEqual(preferences.onboardingStage, .workspaces)
+        XCTAssertTrue(presentation.continueIfAllowed(using: facts))
+        XCTAssertEqual(preferences.onboardingStage, .workspaces)
+        presentation.goBack()
+        XCTAssertEqual(preferences.onboardingStage, .preparation)
         presentation.open(replay: true, facts: facts)
         XCTAssertEqual(presentation.state.stage, .preparation)
-        XCTAssertEqual(preferences.onboardingStage, .preparation)
         XCTAssertTrue(preferences.didCompletePermissionSetup)
         XCTAssertTrue(preferences.didDismissOnboarding)
         XCTAssertTrue(facts.progress.isComplete)
         XCTAssertFalse(facts.isEnabled)
-    }
-
-    @MainActor
-    func testDismissedIncompletePreparationSurvivesExplicitResume() {
-        let preferences = MemoryProductUIPreferences()
-        preferences.didDismissOnboarding = true
-        var facts = readyFacts()
-        facts.hasAccessibilityPermission = false
-        let presentation = ProductOnboardingPresentation(preferences: preferences)
-        presentation.open(replay: false, facts: facts)
-        XCTAssertEqual(presentation.state.stage, .preparation)
-        XCTAssertFalse(presentation.continueIfAllowed(using: facts))
-        XCTAssertTrue(preferences.didDismissOnboarding)
-        XCTAssertFalse(preferences.didCompletePermissionSetup)
     }
 
     func testBusyObservationInvalidatesOldCountWithoutReadingUntilCompletion() {

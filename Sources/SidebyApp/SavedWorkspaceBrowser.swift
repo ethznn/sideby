@@ -107,6 +107,17 @@ struct SavedWorkspaceBrowser: View {
                         .buttonStyle(.plain).accessibilityLabel(copy.close)
                 }.padding(10).background(NativeSurfaceStyle.selectionBackground, in: RoundedRectangle(cornerRadius: 8))
             }
+            if model.hasWorkspaceComposerChanges {
+                HStack(alignment: .top) {
+                    Text(copy.finishEditingFirst).font(.system(size: 11))
+                        .foregroundStyle(NativeSurfaceStyle.secondaryText).fixedSize(horizontal: false, vertical: true)
+                    if let id = model.workspaceComposerDraft?.state.entries.first?.id {
+                        Button(copy.text("Keep editing", "편집 계속")) {
+                            if let edit { edit(id) } else { model.openWorkspaceEditor?(id) }
+                        }.pointingHandCursor().accessibilityIdentifier("workspace-resume-editing")
+                    }
+                }.accessibilityElement(children: .contain).accessibilityIdentifier("workspace-unsaved-edit-notice")
+            }
             if let previous = model.workspaceHistory.previousContextID,
                previous != model.verifiedCurrentWorkspaceID,
                let context = model.settings.contextPlan.contexts.first(where: { $0.id == previous }) {
@@ -122,8 +133,8 @@ struct SavedWorkspaceBrowser: View {
                 Spacer(minLength: 0)
                 Button { _ = model.undoSavedWorkspaceChange() } label: { Label(copy.undo, systemImage: "arrow.uturn.backward") }
                     .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                    .disabled(!model.canSaveWorkspace || model.settings.savedWorkspaces.undo == nil).pointingHandCursor()
-                    .help(model.settings.savedWorkspaces.undo?.label ?? copy.undo)
+                    .disabled(!model.canChangeSavedWorkspaces || model.settings.savedWorkspaces.undo == nil).pointingHandCursor()
+                    .help(model.hasWorkspaceComposerChanges ? copy.finishEditingFirst : model.settings.savedWorkspaces.undo?.label ?? copy.undo)
                     .accessibilityIdentifier("workspace-undo")
             }
         }
@@ -246,8 +257,8 @@ struct SavedWorkspaceMatrix: View {
                 }
                 HStack(spacing: 3) {
                     if current { Image(systemName: "checkmark") }
-                    Text(current ? copy.current : available ? copy.text("Choose to return", "선택해 돌아가기") : copy.offlineOrMissing(context, model: model))
-                }.font(.system(size: 10)).foregroundStyle(current ? NativeSurfaceStyle.accent : NativeSurfaceStyle.secondaryText).lineLimit(1)
+                    Text(current ? copy.current : available ? copy.text("Choose to return", "선택해 돌아가기") : model.workspaceUnavailableReason(context))
+                }.font(.system(size: 10)).foregroundStyle(current ? NativeSurfaceStyle.accent : NativeSurfaceStyle.secondaryText).lineLimit(2)
             }.padding(.horizontal, 11).frame(height: headerHeight)
                 .background(current || dropID == context.id ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.headerBackground)
                 .overlay(alignment: dropAfter ? .trailing : .leading) { if dropID == context.id { Rectangle().fill(NativeSurfaceStyle.accent).frame(width: 2) } }
@@ -271,13 +282,14 @@ struct SavedWorkspaceMatrix: View {
             Button(copy.text("Move right", "오른쪽으로 이동")) { if let right { _ = model.reorderSavedWorkspace(context.id, relativeTo: right, after: true) } }
                 .disabled(right == nil || !model.canEditWorkspaceComposer || model.hasWorkspaceComposerChanges)
             Button(copy.delete, role: .destructive) { keepOpen?(); deleting = context }
+                .disabled(!model.canChangeSavedWorkspaces)
         }
         .onDrop(of: [UTType.plainText], delegate: WorkspaceComposerDropDelegate(session: dragSession, active: drag,
             contextID: context.id, displayID: nil, enabled: model.canEditWorkspaceComposer && !model.hasWorkspaceComposerChanges, midpoint: columnWidth / 2,
             hover: { entered, after in
                 if entered { dropID = context.id; dropAfter = after }
                 else if dropID == context.id { dropID = nil }
-            }, receive: { payload, after in
+            }, receive: { payload, after, _ in
                 if let id = payload.contextID { _ = model.reorderSavedWorkspace(id, relativeTo: context.id, after: after) }
                 drag = nil; dropID = nil
             }))
@@ -291,7 +303,7 @@ struct SavedWorkspaceMatrix: View {
                 Text(unresolved ? copy.text("Check desktop", "데스크탑 확인 필요") : model.workspaceDesktopName(displayID: id, spaceIndex: index) ?? copy.desktop(index))
                     .font(.system(size: 11, weight: .medium)).lineLimit(2)
                 HStack(spacing: 4) {
-                    Text(connected ? copy.desktop(index) : copy.remembered)
+                    Text(!connected ? copy.remembered : !model.selectedDisplayIDs.contains(id) ? copy.excluded : copy.desktop(index))
                     if let key = model.settings.savedWorkspaces.bookmarks[context.id]?[id],
                        contexts.filter({ model.settings.savedWorkspaces.bookmarks[$0.id]?[id] == key }).count > 1 {
                         Image(systemName: "link").accessibilityLabel(copy.text("Shared", "함께 사용"))
@@ -302,12 +314,6 @@ struct SavedWorkspaceMatrix: View {
             }
         }.frame(maxWidth: .infinity, alignment: .leading).frame(height: rowHeight).padding(.horizontal, 11)
             .overlay(alignment: .top) { Rectangle().fill(NativeSurfaceStyle.frameBorder).frame(height: 0.5) }
-    }
-}
-
-private extension WorkspaceSaveStrings {
-    @MainActor func offlineOrMissing(_ context: ContextDefinition, model: SidebyAppModel) -> String {
-        !Set(context.displayIDs).isDisjoint(with: model.selectedDisplayIDs) ? text("Check connection", "연결 확인 필요") : offline
     }
 }
 
@@ -329,7 +335,7 @@ struct SavedWorkspaceList: View {
                                     Text(context.name).font(.system(size: 14, weight: .semibold))
                                     Text(model.isWorkspaceAssignmentAvailable(contextID: context.id)
                                         ? model.connectedWorkspaceDisplayIDs.filter { context.displayIDs.contains($0) }.map { model.displayName(for: $0) }.joined(separator: " · ")
-                                        : model.saveCopy.offlineOrMissing(context, model: model))
+                                        : model.workspaceUnavailableReason(context))
                                         .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText).lineLimit(1)
                                 }
                                 Spacer()
@@ -340,6 +346,7 @@ struct SavedWorkspaceList: View {
                         Menu {
                             Button(model.saveCopy.edit) { if let edit { edit(context.id) } else { model.showWorkspaceSave(editingID: context.id) } }
                             Button(model.saveCopy.delete, role: .destructive) { deleting = context }
+                                .disabled(!model.canChangeSavedWorkspaces)
                         } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 28).padding(.trailing, 8)
                     }.background(model.verifiedCurrentWorkspaceID == context.id ? NativeSurfaceStyle.selectionBackground : Color.clear, in: RoundedRectangle(cornerRadius: 9))
                 }

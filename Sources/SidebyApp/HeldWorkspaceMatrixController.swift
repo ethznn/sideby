@@ -138,13 +138,6 @@ import SwiftUI
         }
     }
 
-    private func beginSave(editingID: String? = nil) {
-        guard let model else { return }
-        let anchor = panel?.frame
-        dismiss()
-        model.showWorkspaceSave(editingID: editingID, anchor: anchor) { [weak self] in self?.showPersistent(anchor: anchor) }
-    }
-
     private func hide() {
         panel?.orderOut(nil)
         // Retain the hidden window until a pending mouse-up is delivered to its
@@ -155,14 +148,7 @@ import SwiftUI
         let pointer = anchor.map { NSPoint(x: $0.midX, y: $0.maxY - 62) } ?? NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else { dismiss(); return }
         let snapshot = HeldWorkspaceSnapshot(model: model, previousColumnID: previousColumnID)
-        var accessoryHeight: CGFloat = model.workspaceSaveMessage == nil ? 0 : 52
-        if let previous = model.workspaceHistory.previousContextID,
-           previous != model.verifiedCurrentWorkspaceID,
-           model.settings.contextPlan.contexts.contains(where: { $0.id == previous }) { accessoryHeight += 30 }
-        if !model.isEnabled || !model.hasSwitchingAccess { accessoryHeight += 36 }
-        let size = HeldMatrixPanelLayout.size(columns: snapshot.columns.count,
-            displays: model.connectedWorkspaceDisplayIDs.count,
-            visibleFrame: screen.visibleFrame, accessoryHeight: accessoryHeight)
+        let size = panelSize(model: model, screen: screen, editing: false)
         let panel = HeldMatrixPanel(contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.acceptsKeyboard = persistent
@@ -177,15 +163,16 @@ import SwiftUI
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
-        panel.title = "Sideby — Quick setup matrix"
+        panel.title = "Sideby — " + model.connectionCopy.title
         panel.identifier = NSUserInterfaceItemIdentifier("sideby-held-workspace-matrix")
         let view = HeldWorkspaceMatrixView(model: model, snapshot: snapshot, select: { [weak self] column in
-            self?.activate(column, snapshot: snapshot, generation: generation)
+            self?.activate(column, generation: generation)
         }, rememberColumn: { [weak self] id in self?.previousColumnID = id },
-            save: { [weak self] in self?.beginSave() }, edit: { [weak self] id in self?.beginSave(editingID: id) },
             persistent: persistent, close: { [weak self] in self?.dismiss() },
-            keepOpen: { [weak self] in self?.pinVisiblePanel() })
-        panel.contentView = HeldMatrixHostingView(rootView: view.frame(width: size.width, height: size.height))
+            keepOpen: { [weak self] in self?.pinVisiblePanel() },
+            editingChanged: { [weak self] editing in self?.resizeForEditing(editing) })
+        panel.contentView = HeldMatrixHostingView(rootView: view)
+        panel.setContentSize(size)
         panel.setFrameOrigin(HeldMatrixPanelLayout.origin(size: size, pointer: pointer, visibleFrame: screen.visibleFrame))
         self.panel?.orderOut(nil)
         self.panel = panel
@@ -193,9 +180,26 @@ import SwiftUI
         panel.orderFrontRegardless()
     }
 
-    private func activate(_ column: HeldWorkspaceColumn, snapshot: HeldWorkspaceSnapshot, generation: Int) {
+    private func panelSize(model: SidebyAppModel, screen: NSScreen, editing: Bool) -> NSSize {
+        let snapshot = HeldWorkspaceSnapshot(model: model)
+        let hasStatus = !model.isEnabled || !model.hasSwitchingAccess || model.workspaceRecoveryTargetID != nil
+            || model.settingsStore.hasUnreadableSettings
+        return HeldMatrixPanelLayout.size(columns: snapshot.columns.count, displays: snapshot.displayIDs.count,
+            visibleFrame: screen.visibleFrame, accessoryHeight: hasStatus ? 42 : 0, editing: editing)
+    }
+
+    private func resizeForEditing(_ editing: Bool) {
+        guard let model, let panel, let screen = panel.screen ?? NSScreen.main else { return }
+        let top = NSPoint(x: panel.frame.midX, y: panel.frame.maxY - 62)
+        let size = panelSize(model: model, screen: screen, editing: editing)
+        panel.setFrame(NSRect(origin: HeldMatrixPanelLayout.origin(size: size, pointer: top, visibleFrame: screen.visibleFrame),
+                             size: size), display: true)
+    }
+
+    private func activate(_ column: HeldWorkspaceColumn, generation: Int) {
         guard let model, persistent || (session.isVisible && session.generation == generation && source?.chordIsDown == true) else { return }
         model.refreshWorkspaceStatus()
+        let snapshot = HeldWorkspaceSnapshot(model: model)
         guard model.verifiedCurrentWorkspaceID != column.id,
               model.heldMatrixCanActivate(column, displayIDs: snapshot.displayIDs),
               persistent || session.beginTransition(session: generation) else { return }

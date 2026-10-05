@@ -6,7 +6,11 @@ import SwiftUI
 /// when AppKit scrolls an NSHostingView without another SwiftUI layout pass.
 struct WorkspaceHorizontalScrollOffset: NSViewRepresentable {
     let changed: (CGFloat) -> Void
-    func makeNSView(context: Context) -> ObserverView { ObserverView() }
+    func makeNSView(context: Context) -> ObserverView {
+        let view = ObserverView()
+        view.changed = changed
+        return view
+    }
     func updateNSView(_ view: ObserverView, context: Context) {
         view.changed = changed
         view.scheduleBinding()

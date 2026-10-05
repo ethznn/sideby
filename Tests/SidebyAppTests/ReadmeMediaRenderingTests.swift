@@ -40,6 +40,30 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         XCTAssertNil(model.workspacePreferences)
     }
 
+    func testRenderCurrentConnectionsMedia() async throws {
+        guard ProcessInfo.processInfo.environment["SIDEBY_RENDER_MEDIA"] == "1" else {
+            throw XCTSkip("Opt-in current connections documentation")
+        }
+        let output = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SIDEBY_MEDIA_OUTPUT"] ?? "/tmp/sideby-connections-media")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        for language in [AppLanguage.english, .korean] {
+            let suffix = language == .english ? "en" : "ko"
+            let model = try makeModel(language: language)
+            completeProgress(model)
+            try await render(ProductSettingsView(model: model,
+                navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
+                actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {})),
+                to: output.appendingPathComponent("sideby-connections-settings-\(suffix).png"), width: 1040, height: 640, dark: false)
+            try await render(ProductFloatingMenuPanelView(model: model, actions: .init(route: { _ in }, quit: {})),
+                to: output.appendingPathComponent("sideby-connections-\(suffix).png"), width: 680, height: 580, dark: true)
+            let empty = try makeModel(language: language, workspaceCount: 0)
+            let preferences = MemoryProductUIPreferences()
+            preferences.onboardingStage = .workspaces
+            try await render(onboarding(empty, preferences),
+                to: output.appendingPathComponent("sideby-connections-onboarding-\(suffix).png"), width: 680, height: 640, dark: false)
+        }
+    }
+
     func testRenderReadmeMedia() async throws {
         guard ProcessInfo.processInfo.environment["SIDEBY_RENDER_MEDIA"] == "1" else {
             throw XCTSkip("Opt-in deterministic README media generation")
@@ -63,10 +87,13 @@ final class ReadmeMediaRenderingTests: XCTestCase {
                 actions: .init(route: { _ in }, quit: {}))
             try await render(menu, to: output.appendingPathComponent("sideby-context-capture-\(suffix).png"),
                              width: 680, height: 640, dark: true)
+            let individual = try makeModel(language: language)
+            try await render(WorkspaceLibraryView(model: individual,
+                navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), finish: {}),
+                to: output.appendingPathComponent("sideby-setup-editor-\(suffix).png"), width: 900, height: 660, dark: false)
             let composer = try makeModel(language: language)
-            let settings = ProductSettingsView(model: composer,
-                navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
-                actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {}))
+            let settings = WorkspaceLibraryView(model: composer,
+                navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), startsInOverview: true, finish: {})
             try await render(settings, to: output.appendingPathComponent("sideby-settings-workspaces-\(suffix).png"),
                              width: 980, height: 720, dark: false)
             XCTAssertTrue(composer.assignWorkspaceComposer(
@@ -136,6 +163,53 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             XCTAssertNil(model.workspacePreferences)
             XCTAssertNil(model.workspaceNameSuggestionProvider)
             XCTAssertFalse(model.isSwitching)
+        }
+    }
+
+    func testRenderUsabilityReview() async throws {
+        guard ProcessInfo.processInfo.environment["SIDEBY_RENDER_USABILITY"] == "1" else {
+            throw XCTSkip("Opt-in local usability review fixtures")
+        }
+        let output = URL(fileURLWithPath: "/tmp/sideby-usability-review.noindex")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        for language in [AppLanguage.english, .korean] {
+            let suffix = language == .english ? "en" : "ko"
+            for dark in [false, true] {
+                let appearance = dark ? "dark" : "light"
+                for all in [false, true] {
+                    let model = try makeModel(language: language)
+                    let nav = ProductUINavigation(preferences: MemoryProductUIPreferences())
+                    try await render(WorkspaceLibraryView(model: model, navigation: nav, startsInOverview: all, finish: {}),
+                        to: output.appendingPathComponent("library-\(all ? "all" : "one")-\(suffix)-\(appearance).png"),
+                        width: all ? 1040 : 900, height: 660, dark: dark)
+                    XCTAssertFalse(model.isSwitching)
+                    XCTAssertFalse(model.hasWorkspaceComposerChanges)
+                }
+                for stage in [ProductOnboardingStage.preparation, .workspaces, .roundTrip] {
+                    let model = try makeModel(language: language, workspaceCount: stage == .workspaces ? 0 : 1)
+                    let preferences = MemoryProductUIPreferences()
+                    preferences.onboardingStage = stage
+                    try await render(onboarding(model, preferences),
+                        to: output.appendingPathComponent("guide-\(stage)-\(suffix)-\(appearance).png"),
+                        width: 680, height: 660, dark: dark)
+                    XCTAssertFalse(model.firstWorkProgress.isComplete)
+                    XCTAssertFalse(model.isSwitching)
+                }
+            }
+            let model = try makeModel(language: language)
+            let nav = ProductUINavigation(preferences: MemoryProductUIPreferences())
+            try await render(WorkspaceLibraryView(model: model, navigation: nav, finish: {}),
+                to: output.appendingPathComponent("library-small-\(suffix).png"), width: 760, height: 560, dark: false)
+            let preferences = MemoryProductUIPreferences()
+            preferences.onboardingStage = .workspaces
+            try await render(onboarding(model, preferences), to: output.appendingPathComponent("guide-small-\(suffix).png"),
+                width: 560, height: 480, dark: false)
+            let empty = try makeModel(language: language, workspaceCount: 0)
+            try await render(WorkspaceLibraryView(model: empty, navigation: nav, finish: {}),
+                to: output.appendingPathComponent("library-empty-\(suffix).png"), width: 900, height: 660, dark: false)
+            try await render(ProductSettingsView(model: model, navigation: nav, canCheckForUpdates: false,
+                actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {})),
+                to: output.appendingPathComponent("settings-\(suffix).png"), width: 680, height: 600, dark: false)
         }
     }
 

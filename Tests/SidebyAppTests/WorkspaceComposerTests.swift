@@ -48,6 +48,27 @@ import SidebySystem
         XCTAssertFalse(model.hasWorkspaceComposerChanges)
         XCTAssertEqual(modelSnapshot(model), original)
     }
+
+    func testUseCurrentDesktopsKeepsOfflineMembersAndNeverPartiallyWritesUnreadableLayouts() {
+        let model = fixture()
+        let saved = model.settings
+        XCTAssertTrue(model.assignWorkspaceComposer(.init(displayID: "mac", key: "mac-c"), to: "dev"))
+        XCTAssertTrue(model.useCurrentDesktopsInWorkspaceComposer("dev"))
+        XCTAssertEqual(model.workspaceComposerDraft?.state.entries[0].members["mac"]?.key, "mac-a")
+        XCTAssertEqual(model.workspaceComposerDraft?.state.entries[0].members["offline"]?.key, "offline-key")
+        XCTAssertTrue(model.useCurrentDesktopsInWorkspaceComposer("review"))
+        XCTAssertEqual(model.workspaceComposerDraft?.state.entries[1].members["studio"]?.key, "studio-a")
+        XCTAssertEqual(model.settings, saved)
+        let draft = model.workspaceComposerDraft?.state
+        model.workspaceObservationOverride = {
+            .init(displays: [.init(displayID: "mac", spaceCount: 1, currentSpaceIndex: 0)],
+                  spaceIDsByDisplayID: ["mac": [99]], spaceKeysByDisplayID: ["mac": ["different"]])
+        }
+        XCTAssertFalse(model.useCurrentDesktopsInWorkspaceComposer("review"))
+        XCTAssertEqual(model.workspaceComposerDraft?.state, draft)
+        XCTAssertEqual(model.settings, saved)
+        XCTAssertFalse(model.isSwitching)
+    }
     func testCommitFollowsIdentityThroughRenumberingAndKeepsOfflineAndShortcuts() throws {
         let model = fixture()
         XCTAssertTrue(model.assignWorkspaceComposer(.init(displayID: "mac", key: "mac-c"), to: "review"))
@@ -121,11 +142,91 @@ import SidebySystem
     func testConcurrentChangesRejectSaveButIndexRebasingDoesNotConflict() {
         let model = fixture()
         model.editWorkspaceComposer { $0.entries[0].name = "이름 초안" }
-        XCTAssertTrue(model.deleteSavedWorkspace("meeting"))
+        // Simulate an external settings replacement; menu mutations are gated separately.
+        model.settings.contextPlan.replaceContexts(model.settings.contextPlan.contexts.filter { $0.id != "meeting" }, currentContextID: "dev")
         let externallyChanged = model.settings
         XCTAssertFalse(model.commitWorkspaceComposer())
+        XCTAssertEqual(model.workspaceComposerDraft?.error, model.saveCopy.composerConflict)
         XCTAssertEqual(model.settings, externallyChanged)
         XCTAssertEqual(model.workspaceComposerDraft?.state.entries[0].name, "이름 초안")
+        model.discardWorkspaceComposer()
+        XCTAssertEqual(model.workspaceComposerDraft?.state.entries.map(\.id), ["dev", "review"])
+        XCTAssertFalse(model.hasWorkspaceComposerChanges)
+    }
+
+    func testMenuMutationsCannotInvalidateAnUnsavedEditorAndResumeAfterSaving() throws {
+        let model = fixture()
+        XCTAssertTrue(model.reorderSavedWorkspace("meeting", relativeTo: "dev", after: false))
+        let proposal = try XCTUnwrap(model.prepareDeleteAllSavedWorkspaces())
+        let original = model.settings
+        model.editWorkspaceComposer { $0.entries[0].name = "편집한 회의" }
+        let draft = model.workspaceComposerDraft?.state
+        XCTAssertFalse(model.canChangeSavedWorkspaces)
+        XCTAssertFalse(model.canDeleteAllSavedWorkspaces)
+        XCTAssertNil(model.prepareDeleteAllSavedWorkspaces())
+        XCTAssertFalse(model.deleteSavedWorkspace("review"))
+        XCTAssertFalse(model.deleteAllSavedWorkspaces(proposal))
+        XCTAssertFalse(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings, original)
+        XCTAssertEqual(model.workspaceComposerDraft?.state, draft)
+        XCTAssertTrue(model.commitWorkspaceComposer())
+        XCTAssertTrue(model.canChangeSavedWorkspaces)
+        XCTAssertTrue(model.deleteSavedWorkspace("review"))
+    }
+
+    func testExcludedOnlySetupWarnsBeforeAndAfterSaveWithoutEnablingTheDisplay() throws {
+        let model = fixture()
+        model.selectedDisplayIDs = ["mac"]
+        let id = try XCTUnwrap(model.addWorkspaceComposer(name: "외부 화면만", useCurrent: false))
+        XCTAssertTrue(model.assignWorkspaceComposer(.init(displayID: "studio", key: "studio-c"), to: id))
+        XCTAssertTrue(model.workspaceComposerHasExcludedConnections)
+        XCTAssertTrue(model.commitWorkspaceComposer())
+        XCTAssertEqual(model.selectedDisplayIDs, ["mac"])
+        let saved = try XCTUnwrap(model.settings.contextPlan.contexts.first { $0.id == id })
+        XCTAssertFalse(model.isWorkspaceAssignmentAvailable(contextID: id))
+        XCTAssertEqual(model.workspaceUnavailableReason(saved), model.saveCopy.excluded)
+        XCTAssertTrue(model.workspaceComposerHasExcludedConnections)
+        model.selectedDisplayIDs = ["mac", "studio"]
+        XCTAssertTrue(model.isWorkspaceAssignmentAvailable(contextID: id))
+        XCTAssertFalse(model.workspaceComposerHasExcludedConnections)
+        model.displayLayout = .init(displays: [.init(id: "mac", name: "Mac", isPrimary: true, isBuiltin: true)])
+        XCTAssertEqual(model.workspaceUnavailableReason(saved), model.saveCopy.offline)
+    }
+
+    func testUseCurrentRequiresAnExistingConnectedMember() throws {
+        let model = fixture()
+        let id = try XCTUnwrap(model.addWorkspaceComposer(name: "빈 구성", useCurrent: false))
+        XCTAssertFalse(model.canUseCurrentDesktopsInWorkspaceComposer(id))
+        XCTAssertFalse(model.useCurrentDesktopsInWorkspaceComposer(id))
+        XCTAssertTrue(model.assignWorkspaceComposer(.init(displayID: "mac", key: "mac-c"), to: id))
+        XCTAssertTrue(model.canUseCurrentDesktopsInWorkspaceComposer(id))
+        XCTAssertTrue(model.useCurrentDesktopsInWorkspaceComposer(id))
+        XCTAssertEqual(model.workspaceComposerDraft?.state.entries.last?.members["mac"]?.key, "mac-a")
+        model.editWorkspaceComposer { $0.entries[$0.entries.count - 1].members = ["offline": .init(key: "kept", index: 4)] }
+        XCTAssertFalse(model.canUseCurrentDesktopsInWorkspaceComposer(id))
+        XCTAssertFalse(model.useCurrentDesktopsInWorkspaceComposer(id))
+    }
+
+    func testCurrentBadgeAndShortcutHintsReflectTheActualState() throws {
+        let model = fixture()
+        model.verifiedCurrentWorkspaceID = "dev"
+        XCTAssertTrue(model.workspaceComposerEntryIsCurrent(try XCTUnwrap(model.workspaceComposerDraft?.state.entries.first)))
+        XCTAssertTrue(model.assignWorkspaceComposer(.init(displayID: "mac", key: "mac-b"), to: "dev"))
+        XCTAssertFalse(model.workspaceComposerEntryIsCurrent(try XCTUnwrap(model.workspaceComposerDraft?.state.entries.first)))
+        model.undoWorkspaceComposer()
+        XCTAssertTrue(model.workspaceComposerEntryIsCurrent(try XCTUnwrap(model.workspaceComposerDraft?.state.entries.first)))
+        XCTAssertEqual(model.workspaceComposerShortcut("dev"), "⌥⇧1")
+        let unsavedID = try XCTUnwrap(model.addWorkspaceComposer(name: "아직 저장하지 않은 구성", useCurrent: false))
+        XCTAssertNil(model.workspaceComposerShortcut(unsavedID), "A reserved slot is not registered until saving")
+        model.failedContextKeyboardCommands = [.activate(position: 1)]
+        XCTAssertNil(model.workspaceComposerShortcut("dev"))
+        model.heldMatrixConfiguration.isEnabled = true
+        XCTAssertNotNil(model.availableWorkspaceChooserShortcut)
+        model.heldMatrixConfiguration.isEnabled = false
+        XCTAssertNil(model.availableWorkspaceChooserShortcut)
+        model.heldMatrixConfiguration.isEnabled = true
+        model.heldMatrixShortcutError = "Registration failed"
+        XCTAssertNil(model.availableWorkspaceChooserShortcut)
     }
     func testEmptyAndDuplicateDraftsCannotSaveAndPersistedSlotsSurviveDeletion() throws {
         let model = fixture()
@@ -195,6 +296,10 @@ import SidebySystem
     func testDragPayloadRoundTripAndForeignTextRejection() {
         let value = WorkspaceComposerDrag(session: UUID(), desktop: .init(displayID: "studio", key: "space|한글"))
         XCTAssertEqual(WorkspaceComposerDrag(rawValue: value.rawValue), value)
+        let cell = WorkspaceComposerDrag(session: value.session, desktop: value.desktop, sourceContextID: "dev")
+        XCTAssertEqual(WorkspaceComposerDrag(rawValue: cell.rawValue), cell)
+        XCTAssertNil(WorkspaceComposerDrag(rawValue: WorkspaceComposerDrag(session: value.session, contextID: "dev", sourceContextID: "dev").rawValue))
+        XCTAssertNil(WorkspaceComposerDrag(rawValue: WorkspaceComposerDrag(session: value.session, desktop: value.desktop, sourceContextID: "").rawValue))
         XCTAssertNil(WorkspaceComposerDrag(rawValue: "external text"))
         XCTAssertNil(WorkspaceComposerDrag(rawValue: WorkspaceComposerDrag(session: UUID()).rawValue))
         XCTAssertNil(WorkspaceComposerDrag(rawValue: WorkspaceComposerDrag(session: UUID(), desktop: value.desktop, contextID: "dev").rawValue))

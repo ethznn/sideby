@@ -28,8 +28,7 @@ struct WorkspaceChooserView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SavedWorkspaceBrowser(model: model, showsBrand: false)
-                .frame(height: min(660, max(410, 350 + CGFloat(model.displayLayout.displays.count) * 68)))
+            CurrentConnectionsView(model: model)
             if model.workspaceRecoveryTargetID != nil { stateContent }
             if !model.isEnabled {
                 Button(copy.turnOn) { model.setSidebyEnabled(true) }.buttonStyle(.borderedProminent).pointingHandCursor()
@@ -38,10 +37,11 @@ struct WorkspaceChooserView: View {
                 Button(copy.permissions, action: actions.openPermissions).pointingHandCursor()
             }
             HStack {
-                Text(KeyboardShortcutFormatter.shortcutText(model.heldMatrixConfiguration.shortcut))
-                    .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                if let shortcut = model.availableWorkspaceChooserShortcut {
+                    Text(shortcut).font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                        .accessibilityIdentifier("workspace-chooser-shortcut")
+                }
                 Spacer()
-                Button(model.saveCopy.text("Manage setups…", "구성 관리…"), action: actions.editWorkspaces).pointingHandCursor()
                 Button(WorkspaceMatrixStrings(language: model.settings.language).moreSettings, action: actions.openSettings).pointingHandCursor()
             }
         }.font(.system(size: bodySize)).foregroundStyle(NativeSurfaceStyle.primaryText)

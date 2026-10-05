@@ -34,8 +34,8 @@ for language in ["en", "ko"] {
     let korean = language == "ko"
     let titles = korean ? ["지금 쓰는 구성부터.", "이름을 붙여 기억해 두세요.", "다른 일도 같은 방식으로.", "화면별 데스크탑을 한눈에.", "필요한 구성으로 연결하세요.", "변경사항을 확인하고 저장.", "하던 일로, 가볍게 돌아가기."]
         : ["Start with the setup you're using.", "Give it a name. Keep it for later.", "Save another when you need it.", "Every display. Every desktop.", "Connect it to the setup you need.", "Review your changes. Save.", "Come back in one action."]
-    let subtitles = korean ? ["⌥⇧Space를 누른 채 ‘이 구성 저장’을 선택하세요.", "키를 놓고, 함께 기억할 화면을 확인한 뒤 저장하세요.", "결제 개발과 PR 리뷰. 각 구성의 화면을 기억합니다.", "설정 → 구성 관리에서 화면별로 데스크탑을 살펴보세요.", "위 카드를 아래로 끌거나, 카드를 선택한 뒤 같은 화면의 칸을 누르세요.", "화면 연결과 구성 순서를 함께 편집하고 저장할 수 있습니다.", "구성을 고르거나, ⌥⇧Tab으로 직전 구성으로 돌아오세요."]
-        : ["Hold ⌥⇧Space, then choose Save this setup.", "Release the keys. Choose the displays to remember. Save.", "Checkout and PR review, each with its own desktops.", "Open Settings → Manage setups to see desktops by display.", "Drag a card down, or select it and click a cell on the same display.", "Edit desktop connections and setup order, then save together.", "Choose a setup, or return to the previous one with ⌥⇧Tab."]
+    let subtitles = korean ? ["⌥⇧Space를 누른 채 ‘지금 화면 저장’을 선택하세요.", "키를 놓고, 함께 기억할 화면을 확인한 뒤 저장하세요.", "결제 개발과 PR 리뷰. 각 구성의 화면을 기억합니다.", "저장한 구성 → 전체 구성 편집에서 데스크탑을 살펴보세요.", "위 카드를 아래로 끌거나, 카드를 선택한 뒤 같은 화면의 칸을 누르세요.", "화면 연결과 구성 순서를 함께 편집하고 저장할 수 있습니다.", "구성을 고르거나, ⌥⇧Tab으로 직전 구성으로 돌아오세요."]
+        : ["Hold ⌥⇧Space, then choose Save current setup.", "Release the keys. Choose the displays to remember. Save.", "Checkout and PR review, each with its own desktops.", "Open Saved setups → Edit all setups to see desktops by display.", "Drag a card down, or select it and click a cell on the same display.", "Edit desktop connections and setup order, then save together.", "Choose a setup, or return to the previous one with ⌥⇧Tab."]
     let urls = [work.appendingPathComponent("native/empty-\(language).png"),
                 output.appendingPathComponent("sideby-save-workspace-\(language).png"),
                 work.appendingPathComponent("native/review-\(language).png"),

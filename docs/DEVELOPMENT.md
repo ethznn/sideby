@@ -195,7 +195,7 @@ After updating README assets, run `swift scripts/verify_readme_media.swift` as
 described in [README media](media/README.md). The repository keeps the images
 and GIFs used by the documentation; promotional MP4s and their production
 pipeline stay in the Git-ignored `marketing/` directory (see
-[README media](media/README.md#marketing-setup-and-publishing)). CI does not require those local production files.
+[README media](media/README.md#verification-and-publication)). CI does not require those local production files.
 Publish README previews as repository GIFs and still images. Keep promotional
 MP4s local; release attachments are for installers, release notes, and update
 metadata. A documentation-media update does not require a new app release or

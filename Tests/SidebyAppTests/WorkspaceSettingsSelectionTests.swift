@@ -41,13 +41,13 @@ final class WorkspaceSettingsSelectionTests: XCTestCase {
     @MainActor func testRepeatedEqualRoutePublishesAnExplicitSelectionRequestAgain() {
         let navigation = ProductUINavigation(preferences: MemoryProductUIPreferences())
         var selection = WorkspaceSettingsSelection()
-        let subscription = navigation.$settingsRoute.sink { route in
+        let subscription = navigation.$workspaceRoute.sink { route in
             selection.reconcile(contextIDs: ["build", "review"], preferredID: route.contextID)
         }
         let route = ProductSettingsRoute(pane: .workspaces, contextID: "build", displayID: "desk")
-        navigation.openSettings(route)
+        navigation.openWorkspaces(route)
         selection.reconcile(contextIDs: ["build", "review"], preferredID: "review")
-        navigation.openSettings(route)
+        navigation.openWorkspaces(route)
         XCTAssertEqual(selection.selectedContextID, "build")
         withExtendedLifetime(subscription) {}
     }

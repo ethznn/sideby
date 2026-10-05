@@ -16,12 +16,12 @@ struct HeldWorkspaceColumn: Identifiable {
         var marks: [String: Bookmark] = [:]
         var cells: [String: String] = [:]
         var labels: [String: String] = [:]
-        let strings = SettingsRefreshStrings(language: model.settings.language)
+        let strings = model.connectionCopy
         for displayID in displayIDs {
             guard let index = context.spaceIndex(for: displayID) else { continue }
             marks[displayID] = Self.bookmark(displayID: displayID, index: index, model: model)
-            cells[displayID] = model.workspaceDesktopName(displayID: displayID, spaceIndex: index) ?? strings.desktop(index)
-            labels[displayID] = strings.desktop(index)
+            cells[displayID] = model.workspaceDesktopName(displayID: displayID, spaceIndex: index) ?? strings.spacePosition(index)
+            labels[displayID] = strings.spacePosition(index)
         }
         bookmarks = marks
         self.cells = cells
@@ -63,14 +63,15 @@ struct HeldWorkspaceSnapshot {
 }
 
 enum HeldMatrixPanelLayout {
-    static let columnWidth: CGFloat = 160
-    static let rowHeight: CGFloat = 48
-    static let headerHeight: CGFloat = 44
+    static let columnWidth: CGFloat = 174
+    static let rowHeight: CGFloat = 56
+    static let headerHeight: CGFloat = 64
     static let labelWidth: CGFloat = 120
 
-    static func size(columns: Int, displays: Int, visibleFrame: NSRect, accessoryHeight: CGFloat = 0) -> NSSize {
-        let width = max(440, 168 + CGFloat(max(1, columns)) * 154)
-        let height = max(430, 350 + CGFloat(displays) * 68 + accessoryHeight)
+    static func size(columns: Int, displays: Int, visibleFrame: NSRect, accessoryHeight: CGFloat = 0, editing: Bool = false) -> NSSize {
+        let width = max(editing ? 820 : 440, 162 + CGFloat(max(1, columns)) * (columnWidth + 6))
+        let tableHeight = min(360, headerHeight + CGFloat(max(1, displays)) * rowHeight + 14)
+        let height = editing ? 680 : max(280, 130 + tableHeight + accessoryHeight)
         return NSSize(width: min(width, 1040, max(1, visibleFrame.width - 32)),
                       height: min(height, max(1, visibleFrame.height - 48)))
     }

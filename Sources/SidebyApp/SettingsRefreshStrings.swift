@@ -5,7 +5,7 @@ struct SettingsRefreshStrings {
     func text(_ english: String, _ korean: String) -> String { language == .korean ? korean : english }
     func pane(_ pane: ProductSettingsPane) -> String {
         switch pane {
-        case .workspaces: text("Manage Setups", "구성 관리")
+        case .workspaces: text("Space connections", "Space 연결")
         case .input: text("Input", "조작 방법")
         case .permissions: text("Permissions", "권한")
         case .general: text("General", "일반")

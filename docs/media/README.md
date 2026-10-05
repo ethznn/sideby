@@ -1,129 +1,96 @@
 # README media
 
-The current English and Korean READMEs explain the 1.0.0 workflow: save the
-setup you are using, arrange its desktop connections by display, and choose a
-saved setup to return. All current screenshots use actual production views backed by fictional
-sample data. No live desktop, personal window title, or account is captured.
+The current film and product views describe Sideby 1.0.0: connect existing
+Spaces, switch displays together, and adjust connections in place.
 
-## Current promotional film: Kinetic
+## Current promotional film
 
-The English and Korean READMEs lead with the Kinetic edit. Large words scatter
-as displays switch separately, then gather into “This setup. Save it.” The film
-shows saving the current setup, dragging a desktop from its display row into
-the setup matrix, saving that edit, moving three displays together, and returning
-with `⌥⇧Tab`. It reuses the earlier Triptych film’s three-panel opening, physical
-keycaps, giant “Side / by / side” typography, and animated logo.
+The 22.5-second edit keeps the earlier Kinetic film’s three-panel opening,
+scattered typography, physical keycaps, “Side / by / side” payoff, animated logo,
+and original synthesized score. Its story now shows:
 
-The save form and desktops are simplified illustrations with fictional data,
-not captures of the product or switching benchmarks.
+1. The friction of switching displays one by one.
+2. `⌥⇧Space` and a column selection switching three displays together.
+3. A Space dragged from its display’s list into the blank column, creating a connection immediately.
+4. Same-display cells swapping when dragged, then `⌥ Option` held during a drop to copy.
 
-[English GIF](../images/sideby-kinetic-en.gif) ·
-[한국어 GIF](../images/sideby-kinetic-ko.gif) ·
-[English still](../images/sideby-kinetic-en.png) ·
-[한국어 정지 이미지](../images/sideby-kinetic-ko.png)
+The film uses simplified illustrations and fictional data. It is not a product
+capture, a switching benchmark, or a demonstration of app/window restoration.
+There is no naming dialog or separate save action in the current workflow.
 
-The silent README preview shows the full 22.5-second edit at 960 × 540, with
-450 frames at 20 fps. Its posters are 1920 × 1080. Full localized MP4s are
-1920 × 1080 at 60 fps, with an original synthesized stereo score timed to the
-motion. MP4s, score, edit sources, and render tools stay in the ignored marketing
-directory. Both the previous “Save it. Come back.” edit and the original Triptych
-film remain preserved.
+[한국어 GIF](../images/sideby-connections-film-ko.gif) ·
+[English GIF](../images/sideby-connections-film-en.gif) ·
+[한국어 정지 이미지](../images/sideby-connections-film-ko.png) ·
+[English still](../images/sideby-connections-film-en.png) ·
+[Preview with playback controls](preview.html)
 
-The public preview opens with this promotional film. The READMEs keep the
-production-view save walkthrough below the save instructions, in a disclosure.
+| Export | Size | Timing |
+| --- | --- | --- |
+| README GIF, silent | 960 × 540 | 450 frames, 20 fps, 22.5 seconds |
+| Poster | 1920 × 1080 | Synchronized-switching scene |
+| Local MP4 with original stereo score | 1920 × 1080 | 1350 frames, 60 fps, 22.5 seconds |
 
-## Production-view walkthrough
+The full MP4s, score, HTML source, and render tools remain in the ignored
+`marketing/motion/showreel-connections-1.0.0/` and
+`marketing/scripts/connections100/` directories. Earlier originals are preserved.
+The README links only to tracked GIFs, stills, and the portable preview page.
+The preview starts with a still and supports both languages and playback controls.
+The site honors reduced motion and provides a stop button.
 
-[English GIF](../images/sideby-save-flow-en.gif) ·
-[한국어 GIF](../images/sideby-save-flow-ko.gif) ·
-[English still](../images/sideby-save-flow-en.png) ·
-[한국어 정지 이미지](../images/sideby-save-flow-ko.png)
+## Current product views
 
-The 960 × 760 walkthrough lasts 21 seconds, with 105 GIF frames at 5 fps. Its seven
-scenes show an empty list, the save form, two saved setups, the composer,
-an edited connection, the saved draft, and a setup selected again. Crossfades explain the sequence; they do
-not measure or reproduce actual macOS desktop-switching timing.
+These images render production SwiftUI/AppKit views using fictional fixtures.
+No personal desktop, window title, account, or Space configuration is captured.
 
-The [visual preview](preview.html) includes a playback toggle, starts with a still
-when reduced motion is requested, and shows both languages. The native screenshots
-below the preview cover the menu, save form, settings, and first-setup guide.
+| PNG | Pixels | Contents |
+| --- | --- | --- |
+| `sideby-connections-settings-{en,ko}.png` | 2080 × 1280 | Space list and directly editable connection table |
+| `sideby-connections-{en,ko}.png` | 1360 × 1160 | Menu-bar connection table |
+| `sideby-connections-onboarding-{en,ko}.png` | 1360 × 1280 | First-use guide |
 
-## Regenerate production views and video
-
-Run from the repository root in a graphical macOS session:
+Regenerate product views from a graphical macOS session:
 
 ```bash
-SIDEBY_RENDER_MEDIA=1 swift test --filter ReadmeMediaRenderingTests
-swift scripts/render_workspace_preview.swift
+SIDEBY_RENDER_MEDIA=1 SIDEBY_MEDIA_OUTPUT=/tmp/sideby-connections-media swift test --filter ReadmeMediaRenderingTests.testRenderCurrentConnectionsMedia
+```
+
+The opt-in renderer uses isolated settings stores. It does not launch the product,
+change real connections, move Spaces, or request permissions. Review the output
+before copying the six current PNGs into `docs/images/`.
+
+## Verification and publication
+
+```bash
 swift scripts/verify_readme_media.swift
+python3 scripts/build_site.py --output .build/website-media-check
+python3 scripts/check_site.py .build/website-media-check
 bash scripts/check_public_docs.sh
 ```
 
-The opt-in test renders SwiftUI/AppKit product views offscreen with discarding
-settings stores. It does not launch the product, send global input, move desktops,
-or request permissions. `docs/media/demo-data.json` supplies fictional names.
-`SIDEBY_MEDIA_WORK_DIR` can override the default `.build/readme-media` directory;
-use the same value for the test and the video renderer.
+The media verifier checks current PNG dimensions, every current GIF frame,
+timing, loop flags, animation, size limits, localized README references, and
+local documentation links. It also retains checks on historical media. It does
+not establish visual correctness or release availability. Inspect both language
+versions at README display size and inspect the final MP4 separately.
 
-| Current PNG | Pixels | Appearance |
-| --- | --- | --- |
-| `sideby-context-capture-{en,ko}.png` | 1360 × 1280 | Dark menu |
-| `sideby-save-workspace-{en,ko}.png` | 1060 × 960 | Light save form |
-| `sideby-settings-workspaces-{en,ko}.png` | 1960 × 1440 | Light composer settings |
-| `sideby-onboarding-saved-workspaces-{en,ko}.png` | 1280 × 1520 | Light first-setup guide |
-| `sideby-save-flow-{en,ko}.png` | 960 × 760 | Walkthrough still |
+The local film verifier decodes every MP4 video and audio frame, checks 60 fps,
+duration, dimensions, stereo audio, clipping, and progressive playback metadata.
+Keep its output and scene-review images locally.
 
-Native views render at 2×. Additional fixture images under the work directory
-cover dark appearance, one display, missing titles, and long content names.
-The walkthrough renderer produces a silent H.264 MP4 at 960 × 760, 20 fps in the
-ignored local marketing directory. It checks dimensions, duration, frame rate,
-and absence of audio. The seven source scenes are saved there for visual review.
-
-## Marketing setup and publishing
-
-| Asset | Location | Tracked |
-| --- | --- | --- |
-| Current README GIFs and PNGs | `docs/images/` | Yes |
-| Full MP4 exports and scene review images | Local `marketing/` directory | No |
-| Temporary native render fixtures | `.build/readme-media/` | No |
-
-Keep installer, release notes, and signed update metadata as the release assets.
-Documentation must not link into the ignored marketing directory or to promotional
-MP4 release attachments. Inspect every new image and all video scenes before
-publishing, and follow the maintainer’s image-approval instructions.
-
-## Verification
-
-The media verifier checks dimensions, GIF frame counts and timing, looping flags,
-animation, size limits, localized README usage, and local documentation links.
-It does not verify release download availability or establish visual correctness.
-Review both languages at their README display sizes, including name fields,
-setup labels, save actions, and the empty-state explanation. Review the MP4
-separately from the GIF.
-
-The opt-in UI renderer is separate from product regressions. Run `swift test`
-and the native user-journey checks described in [Development](../DEVELOPMENT.md)
-when changing product behavior.
+Before external publication, open the new imagery, enumerate visible content,
+and obtain the maintainer’s confirmation. Keep installers, release notes, and
+signed update metadata as release assets; promotional MP4s are not release
+attachments. Do not link public documentation into ignored production folders.
 
 ## Archived media
 
-Existing media remain for historical links, but the current READMEs use the
-new promotional film and the production-view save walkthrough:
+The earlier `sideby-kinetic-*`, `sideby-setups-film-*`, `sideby-save-flow-*`,
+`sideby-save-workspace-*`, and dedicated setup-editor images describe the
+previous save-centered design. They remain for historical links and are not
+current usage instructions. `sideby-triptych-*`, `sideby-brand-film-*`,
+`sideby-readme-loop-*`, and `sideby-demo-*` are earlier promotional edits.
+Old onboarding and context-capture images are preserved as well.
 
-- `sideby-setups-film-{en,ko}.gif`: the earlier “Save it. Come back.” edit,
-  960 × 540, 120 frames over 12 seconds; matching stills are 1920 × 1080.
-- `sideby-triptych-{en,ko}.gif`: illustrated three-display sequence, 960 × 540,
-  74 frames over 7.4 seconds; matching stills are 1920 × 1080.
-- `sideby-readme-loop-{en,ko}.gif`: 960 × 540, 100 frames over 10 seconds;
-  matching stills are 960 × 540.
-- `sideby-brand-film-{en,ko}.gif`: 960 × 540, 76 frames over 7.6 seconds;
-  matching stills are 1920 × 1080.
-- `sideby-demo-en.gif`: the older two-display 0.11.1 demo, 960 × 640,
-  62 frames over 22.04 seconds, with a matching poster.
-- `sideby-onboarding-workspaces-{en,ko}.png` and
-  `sideby-onboarding-roundtrip-{en,ko}.png`: earlier onboarding views.
-
-Archived illustrated switching scenes do not measure macOS performance. Older
-films’ full MP4s and production files remain local. The older
-`scripts/render_readme_demo.sh` pipeline is for the archived demo; use the commands
-above for the current product views and save-setup walkthrough.
+The older `scripts/render_workspace_preview.swift` and
+`scripts/render_readme_demo.sh` pipelines produce archived walkthroughs.
+Use the current production-view renderer above for the current app.

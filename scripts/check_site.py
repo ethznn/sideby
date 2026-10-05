@@ -31,7 +31,7 @@ args = parser.parse_args(); root = args.directory.resolve()
 base = args.base_url.rstrip('/') + '/'; parsed_base = urlparse(base)
 expected = {'index.html', 'ko/index.html', '404.html', '.nojekyll', 'sitemap.xml', 'assets/style.css', 'assets/site.js'}
 for language in ['en', 'ko']:
-    expected.update(f'assets/{stem}-{language}.{ext}' for stem, exts in [('sideby-kinetic', ['png', 'gif']), ('sideby-save-workspace', ['png']), ('sideby-context-capture', ['png'])] for ext in exts)
+    expected.update(f'assets/{stem}-{language}.{ext}' for stem, exts in [('sideby-connections-film', ['png', 'gif']), ('sideby-connections', ['png']), ('sideby-connections-settings', ['png']), ('sideby-connections-onboarding', ['png'])] for ext in exts)
 actual = {str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
 assert actual == expected, f'Unexpected deployment files: {actual ^ expected}'
 assert not any(p.is_symlink() for p in root.rglob('*')), 'Symlinks are not deployable'
@@ -47,7 +47,7 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     description = page.find('meta', name='description')[0]['content']
     assert len(description) > 50; descriptions.append(description)
     assert page.find('meta', property='og:url', content=canonical)
-    assert page.find('meta', property='og:image', content=base + f'assets/sideby-kinetic-{language}.png')
+    assert page.find('meta', property='og:image', content=base + f'assets/sideby-connections-film-{language}.png')
     assert page.find('meta', name='twitter:card', content='summary_large_image')
     assert not page.find('meta', name='robots', content='noindex')
     assert 'noindex' not in text.lower()
@@ -60,8 +60,12 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     assert 'aggregateRating' not in app and 'review' not in app, 'Only publish actual reviews'
     assert app['downloadUrl'] == 'https://github.com/ethznn/sideby/releases/latest'
     assert len(page.find('a', href=app['downloadUrl'])) >= 2
-    assert len(page.find('details')) == 6
-    assert page.find('button', id='play-film', **{'aria-pressed':'false'})
+    assert len(page.find('details')) == 7
+    assert page.find('details', **{'class': 'editor-overview'}), 'Offer the full editor as an optional view'
+    assert page.find('section', id='edit')
+    assert page.find('a', href='#edit')
+    assert page.find('button', id='play-film', **{'aria-controls': 'film', 'aria-pressed': 'false'}), 'Provide film playback controls'
+    assert page.find('img', id='film', src=f'{parsed_base.path}assets/sideby-connections-film-{language}.png')
     for tag, attrs in page.tags:
         if tag == 'img':
             assert attrs.get('alt') and attrs.get('width') and attrs.get('height')

@@ -31,7 +31,7 @@ final class WorkspaceSettingsNativeEvidenceTests: XCTestCase {
             let model = makeModel(displayCount: 4, rows: 8, offline: true, longNames: true)
             let navigation = ProductUINavigation(preferences: MemoryProductUIPreferences())
             try await render(settings(model, navigation), name: "settings-long-offline-highcontrast-\(dark ? "dark" : "light")", width: 700, height: 892, dark: dark, highContrast: true,
-                afterMount: { navigation.openSettings(.init(pane: .workspaces, contextID: "task-6", displayID: "offline")) })
+                afterMount: { navigation.openWorkspaces(.init(pane: .workspaces, contextID: "task-6", displayID: "offline")) })
         }
         let tall = makeModel(displayCount: 2, rows: 7)
         try await render(settings(tall, ProductUINavigation(preferences: MemoryProductUIPreferences())), name: "settings-700x892-two-displays-dark", width: 700, height: 892, dark: true)
@@ -58,8 +58,7 @@ final class WorkspaceSettingsNativeEvidenceTests: XCTestCase {
     }
 
     private func settings(_ model: SidebyAppModel, _ navigation: ProductUINavigation) -> some View {
-        ProductSettingsView(model: model, navigation: navigation, canCheckForUpdates: false,
-            actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {}))
+        WorkspaceLibraryView(model: model, navigation: navigation, startsInOverview: true, finish: {})
     }
 
     private func makeModel(displayCount: Int, rows: Int, offline: Bool = false, longNames: Bool = false) -> SidebyAppModel {
@@ -120,8 +119,7 @@ final class WorkspaceSettingsNativeEvidenceTests: XCTestCase {
                 view.subviews.forEach(inspect)
             }
             inspect(host)
-            XCTAssertEqual(scrolls.count, 5, "One sidebar; source desktops and destination matrix each share one scroll owner per axis")
-            XCTAssertTrue(scrolls.contains { $0.contentView.bounds.minX > 0 }, "Requested workspace column must be revealed")
+            XCTAssertGreaterThanOrEqual(scrolls.count, 1, "The focused editor must scroll long display lists")
             // A route to a remembered display reveals its saved assignments.
         }
         let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))

@@ -4,114 +4,74 @@ English | [한국어](README.ko.md)
 
 [Website](https://ethznn.github.io/sideby/) · [Download](https://github.com/ethznn/sideby/releases/latest)
 
-**Back to your work, in one action.**
+**Move your Spaces together.**
+
+Connect the Spaces you already use across your displays. When your environment changes, see what is open and adjust the matching cell in Settings. No names or separate saves are required.
 
 <p align="center">
-  <img src="./docs/images/sideby-kinetic-en.gif" width="720" alt="Sideby promotional film: save the current three-display setup, drag a desktop into a setup, switch all displays to PR review, and return with one shortcut." />
+  <img src="./docs/images/sideby-connections-film-en.gif" width="880" alt="Sideby switches three displays together, connects a Space by dropping it into a blank column, and shows dragging to move and Option-dragging to copy." />
 </p>
 
-Save the desktops you're using across your displays as a setup. Choose it later to switch those displays together. One display works too.
+*22.5-second motion graphic with fictional data. Illustrated workflow, not an app capture or a switching benchmark.*
 
-*Illustrated desktops and a simplified save form with fictional data. Motion explains the workflow, not measured switching speed.* [Still image](docs/images/sideby-kinetic-en.png).
+[Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](docs/media/preview.html)
 
-[Download Sideby](https://github.com/ethznn/sideby/releases) · macOS 14 or later · English and Korean
+*Sideby 1.0.0 · [What’s new](docs/releases/1.0.0.md).*
 
-[Sideby 1.0.0](docs/releases/1.0.0.md) brings a visual setup editor: see desktops by display, drag them into saved setups, and arrange setup columns in the order you work. Review your changes and save them together.
-
-## Save while you work
-
-1. **Arrange your desktops as usual.** Open the work you need on each display.
-2. **Hold `⌥⇧Space` and choose “Save this setup.”** Release the shortcut, enter a name, check the displays to remember, and save.
-3. **Choose that setup when you need it again.** Its included displays move together. Press `⌥⇧Tab` to return to the previous setup.
-
-Start with one useful setup and add another when you actually use it. A new installation begins with an empty list. Saving adds one setup and preserves everything you already saved.
+## See and connect in one window
 
 <p align="center">
-  <img src="./docs/images/sideby-save-workspace-en.png" width="530" alt="Save this setup: a Checkout name field, checked MacBook Pro and Studio Display rows, and Cancel and Save setup buttons." />
+  <img src="./docs/images/sideby-connections-settings-en.png" width="880" alt="Actual Settings with Spaces by display above the connection table, including move, swap, and Option-copy controls." />
 </p>
 
-Sideby remembers connections to existing macOS desktops. It does not capture screenshots, reopen apps or documents, or restore window positions.
+*Actual app view with fictional data.*
 
-<details>
-<summary>See the save flow in the actual app</summary>
+1. Open **Sideby in the menu bar → Settings**. It opens directly to **Space connections**.
+2. Review the Spaces above the table. Available app/window titles, Space positions, and **On screen** markers show what is open. Start with **Connect in current order**.
+3. Drag a Space into a cell for the same display below. You can also click a Space, then a cell. Changes are remembered immediately. Use **Undo connection change** or `⌘Z` to undo the last change.
 
-<p align="center">
-  <img src="./docs/images/sideby-save-flow-en.gif" width="720" alt="Save setups, connect desktops in Manage setups, save the changes, and return using Sideby’s matrix." />
-</p>
+Spaces in the same column switch together. You can also click a cell to choose directly.
 
-Production views with fictional sample data: save setups, edit their desktop connections in the visual composer, and choose a setup again. [Still image](docs/images/sideby-save-flow-en.png).
+- **Create a connection:** Drop a Space into a blank cell in the **Add connection** column. The + button scrolls to this column.
+- **Move or swap:** Drag between cells for the same display. Move into an empty cell or swap two occupied cells.
+- **Copy:** **Hold ⌥ Option when dropping** to keep the source cell. Dragging from the Space list also keeps the list intact.
+- **Undo:** **Undo connection change** restores both cells in one step.
 
-</details>
+Right-click a column heading to reorder or remove its connection. Removing a connection keeps the actual desktops and app windows.
 
-## Choose and adjust a setup
-
-Columns are saved setups; rows are currently connected displays. Choose a setup column to switch. You can also use **List** when you prefer a compact view.
-
-<p align="center">
-  <img src="./docs/images/sideby-context-capture-en.png" width="680" alt="Sideby’s dark menu showing the current setup, Save this setup, and the Checkout and PR review setup columns." />
-</p>
-
-| Action | Result |
-| --- | --- |
-| **Save this setup** | Add the current desktop combination under a new name. An identical saved setup is pointed out instead of added twice. |
-| A setup’s **Edit** action | Rename it, include or exclude a display, or choose another desktop. Only that setup changes. |
-| **Use current setup** in the editor | Update the draft to the desktops now in use. Review the changes before saving. |
-| **Undo last change** | Restore the last setup addition, edit, or deletion. One undo is retained across app restarts until the next setup change. |
-| **Delete all saved setups…** | Confirm removal of the saved list, including setups on disconnected displays. Actual desktops, apps, and other settings remain. You can undo the deletion. |
-
-Disconnected displays do not add rows to the everyday matrix. Their saved connections remain in setup editing and return when the displays reconnect. Saving a new setup includes only the available displays you select.
-
-## Arrange desktops into setups
-
-Open **All settings → Manage setups**. Each display has its own row of desktop cards above the setup matrix.
-
-1. Drag a desktop card down to a setup on the same display. Available cells are highlighted as you drag. You can also select a card, then click a cell.
-2. Drag a setup’s title handle left or right to change its order. Its numbered shortcut stays attached to that setup.
-3. Choose **Save changes** to apply the draft. **Cancel** restores the saved configuration. Editing connections does not switch your desktops.
-
-The refresh button rereads desktops and available names. Saved connections to disconnected displays can be shown separately. Unsaved changes are checked when you leave the editor, close its window, or quit Sideby.
-
-<p align="center">
-  <img src="./docs/images/sideby-settings-workspaces-en.png" width="720" alt="Light Manage setups window with desktop cards arranged by display above the editable setup matrix." />
-</p>
+Click the **arrow** beside a column heading to move your screens. Editing a cell or dragging a desktop does not switch screens. Displays excluded from switching remain where they are.
 
 ## Get started
 
 1. Download the DMG from [GitHub Releases](https://github.com/ethznn/sideby/releases), move Sideby to Applications, and open it.
-2. Follow the guide to check Accessibility and Screen Switching access and select your displays.
-3. Save your first setup from the matrix. Use Mission Control to prepare another desktop setup, then save that one too.
-4. Choose a saved setup to go there; use `⌥⇧Tab` to come back.
+2. Allow Accessibility and Screen Switching access in the guide.
+3. Choose **Connect in current order**, then start using Sideby. Naming, saving, and switching practice are not required.
 
-**Upgrading from an earlier version?** Existing setups are kept, including entries that older versions created automatically. The update does not recreate them. To start with your own saved setups, use **Delete all saved setups…**, then save the setup you want. **Undo last change** restores the list until your next setup change.
+Existing connections, names, and numbered shortcuts are kept. No recreation or deletion is required. If you have an unsaved draft in an older editor, finish it before changing connections here.
 
-<details>
-<summary>See the first-setup guide</summary>
+## Daily use
 
-<p align="center">
-  <img src="./docs/images/sideby-onboarding-saved-workspaces-en.png" width="640" alt="Sideby’s first-setup guide explains how to save a current setup and shows an empty saved setup list." />
-</p>
-
-</details>
-
-## Shortcuts and gestures
+Hold `⌥⇧Space` to open the switcher with your current connection in view. **Click anywhere in a column** to move the connected desktops together. Choose **Edit connections** only when you need to change them; the panel shows **Spaces on your displays** above the connection table. Drag a card to a cell for the same display, or click the card and then the cell. Edits are immediate, and **Back to switching** returns within the same panel. **Settings** shows the same list and connection table. The menu-bar table still allows direct cell editing.
 
 | Input | Action |
 | --- | --- |
-| Hold `⌥⇧Space` | Show the quick matrix near the pointer. Choose a setup or save the current setup. |
-| `⌥⇧Tab` | Return to the previous setup; repeat to alternate between the last two. |
-| `⌥⇧1` … `⌥⇧9`, `⌥⇧0` | Activate the setup with that numbered shortcut. Existing numbers stay assigned when another setup is deleted. |
-| `⌥⇧<` / `⌥⇧>` | Previous / next setup. |
-| Option + Shift + horizontal swipe | Switch with the default gesture. |
+| Hold `⌥⇧Space` | Open the switcher near the pointer. Click a column to move. |
+| `⌥⇧Tab` | Return to the last connection you visited. |
+| `⌥⇧1` … `⌥⇧9`, `⌥⇧0` | Move to the connection assigned that number. Deleting another connection keeps existing numbers. |
+| `⌥⇧<` / `⌥⇧>` | Move to the previous / next connection. |
+| Option + Shift + horizontal swipe | Move displays together with the default gesture. |
 
-Numbered, previous/next, and return shortcuts execute after Option and Shift are released. The quick matrix closes when you release its shortcut or press Escape. Choosing **Save this setup** or **Edit** opens a separate form that stays open so you can release the keys and type. The menu-bar matrix stays open while you switch. Configure shortcuts and gestures in **Settings → Input**.
+Numbered, previous/next, and return shortcuts execute when Option and Shift are released. The held connection table closes on key release. Choosing **Edit connections** keeps it open so you can release the keys; dismiss it with Escape or the close button. Configure inputs in **Settings → Input**.
 
-## When your setup changes
+## When your environment changes
 
-Saved connections follow the same surviving desktops when they are reordered or Sideby restarts. Adding a desktop does not create a setup. If a saved desktop is missing, edit that setup to choose its replacement. Sideby does not silently redirect it to another desktop at the same position.
+Connections follow the same surviving desktops when their order changes. A missing desktop is marked **Choose again**; Sideby never substitutes another desktop at the same position. New desktops appear in the upper list for you to connect. Disconnected displays keep their connections; use **Show disconnected displays** to see them.
 
-If the layout changes while a save form is open, reread it before saving. If Sideby cannot read the desktop connections or write your settings, it reports the problem and keeps the existing saved configuration. Incomplete moves can be retried for displays that have not arrived.
+**Space** refers to a macOS workspace, including regular desktops and full-screen apps. **Space · position 3** means its position in that display’s list, not a Mission Control name such as “Desktop 3.” Available app/window names are shown first.
 
-Custom desktop names take priority, followed by available app/window titles and then desktop numbers. The composer follows Space identity when desktop positions change and refreshes content names when reopened. These labels are not native Mission Control names.
+Refresh rereads desktops and available app/window titles. Custom desktop names take priority. These labels do not rename Mission Control desktops. If writing settings fails, Sideby reports the problem and keeps the existing connections.
+
+Sideby connects and switches existing Spaces. It does not create or delete desktops, launch apps, put them into full screen, or restore window positions.
 
 ## Privacy and platform notes
 

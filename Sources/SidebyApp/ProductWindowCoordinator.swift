@@ -3,14 +3,15 @@ import SwiftUI
 
 @MainActor
 final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
-    enum Kind: Hashable { case settings, onboarding }
+    enum Kind: Hashable { case settings, workspaces, onboarding }
 
     let navigation: ProductUINavigation
     var presentDaily: (() -> Void)?
-    var settingsHasUnsavedChanges: () -> Bool = { false }
-    var resolveSettingsChanges: ((NSWindow, @escaping @MainActor () -> Void) -> Void)?
+    var workspaceHasUnsavedChanges: () -> Bool = { false }
+    var resolveWorkspaceChanges: ((NSWindow, @escaping @MainActor () -> Void) -> Void)?
     private let settingsContent: (ProductWindowCoordinator) -> AnyView
     private let onboardingContent: (ProductWindowCoordinator) -> AnyView
+    private let workspaceContent: (ProductWindowCoordinator) -> AnyView
     private let closeDaily: () -> Void
     private let refreshState: () -> Void
     private let onboardingWillShow: (Bool) -> Void
@@ -21,6 +22,7 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
     init(navigation: ProductUINavigation,
          settingsContent: @escaping (ProductWindowCoordinator) -> AnyView,
          onboardingContent: @escaping (ProductWindowCoordinator) -> AnyView,
+         workspaceContent: @escaping (ProductWindowCoordinator) -> AnyView = { _ in AnyView(EmptyView()) },
          closeDaily: @escaping () -> Void, refreshState: @escaping () -> Void,
          onboardingWillShow: @escaping (Bool) -> Void,
          onboardingWillClose: @escaping () -> Void,
@@ -28,6 +30,7 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
         self.navigation = navigation
         self.settingsContent = settingsContent
         self.onboardingContent = onboardingContent
+        self.workspaceContent = workspaceContent
         self.closeDaily = closeDaily
         self.refreshState = refreshState
         self.onboardingWillShow = onboardingWillShow
@@ -37,19 +40,26 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
 
     func makeWindow(for kind: Kind) -> NSWindow {
         if let window = controllers[kind]?.window { return window }
-        let size = kind == .settings ? NSSize(width: 980, height: 720) : NSSize(width: 640, height: 520)
+        let size = kind == .onboarding ? NSSize(width: 680, height: 600) : NSSize(width: 1040, height: 740)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
-        window.collectionBehavior = kind == .settings
+        window.collectionBehavior = kind != .onboarding
             ? [.moveToActiveSpace, .fullScreenAuxiliary]
             : [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.title = "Sideby"
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.contentMinSize = kind == .settings ? NSSize(width: 700, height: 560) : NSSize(width: 560, height: 420)
+        window.contentMinSize = kind == .onboarding ? NSSize(width: 560, height: 480) : NSSize(width: 760, height: 560)
+        window.identifier = .init("sideby-\(kind)")
         controllers[kind] = NSWindowController(window: window)
-        window.contentViewController = NSHostingController(rootView: kind == .settings ? settingsContent(self) : onboardingContent(self))
+        let content: AnyView
+        switch kind {
+        case .settings: content = settingsContent(self)
+        case .workspaces: content = workspaceContent(self)
+        case .onboarding: content = onboardingContent(self)
+        }
+        window.contentViewController = NSHostingController(rootView: content)
         // Hosting can resize to SwiftUI's minimum fitting size when attached.
         // Apply the intended initial size after attachment, once per window.
         window.setContentSize(size)
@@ -68,6 +78,11 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
         present(makeWindow(for: .settings))
     }
 
+    func showWorkspaces(_ route: ProductSettingsRoute = .init(pane: .workspaces)) {
+        navigation.openWorkspaces(route)
+        present(makeWindow(for: .workspaces))
+    }
+
     func showOnboarding(replay: Bool = false) {
         present(makeWindow(for: .onboarding)) {
             onboardingWillShow(replay)
@@ -79,11 +94,11 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
     }
 
     func returnAfterAssignmentReview() {
-        if settingsHasUnsavedChanges(), let window = controllers[.settings]?.window, let resolveSettingsChanges {
-            resolveSettingsChanges(window) { [weak self] in self?.returnAfterAssignmentReview() }; return
+        if workspaceHasUnsavedChanges(), let window = controllers[.workspaces]?.window, let resolveWorkspaceChanges {
+            resolveWorkspaceChanges(window) { [weak self] in self?.returnAfterAssignmentReview() }; return
         }
         guard let destination = navigation.consumeReturnDestination() else { return }
-        controllers[.settings]?.window?.orderOut(nil)
+        controllers[.workspaces]?.window?.orderOut(nil)
         switch destination {
         case .daily: presentDaily?()
         case .onboarding: showOnboarding()
@@ -95,8 +110,8 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if sender === controllers[.settings]?.window, settingsHasUnsavedChanges(), let resolveSettingsChanges {
-            resolveSettingsChanges(sender) { [weak sender] in sender?.close() }; return false
+        if sender === controllers[.workspaces]?.window, workspaceHasUnsavedChanges(), let resolveWorkspaceChanges {
+            resolveWorkspaceChanges(sender) { [weak sender] in sender?.close() }; return false
         }
         return true
     }
@@ -105,7 +120,7 @@ final class ProductWindowCoordinator: NSObject, NSWindowDelegate {
         guard let window = notification.object as? NSWindow else { return }
         if window === controllers[.onboarding]?.window {
             onboardingWillClose()
-        } else if window === controllers[.settings]?.window {
+        } else if window === controllers[.workspaces]?.window {
             if navigation.consumeReturnDestination() == .onboarding { showOnboarding() }
         }
     }

@@ -72,7 +72,7 @@ final class ProductWindowCoordinatorTests: XCTestCase {
             XCTAssertFalse(window.isVisible)
         }
         // A small SwiftUI fitting size must not shrink the initial settings table/guide.
-        for (window, expected) in [(first, NSSize(width: 980, height: 720)), (guide, NSSize(width: 640, height: 520))] {
+        for (window, expected) in [(first, NSSize(width: 1040, height: 740)), (guide, NSSize(width: 680, height: 600))] {
             let screenSize = window.screen?.visibleFrame.size ?? expected
             let chrome = window.frame.height - window.contentRect(forFrameRect: window.frame).height
             let content = window.contentRect(forFrameRect: window.frame).size
@@ -85,11 +85,11 @@ final class ProductWindowCoordinatorTests: XCTestCase {
         XCTAssertFalse(first.isReleasedWhenClosed)
     }
 
-    func testClosingSettingsDiscardsDailyIntentWithoutMutatingPreferencesOrShowingAnything() {
+    func testClosingWorkspaceLibraryDiscardsDailyIntentWithoutMutatingPreferencesOrShowingAnything() {
         let preferences = MemoryProductUIPreferences()
         preferences.didCompletePermissionSetup = true
         let navigation = ProductUINavigation(preferences: preferences)
-        navigation.openSettings(.init(pane: .workspaces, contextID: "a", returnTo: .daily))
+        navigation.openWorkspaces(.init(pane: .workspaces, contextID: "a", returnTo: .daily))
         var effects = 0
         let coordinator = ProductWindowCoordinator(
             navigation: navigation,
@@ -98,7 +98,7 @@ final class ProductWindowCoordinatorTests: XCTestCase {
             onboardingWillShow: { _ in effects += 1 }, onboardingWillClose: { effects += 1 }
         )
         coordinator.presentDaily = { effects += 1 }
-        coordinator.makeWindow(for: .settings).close()
+        coordinator.makeWindow(for: .workspaces).close()
         XCTAssertNil(navigation.consumeReturnDestination())
         XCTAssertTrue(preferences.didCompletePermissionSetup)
         XCTAssertEqual(preferences.lastSettingsPane, .workspaces)
@@ -120,9 +120,35 @@ final class ProductWindowCoordinatorTests: XCTestCase {
         XCTAssertEqual(preferences.onboardingStage, .roundTrip)
     }
 
+    func testSettingsAndDirtyWorkspaceHaveIndependentWindowsAndReturnIntent() {
+        let navigation = ProductUINavigation(preferences: MemoryProductUIPreferences())
+        navigation.openWorkspaces(.init(pane: .workspaces, contextID: "writing", returnTo: .onboarding))
+        var workspaceFactories = 0
+        var prompts = 0
+        let coordinator = ProductWindowCoordinator(navigation: navigation,
+            settingsContent: { _ in AnyView(Text("Preferences")) }, onboardingContent: { _ in AnyView(EmptyView()) },
+            workspaceContent: { _ in workspaceFactories += 1; return AnyView(Text("Saved work")) },
+            closeDaily: {}, refreshState: {}, onboardingWillShow: { _ in }, onboardingWillClose: {})
+        let workspace = coordinator.makeWindow(for: .workspaces)
+        let settings = coordinator.makeWindow(for: .settings)
+        XCTAssertFalse(workspace === settings)
+        XCTAssertTrue(workspace === coordinator.makeWindow(for: .workspaces))
+        XCTAssertEqual(workspaceFactories, 1)
+        coordinator.workspaceHasUnsavedChanges = { true }
+        coordinator.resolveWorkspaceChanges = { _, _ in prompts += 1 }
+        XCTAssertTrue(coordinator.windowShouldClose(settings))
+        settings.close()
+        XCTAssertEqual(navigation.workspaceRoute.returnTo, .onboarding)
+        XCTAssertFalse(coordinator.windowShouldClose(workspace))
+        XCTAssertEqual(prompts, 1)
+        coordinator.workspaceHasUnsavedChanges = { false }
+        _ = navigation.consumeReturnDestination()
+        workspace.close()
+    }
+
     func testSuccessfulDailyReviewConsumesReturnOnceWithoutPresentingAnotherNativeWindow() {
         let navigation = ProductUINavigation(preferences: MemoryProductUIPreferences())
-        navigation.openSettings(.init(pane: .workspaces, contextID: "review", returnTo: .daily))
+        navigation.openWorkspaces(.init(pane: .workspaces, contextID: "review", returnTo: .daily))
         var dailyOpens = 0
         var otherEffects = 0
         let coordinator = ProductWindowCoordinator(
@@ -132,37 +158,37 @@ final class ProductWindowCoordinatorTests: XCTestCase {
             onboardingWillShow: { _ in otherEffects += 1 }, onboardingWillClose: { otherEffects += 1 }
         )
         coordinator.presentDaily = { dailyOpens += 1 }
-        _ = coordinator.makeWindow(for: .settings)
+        _ = coordinator.makeWindow(for: .workspaces)
         coordinator.returnAfterAssignmentReview()
         coordinator.returnAfterAssignmentReview()
         XCTAssertEqual(dailyOpens, 1)
         XCTAssertEqual(otherEffects, 0)
-        XCTAssertEqual(navigation.settingsRoute.contextID, "review")
-        XCTAssertNil(navigation.settingsRoute.returnTo)
+        XCTAssertEqual(navigation.workspaceRoute.contextID, "review")
+        XCTAssertNil(navigation.workspaceRoute.returnTo)
     }
-    func testUnsavedSettingsGateKeepsReturnRouteUntilEditingIsResolved() throws {
+    func testUnsavedWorkspaceGateKeepsReturnRouteUntilEditingIsResolved() throws {
         let navigation = ProductUINavigation(preferences: MemoryProductUIPreferences())
-        navigation.openSettings(.init(pane: .workspaces, returnTo: .daily))
+        navigation.openWorkspaces(.init(pane: .workspaces, returnTo: .daily))
         let coordinator = ProductWindowCoordinator(navigation: navigation,
             settingsContent: { _ in AnyView(EmptyView()) }, onboardingContent: { _ in AnyView(EmptyView()) },
             closeDaily: {}, refreshState: {}, onboardingWillShow: { _ in }, onboardingWillClose: {})
         var dirty = true
         var pending: (@MainActor () -> Void)?
         var returned = 0
-        coordinator.settingsHasUnsavedChanges = { dirty }
-        coordinator.resolveSettingsChanges = { _, completion in pending = completion }
+        coordinator.workspaceHasUnsavedChanges = { dirty }
+        coordinator.resolveWorkspaceChanges = { _, completion in pending = completion }
         coordinator.presentDaily = { returned += 1 }
-        let window = coordinator.makeWindow(for: .settings)
+        let window = coordinator.makeWindow(for: .workspaces)
         XCTAssertFalse(coordinator.windowShouldClose(window))
         XCTAssertNotNil(pending)
         pending = nil // Keep editing cancels the pending close.
         coordinator.returnAfterAssignmentReview()
-        XCTAssertEqual(navigation.settingsRoute.returnTo, .daily)
+        XCTAssertEqual(navigation.workspaceRoute.returnTo, .daily)
         XCTAssertEqual(returned, 0)
         dirty = false
         try XCTUnwrap(pending)()
         XCTAssertEqual(returned, 1)
-        XCTAssertNil(navigation.settingsRoute.returnTo)
+        XCTAssertNil(navigation.workspaceRoute.returnTo)
         XCTAssertTrue(coordinator.windowShouldClose(window))
         window.close()
     }

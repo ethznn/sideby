@@ -11,6 +11,8 @@ import XCTest
             throw XCTSkip("Opt-in workspace user journeys")
         }
         let application = NSApplication.shared
+        application.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"),
+            with: NSNumber(value: true), with: "AXEnhancedUserInterface")
         let previousPolicy = application.activationPolicy()
         let previousPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         application.setActivationPolicy(.accessory)
@@ -40,6 +42,32 @@ import XCTest
         return model
     }
     private func settle() async throws { try await Task.sleep(for: .milliseconds(200)) }
+    // The quick matrix now edits connections inline. Keep the legacy save/draft
+    // regression checks on the browser that actually owns those controls.
+    private func legacyBrowser(_ model: SidebyAppModel) -> NSWindow {
+        let window = NSWindow(contentRect: NSRect(x: 80, y: 80, width: 720, height: 640),
+            styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: SavedWorkspaceBrowser(model: model, isQuick: true).padding(18))
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        return window
+    }
+    private func click(_ id: String, in window: NSWindow) throws {
+        func find(_ object: NSObject) -> NSObject? {
+            if object.responds(to: NSSelectorFromString("accessibilityIdentifier")),
+               object.perform(NSSelectorFromString("accessibilityIdentifier"))?.takeUnretainedValue() as? String == id { return object }
+            if object.responds(to: NSSelectorFromString("accessibilityChildren")),
+               let children = object.perform(NSSelectorFromString("accessibilityChildren"))?.takeUnretainedValue() as? [NSObject] {
+                return children.lazy.compactMap(find).first
+            }
+            return nil
+        }
+        let object = try XCTUnwrap(window.contentView.flatMap(find) as? any NSAccessibilityElementProtocol)
+        let rect = object.accessibilityFrame()
+        let point = window.convertPoint(fromScreen: NSPoint(x: rect.midX, y: rect.midY))
+        try click(window, x: point.x, fromTop: try XCTUnwrap(window.contentView).bounds.height - point.y)
+    }
     private func matrixWindow() throws -> NSWindow {
         try XCTUnwrap(NSApp.windows.first { $0.identifier?.rawValue == "sideby-held-workspace-matrix" && $0.isVisible })
     }
@@ -125,28 +153,25 @@ import XCTest
         try capture(reconnected, "journey-reconnected-matrix")
     }
 
-    func testFirstSaveDuplicateCancelEditAndUndoThroughNativeWindows() async throws {
+    func testLegacySaveDuplicateCancelEditAndUndoThroughNativeWindows() async throws {
         try requireNative()
         let model = fixture()
-        let chooser = HeldWorkspaceMatrixController(model: model)
-        defer { model.workspaceSaveController?.finish(saved: false); chooser.dismiss() }
-        chooser.showPersistent()
+        let matrix = legacyBrowser(model)
+        defer { model.workspaceSaveController?.finish(saved: false); matrix.close() }
         try await settle()
-        var matrix = try matrixWindow()
         try capture(matrix, "journey-empty")
-        try click(matrix, x: 120, fromTop: 130)
+        try click("save-current-workspace", in: matrix)
         try await settle()
         let save = try XCTUnwrap(model.workspaceSaveController?.panel)
         XCTAssertTrue(save.isVisible)
-        XCTAssertFalse(matrix.isVisible)
+        XCTAssertTrue(matrix.isVisible)
         try name(save, "집중 개발")
         try key(save, code: 36, characters: "\r")
         try await settle()
         XCTAssertNil(model.workspaceSaveDraft)
         XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["집중 개발"])
-        matrix = try matrixWindow()
         try capture(matrix, "journey-saved")
-        try click(matrix, x: 120, fromTop: 130)
+        try click("save-current-workspace", in: matrix)
         try await settle()
         let duplicate = try XCTUnwrap(model.workspaceSaveController?.panel)
         try name(duplicate, "중복 구성")
@@ -159,8 +184,7 @@ import XCTest
         try key(duplicate, code: 53, characters: "\u{1b}")
         try await settle()
         XCTAssertNil(model.workspaceSaveDraft)
-        matrix = try matrixWindow()
-        try click(matrix, x: 280, fromTop: 237)
+        model.showWorkspaceSave(editingID: model.settings.contextPlan.contexts[0].id)
         try await settle()
         let edit = try XCTUnwrap(model.workspaceSaveController?.panel)
         XCTAssertEqual(model.workspaceSaveDraft?.editingID, model.settings.contextPlan.contexts[0].id)
@@ -168,13 +192,10 @@ import XCTest
         try key(edit, code: 36, characters: "\r")
         try await settle()
         XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["설계 검토"])
-        matrix = try matrixWindow()
-        try click(matrix, x: matrix.frame.width - 90, fromTop: matrix.contentView!.bounds.height - 26)
+        try click("workspace-undo", in: matrix)
         try await settle()
         XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["집중 개발"])
-        try key(matrix, code: 53, characters: "\u{1b}")
-        try await settle()
-        XCTAssertFalse(matrix.isVisible)
+        XCTAssertFalse(model.isSwitching)
     }
 
     func testOfflineDisplayCanBeUncheckedAndRecheckedWithoutReopeningEditor() async throws {
@@ -276,19 +297,17 @@ import XCTest
         XCTAssertEqual(model.settings.contextPlan.contexts.map(\.name), ["읽기 복구 후 작업"])
     }
 
-    func testDeleteAllConfirmationDefaultsToCancelAndPreservesData() async throws {
+    func testLegacyDeleteAllConfirmationDefaultsToCancelAndPreservesData() async throws {
         try requireNative()
         let model = fixture()
         model.workspaceSaveDraft = model.prepareWorkspaceSave()
         XCTAssertTrue(model.commitWorkspaceSave())
         model.workspaceSaveDraft = nil
         let original = model.settings.contextPlan.contexts
-        let chooser = HeldWorkspaceMatrixController(model: model)
-        defer { chooser.dismiss() }
-        chooser.showPersistent()
+        let matrix = legacyBrowser(model)
+        defer { matrix.close() }
         try await settle()
-        let matrix = try matrixWindow()
-        try click(matrix, x: matrix.frame.width - 100, fromTop: 171)
+        try click("workspace-delete-all", in: matrix)
         try await settle()
         func findCancel(_ view: NSView) -> NSButton? {
             if let button = view as? NSButton, button.title == model.saveCopy.cancel { return button }

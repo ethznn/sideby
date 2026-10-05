@@ -17,7 +17,6 @@ struct ProductSettingsView: View {
     @State private var isPracticing = false
     @State private var hostingWindow: NSWindow?
     @State private var invalidSettingsMessage: String?
-    @State private var workspaceSelection = WorkspaceSettingsSelection()
     @FocusState private var focusedPane: ProductSettingsPane?
     @ScaledMetric(relativeTo: .body) private var bodySize = 13.0
     @ScaledMetric(relativeTo: .title2) private var titleSize = 22.0
@@ -40,24 +39,29 @@ struct ProductSettingsView: View {
                 Divider()
                 VStack(spacing: 0) {
                     if navigation.settingsRoute.pane == .workspaces {
-                        WorkspaceSettingsView(model: model, navigation: navigation,
-                            layout: layout, selection: $workspaceSelection)
+                        CurrentConnectionsView(model: model, showsDesktopSources: true,
+                            availableHeight: geometry.size.height - layout.inset * 2)
                             .padding(layout.inset)
-                        Divider()
-                        WorkspaceAssignmentReviewFooter(model: model, navigation: navigation,
-                            finishAssignmentReview: actions.finishAssignmentReview)
-                            .padding(.horizontal, layout.inset).padding(.vertical, 12)
-                    } else {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 20) {
-                                Text(strings.pane(navigation.settingsRoute.pane))
-                                    .font(.system(size: titleSize, weight: .semibold))
-                                    .accessibilityAddTraits(.isHeader)
-                                paneContent
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(layout.inset)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                        if !model.isEnabled {
+                            Button(DailyRefreshStrings(language: model.settings.language).turnOn) { model.setSidebyEnabled(true) }
+                                .buttonStyle(.borderedProminent).padding(.bottom, 12)
                         }
+                        if model.permissionState != .granted || !model.hasSwitchingAccess {
+                            Button(DailyRefreshStrings(language: model.settings.language).permissions) { navigation.selectPane(.permissions) }
+                                .padding(.bottom, 12)
+                        }
+                    } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            Text(strings.pane(navigation.settingsRoute.pane))
+                                .font(.system(size: titleSize, weight: .semibold))
+                                .accessibilityAddTraits(.isHeader)
+                            paneContent
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(layout.inset)
+                    }
                     }
                 }
             }
@@ -80,9 +84,7 @@ struct ProductSettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
             ForEach(ProductSettingsPane.allCases) { pane in
                 Button {
-                    if navigation.settingsRoute.pane == .workspaces && pane != .workspaces {
-                        model.resolveWorkspaceComposerBeforeLeaving(window: hostingWindow) { navigation.selectPane(pane) }
-                    } else { navigation.selectPane(pane) }
+                    navigation.selectPane(pane)
                 } label: {
                     Label(strings.pane(pane), systemImage: strings.paneSymbol(pane))
                         .fixedSize(horizontal: false, vertical: true)
@@ -92,6 +94,7 @@ struct ProductSettingsView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).pointingHandCursor()
+                .accessibilityIdentifier("settings-pane-" + pane.rawValue)
                 .focused($focusedPane, equals: pane)
                 .background(navigation.settingsRoute.pane == pane ? NativeSurfaceStyle.selectionBackground : .clear,
                             in: RoundedRectangle(cornerRadius: 7))
@@ -205,7 +208,7 @@ struct ProductSettingsView: View {
     }
 }
 
-private struct ProductSettingsWindowReader: NSViewRepresentable {
+struct ProductSettingsWindowReader: NSViewRepresentable {
     let didMove: (NSWindow?) -> Void
     func makeNSView(context: Context) -> WindowReaderView {
         let view = WindowReaderView()

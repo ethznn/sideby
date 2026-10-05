@@ -2,96 +2,31 @@
 <html lang="ko">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sideby — 1.0.0</title>
+<title>Sideby — Spaces together</title>
 <style>
-  :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #f5f6f8; color: #20252d; }
-  * { box-sizing: border-box; }
-  body { max-width: 920px; margin: auto; padding: 36px 24px 80px; line-height: 1.65; }
-  a { color: #005fcb; text-underline-offset: 3px; }
-  nav { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; margin-bottom: 36px; }
-  h1 { font-size: clamp(28px, 4vw, 38px); line-height: 1.25; letter-spacing: -.04em; margin: 12px 0 20px; }
-  h2 { font-size: 24px; margin-top: 52px; line-height: 1.4; }
-  p { max-width: 760px; }
-  .note, figcaption { color: #596370; font-size: 14px; }
-  .label { font-size: 13px; font-weight: 600; color: #596370; }
-  figure { margin: 24px 0; }
-  img { max-width: 100%; height: auto; display: block; border: 1px solid #cdd4de; border-radius: 12px; }
-  figcaption { margin-top: 12px; }
-  .native { margin-inline: auto; }
-  button { font: inherit; padding: 7px 14px; border-radius: 7px; border: 1px solid #a8b4c3; background: #fff; color: #20252d; cursor: pointer; }
-  button:hover { background: #e4edfa; }
-  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid #007aff; outline-offset: 4px; }
-  details { margin-top: 30px; padding-top: 22px; border-top: 1px solid #cdd4de; }
-  summary { cursor: pointer; font-weight: 600; }
-  li { padding: 5px 0; }
-  @media (prefers-color-scheme: dark) {
-    :root { background: #1d2026; color: #edf1f7; }
-    a { color: #8fbfff; } .label, .note, figcaption { color: #b5bfce; }
-    button { background: #303743; color: #edf1f7; } button:hover { background: #3a4960; }
-    img, details { border-color: #465262; }
-  }
+:root{color-scheme:light dark;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#f5f6f8;color:#20252d}*{box-sizing:border-box}body{max-width:1000px;margin:auto;padding:32px 24px 72px;line-height:1.7}a{color:#005fcb;text-underline-offset:3px}nav,.controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap}h1{font-size:clamp(30px,5vw,48px);line-height:1.2;letter-spacing:-.045em;margin:36px 0 20px}h2{margin-top:48px;font-size:25px}figure{margin:24px 0}img{display:block;width:100%;height:auto;border-radius:12px}figcaption,.note{font-size:14px;color:#596370;margin-top:12px}button{font:inherit;padding:8px 16px;border:1px solid #a8b4c3;border-radius:8px;background:#fff;color:#20252d;cursor:pointer;min-height:44px}button[aria-pressed=true]{background:#1b5dde;color:white}a:focus-visible,button:focus-visible{outline:3px solid #007aff;outline-offset:4px}li{padding-block:5px}.language[hidden]{display:none}section{margin-top:36px}@media(prefers-color-scheme:dark){:root{background:#17191e;color:#edf1f7}a{color:#8fbfff}figcaption,.note{color:#b5bfce}button{background:#303743;color:#edf1f7}}
 </style>
-<nav aria-label="문서">
-  <strong>Sideby</strong>
-  <a href="../../README.ko.md">한국어 README</a>
-  <a href="../../README.md">English README</a>
-  <a href="README.md">미디어 안내</a>
-</nav>
+<nav aria-label="Documentation"><strong>sideby</strong><a href="../../README.ko.md">한국어 README</a><a href="../../README.md">English README</a><a href="README.md">Media notes</a></nav>
 <main>
-  <div class="label">Sideby · 1.0.0</div>
-  <h1>지금 쓰는 구성을 기억하고, 하던 일로 돌아가세요.</h1>
-  <figure>
-    <img id="demo" src="../images/sideby-kinetic-ko.png" width="960" height="540" alt="현재 구성을 저장하고 구성을 추가한 뒤 다시 고르는 Sideby 사용 흐름">
-    <figcaption>구성 저장과 화면별 드래그 연결을 담은 22.5초 모션그래픽 미리보기입니다. 데스크탑과 저장 창은 가상 데이터로 그렸으며 실제 전환 속도를 측정한 영상이 아닙니다.</figcaption>
-  </figure>
-  <p>평소처럼 일하다가 기억하고 싶은 구성을 저장하세요. 다음에 그 구성을 고르면 포함한 화면들이 함께 이동합니다.</p>
-  <button id="playback" type="button" aria-controls="demo" aria-pressed="false">미리보기 재생</button>
-  <a href="../images/sideby-kinetic-ko.png">정지 이미지</a> · <a href="../images/sideby-kinetic-ko.gif">GIF 원본</a>
-  <p><a href="https://github.com/ethznn/sideby/releases">Sideby 다운로드</a> · macOS 14 이상 · 한국어·영어 지원</p>
-  <h2>일하다가 그대로 저장하세요</h2>
-  <details><summary>실제 앱 화면으로 저장 흐름 보기</summary>
-    <figure><img src="../images/sideby-save-flow-ko.png" width="960" height="760" alt="가상 데이터로 렌더링한 실제 Sideby의 저장 흐름"></figure>
-    <p><a href="../images/sideby-save-flow-ko.gif">한국어 안내 재생</a> · <a href="../images/sideby-save-flow-en.gif">English walkthrough</a></p>
-  </details>
-  <ol>
-    <li>⌥⇧Space를 누른 채 <strong>이 구성 저장</strong>을 고릅니다.</li>
-    <li>키를 놓고 이름과 함께 기억할 화면을 확인한 뒤 저장합니다.</li>
-    <li>다시 필요할 때 구성을 고르거나 ⌥⇧Tab으로 직전 구성에 돌아옵니다.</li>
-  </ol>
-  <figure><img class="native" src="../images/sideby-save-workspace-ko.png" width="530" height="480" alt="한국어 구성 저장 창"></figure>
-  <figure>
-    <img class="native" src="../images/sideby-context-capture-ko.png" width="680" height="640" alt="한국어 메뉴의 저장한 구성 매트릭스">
-    <figcaption>샘플 데이터로 렌더링한 실제 앱 화면입니다. 연결된 화면만 매트릭스에 표시하며, 기존 구성은 편집에서 하나씩 변경합니다.</figcaption>
-  </figure>
-  <details>
-    <summary>첫 구성 안내와 설정</summary>
-    <figure><img class="native" src="../images/sideby-onboarding-saved-workspaces-ko.png" width="640" height="760" alt="비어 있는 목록에서 첫 구성을 저장하는 안내"></figure>
-    <figure><img src="../images/sideby-settings-workspaces-ko.png" width="980" height="720" alt="한국어 구성 관리와 화면별 데스크탑 카드"></figure>
-  </details>
-  <details>
-    <summary>English preview and screenshots</summary>
-    <figure><img src="../images/sideby-kinetic-en.png" width="960" height="540" alt="English promotional film still"></figure>
-    <p><a href="../images/sideby-kinetic-en.gif">Play the English promotional film</a></p>
-    <figure><img class="native" src="../images/sideby-save-workspace-en.png" width="530" height="480" alt="English save form"></figure>
-    <figure><img class="native" src="../images/sideby-context-capture-en.png" width="680" height="640" alt="English saved setup menu"></figure>
-    <figure><img src="../images/sideby-settings-workspaces-en.png" width="980" height="720" alt="English Manage setups with per-display desktop cards"></figure>
-    <figure><img class="native" src="../images/sideby-onboarding-saved-workspaces-en.png" width="640" height="760" alt="English first-setup guide"></figure>
-  </details>
-  <p class="note">설치 방법과 전체 사용 안내는 한국어·영어 README에서 확인할 수 있습니다.</p>
+<div class="controls" style="margin-top:32px" aria-label="Language"><button id="ko" type="button" aria-pressed="true">한국어</button><button id="en" type="button" aria-pressed="false">English</button></div>
+<h1 id="title">여러 모니터의 Space를, 함께.</h1>
+<p id="intro">같이 움직일 Space를 연결하고, 바뀐 화면만 끌어 맞추세요.</p>
+<figure><img id="film" src="../images/sideby-connections-film-ko.png" width="1920" height="1080" alt="세 모니터를 함께 전환하는 Sideby 홍보 영상"><figcaption id="caption">22.5초 모션그래픽 · 가상 데이터로 그린 시연이며, 실제 앱 캡처나 전환 속도 측정 영상은 아닙니다.</figcaption></figure>
+<div class="controls"><button id="playback" type="button" aria-controls="film" aria-pressed="false">영상 재생</button><a id="still" href="../images/sideby-connections-film-ko.png">정지 이미지</a><a id="gif" href="../images/sideby-connections-film-ko.gif">GIF 원본</a></div>
+<section class="language" id="copy-ko" lang="ko"><h2>보고, 끌고, 함께 넘기세요.</h2><ol><li><strong>⌥⇧Space</strong>로 전환표를 열고 열을 고르면 연결된 Space로 함께 이동합니다.</li><li><strong>설정</strong> 또는 <strong>연결 수정</strong>에서 모니터별 Space와 연결표를 함께 봅니다.</li><li>오른쪽 빈 열에 카드를 놓으면 새 연결이 생깁니다. 이름 입력과 별도 저장은 필요 없습니다.</li><li>같은 모니터의 칸끼리 드래그하면 이동하거나 자리를 바꾸고, <strong>⌥ Option을 누른 채 놓으면 복사</strong>합니다. 변경은 되돌릴 수 있습니다.</li></ol><p>편집은 연결만 바꿉니다. 기존 Space와 앱 창은 그대로 유지됩니다.</p></section>
+<section class="language" id="copy-en" lang="en" hidden><h2>See. Connect. Switch together.</h2><ol><li>Hold <strong>⌥⇧Space</strong> and choose a column to switch its connected Spaces together.</li><li>Open <strong>Settings</strong> or <strong>Edit connections</strong> to see Spaces by display above the connection table.</li><li>Drop a card into the blank column to create a connection. No naming dialog or separate save is required.</li><li>Drag between cells for the same display to move or swap. <strong>Hold ⌥ Option when dropping to copy.</strong> Changes can be undone.</li></ol><p>Editing changes connections. Existing Spaces and app windows stay in place.</p></section>
+<h2 id="native-title">실제 앱에서는 이렇게 보입니다.</h2>
+<figure><img id="native" src="../images/sideby-connections-settings-ko.png" width="2080" height="1280" alt="실제 설정 창의 모니터별 Space 목록과 연결표"><figcaption id="native-caption">가상 데이터로 렌더링한 실제 앱 화면. Sideby 1.0.0 기준입니다.</figcaption></figure>
+<p class="note" id="limit">Sideby는 기존 Space를 연결하고 전환합니다. Space 생성·삭제, 앱 실행·전체 화면 전환, 창 위치 복원 기능은 제공하지 않습니다.</p>
 </main>
 <script>
-  const demo = document.getElementById('demo');
-  const playback = document.getElementById('playback');
-  let playing = false;
-  function setPlayback(value) {
-    playing = value;
-    demo.src = value ? '../images/sideby-kinetic-ko.gif' : '../images/sideby-kinetic-ko.png';
-    playback.textContent = value ? '정지 이미지로 보기' : '미리보기 재생';
-    playback.setAttribute('aria-pressed', String(value));
-  }
-  playback.addEventListener('click', () => setPlayback(!playing));
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  if (!reducedMotion.matches) setPlayback(true);
-  reducedMotion.addEventListener('change', event => { if (event.matches) setPlayback(false); });
+const $=id=>document.getElementById(id);
+let lang='ko',playing=false;
+const copy={ko:{title:'여러 모니터의 Space를, 함께.',intro:'같이 움직일 Space를 연결하고, 바뀐 화면만 끌어 맞추세요.',caption:'22.5초 모션그래픽 · 가상 데이터로 그린 시연이며, 실제 앱 캡처나 전환 속도 측정 영상은 아닙니다.',play:'영상 재생',stop:'영상 정지',still:'정지 이미지',gif:'GIF 원본',alt:'세 모니터를 함께 전환하고 Space 연결을 드래그로 바꾸는 Sideby 홍보 영상',nativeTitle:'실제 앱에서는 이렇게 보입니다.',nativeCaption:'가상 데이터로 렌더링한 실제 앱 화면. Sideby 1.0.0 기준입니다.',nativeAlt:'실제 설정 창의 모니터별 Space 목록과 연결표',limit:'Sideby는 기존 Space를 연결하고 전환합니다. Space 생성·삭제, 앱 실행·전체 화면 전환, 창 위치 복원 기능은 제공하지 않습니다.'},en:{title:'Your Spaces. Together.',intro:'Connect Spaces that should move together. Drag to adjust when things change.',caption:'22.5-second motion graphic with fictional data. Illustrated workflow, not an app capture or a switching benchmark.',play:'Play film',stop:'Stop film',still:'Still image',gif:'Original GIF',alt:'Sideby switches three displays together and adjusts Space connections by dragging.',nativeTitle:'The actual app.',nativeCaption:'Actual app view rendered with fictional data. Sideby 1.0.0.',nativeAlt:'Actual Settings showing Spaces by display above the connection table',limit:'Sideby connects and switches existing Spaces. It does not create or delete Spaces, launch or full-screen apps, or restore window positions.'}};
+function update(){const c=copy[lang];document.documentElement.lang=lang;for(const key of ['title','intro','caption','still','gif','limit'])$(key).textContent=c[key];$('native-title').textContent=c.nativeTitle;$('native-caption').textContent=c.nativeCaption;$('native').alt=c.nativeAlt;$('native').src=`../images/sideby-connections-settings-${lang}.png`;$('film').alt=c.alt;$('film').src=`../images/sideby-connections-film-${lang}.${playing?'gif':'png'}`;$('still').href=`../images/sideby-connections-film-${lang}.png`;$('gif').href=`../images/sideby-connections-film-${lang}.gif`;$('playback').textContent=playing?c.stop:c.play;$('playback').setAttribute('aria-pressed',String(playing));for(const l of ['ko','en']){$(l).setAttribute('aria-pressed',String(l===lang));$('copy-'+l).hidden=l!==lang;}}
+for(const l of ['ko','en'])$(l).addEventListener('click',()=>{lang=l;playing=false;update();});
+$('playback').addEventListener('click',()=>{playing=!playing;update();});
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',e=>{if(e.matches){playing=false;update();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing){playing=false;update();}});
 </script>
 </html>

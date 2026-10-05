@@ -4,10 +4,10 @@ import SidebyCore
 
 final class ProductApplicationRoutingTests: XCTestCase {
     func testSettingsAndShortcutEntryResolveToIndependentSettingsRoutes() {
-        XCTAssertEqual(ProductApplicationRouting.route(for: .settings), .settings(nil))
+        XCTAssertEqual(ProductApplicationRouting.route(for: .settings), .settings(.init(pane: .workspaces)))
         XCTAssertEqual(ProductApplicationRouting.route(for: .customizeInput), .settings(.init(pane: .input)))
         XCTAssertEqual(ProductApplicationRouting.route(for: .review(contextID: "review", displayID: "desk")),
-                       .settings(.init(pane: .workspaces, contextID: "review", displayID: "desk", returnTo: .daily)))
+                       .workspaces(.init(pane: .workspaces, contextID: "review", displayID: "desk", returnTo: .daily)))
         XCTAssertEqual(ProductApplicationRouting.route(for: .permissions), .settings(.init(pane: .permissions)))
     }
 
@@ -26,7 +26,7 @@ final class ProductApplicationRoutingTests: XCTestCase {
         XCTAssertFalse(completed.shouldPresent(isRoundTripComplete: true, isDismissed: false))
     }
 
-    @MainActor func testGenericCommandSettingsUsesLastPaneWithoutOldRecoveryIntent() {
+    @MainActor func testGenericSettingsOpensConnectionsWithoutOldRecoveryIntent() {
         let preferences = MemoryProductUIPreferences()
         let navigation = ProductUINavigation(preferences: preferences)
         navigation.openSettings(.init(pane: .workspaces, contextID: "a", returnTo: .daily))
@@ -35,11 +35,11 @@ final class ProductApplicationRoutingTests: XCTestCase {
             return XCTFail("Settings command must reach the native settings coordinator")
         }
         navigation.openSettings(route)
-        XCTAssertEqual(navigation.settingsRoute, .init(pane: .general))
+        XCTAssertEqual(navigation.settingsRoute, .init(pane: .workspaces))
         XCTAssertNil(navigation.consumeReturnDestination())
     }
 
-    @MainActor func testResumedVerifiedOriginRecordsKeyboardOrGestureSuccessWithoutAnExtraButton() {
+    @MainActor func testResumedGuideDoesNotRequireOrClaimRoundTripPractice() {
         var settings = AppSettings.default
         settings.contextPlan = .init(contexts: [
             .init(id: "a", order: 1, name: "Build", displaySpaceIndexes: ["desk": 0]),
@@ -62,7 +62,7 @@ final class ProductApplicationRoutingTests: XCTestCase {
         model.workspaceGuideIsRecording = ProductGuideRecordingPolicy.shouldRecord(stage: presentation.state.stage, progress: model.firstWorkProgress)
         model.recordWorkspaceActivation(settings.contextPlan.contexts[1], succeeded: true)
         model.recordWorkspaceActivation(settings.contextPlan.contexts[0], succeeded: true)
-        XCTAssertTrue(model.firstWorkProgress.isComplete)
+        XCTAssertFalse(model.firstWorkProgress.isComplete)
         XCTAssertEqual(model.settings.contextPlan, settings.contextPlan)
     }
 

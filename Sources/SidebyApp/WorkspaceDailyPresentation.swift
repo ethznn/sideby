@@ -38,18 +38,19 @@ enum ProductApplicationRequest {
 
 enum ProductApplicationRoute: Equatable {
     case settings(ProductSettingsRoute?)
+    case workspaces(ProductSettingsRoute)
     case onboarding(replay: Bool)
 }
 
 enum ProductApplicationRouting {
     static func route(for request: ProductApplicationRequest) -> ProductApplicationRoute {
         switch request {
-        case .settings: .settings(nil)
+        case .settings: .settings(.init(pane: .workspaces))
         case .customizeInput: .settings(.init(pane: .input))
         case .permissions: .settings(.init(pane: .permissions))
-        case .workspaces: .settings(.init(pane: .workspaces))
+        case .workspaces: .workspaces(.init(pane: .workspaces))
         case .review(let contextID, let displayID):
-            .settings(.init(pane: .workspaces, contextID: contextID, displayID: displayID, returnTo: .daily))
+            .workspaces(.init(pane: .workspaces, contextID: contextID, displayID: displayID, returnTo: .daily))
         case .replay: .onboarding(replay: true)
         case .resume: .onboarding(replay: false)
         }

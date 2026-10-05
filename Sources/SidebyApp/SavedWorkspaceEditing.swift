@@ -27,6 +27,23 @@ extension SidebyAppModel {
         canAddContext && pendingContextCaptureAlignment == nil && !settingsStore.hasUnreadableSettings
     }
 
+    /// Direct menu mutations must not invalidate an open editor's baseline.
+    var canChangeSavedWorkspaces: Bool {
+        canSaveWorkspace && workspaceSaveDraft == nil && !hasWorkspaceComposerChanges
+    }
+
+    var availableWorkspaceChooserShortcut: String? {
+        guard heldMatrixConfiguration.isEnabled, heldMatrixShortcutError == nil else { return nil }
+        return KeyboardShortcutFormatter.shortcutText(heldMatrixConfiguration.shortcut)
+    }
+
+    func workspaceUnavailableReason(_ context: ContextDefinition) -> String {
+        let connected = Set(connectedWorkspaceDisplayIDs).intersection(context.displayIDs)
+        if connected.isEmpty { return saveCopy.offline }
+        if connected.isDisjoint(with: selectedDisplayIDs) { return saveCopy.excluded }
+        return saveCopy.text("Check desktop connection", "데스크탑 연결 확인 필요")
+    }
+
     /// One-time import retains every old task, including offline and unassigned tasks.
     /// Existing saved identities take priority over a currently reused desktop index.
     @discardableResult
@@ -283,7 +300,7 @@ extension SidebyAppModel {
 
     @discardableResult
     func deleteSavedWorkspace(_ id: String) -> Bool {
-        guard canSaveWorkspace, let context = settings.contextPlan.contexts.first(where: { $0.id == id }) else { return false }
+        guard canChangeSavedWorkspaces, let context = settings.contextPlan.contexts.first(where: { $0.id == id }) else { return false }
         var next = settings
         next.contextPlan.replaceContexts(next.contextPlan.contexts.filter { $0.id != id }, currentContextID: next.contextPlan.currentContextID)
         next.savedWorkspaces.bookmarks.removeValue(forKey: id)
@@ -292,7 +309,7 @@ extension SidebyAppModel {
     }
 
     var canDeleteAllSavedWorkspaces: Bool {
-        canSaveWorkspace && workspaceSaveDraft == nil && !settings.contextPlan.contexts.isEmpty
+        canChangeSavedWorkspaces && !settings.contextPlan.contexts.isEmpty
     }
 
     func prepareDeleteAllSavedWorkspaces() -> WorkspaceDeleteAllProposal? {
@@ -320,7 +337,7 @@ extension SidebyAppModel {
 
     @discardableResult
     func undoSavedWorkspaceChange() -> Bool {
-        guard canSaveWorkspace, let undo = settings.savedWorkspaces.undo else { return false }
+        guard canChangeSavedWorkspaces, let undo = settings.savedWorkspaces.undo else { return false }
         // Index rebasing is an observation, not a new edit. Compare definitions by identity and name.
         let shape: ([ContextDefinition]) -> [String] = { $0.map { $0.id + "\u{0}" + $0.name + "\u{0}" + $0.displayIDs.joined(separator: "\u{0}") } }
         guard shape(settings.contextPlan.contexts) == shape(undo.resultingContexts),
@@ -340,6 +357,12 @@ extension SidebyAppModel {
     }
 
     func showWorkspaceSave(editingID: String? = nil, anchor: NSRect? = nil, completion: (() -> Void)? = nil) {
+        if hasWorkspaceComposerChanges {
+            resolveWorkspaceComposerBeforeLeaving(window: nil) { [weak self] in
+                self?.showWorkspaceSave(editingID: editingID, anchor: anchor, completion: completion)
+            }
+            return
+        }
         if workspaceSaveDraft == nil { workspaceSaveDraft = prepareWorkspaceSave(editingID: editingID) }
         guard workspaceSaveDraft != nil else { workspaceSaveMessage = saveCopy.readUnavailable; return }
         if workspaceSaveController == nil { workspaceSaveController = WorkspaceSaveWindowController(model: self) }

@@ -23,6 +23,7 @@ struct ProductSettingsRoute: Equatable {
 @MainActor
 final class ProductUINavigation: ObservableObject {
     @Published private(set) var settingsRoute: ProductSettingsRoute
+    @Published private(set) var workspaceRoute = ProductSettingsRoute(pane: .workspaces)
     private let preferences: any ProductUIPreferences
 
     init(preferences: any ProductUIPreferences) {
@@ -35,14 +36,18 @@ final class ProductUINavigation: ObservableObject {
         preferences.lastSettingsPane = settingsRoute.pane
     }
 
+    func openWorkspaces(_ route: ProductSettingsRoute = .init(pane: .workspaces)) {
+        workspaceRoute = route
+    }
+
     func selectPane(_ pane: ProductSettingsPane) {
         settingsRoute.pane = pane
         preferences.lastSettingsPane = pane
     }
 
     func consumeReturnDestination() -> ProductReturnDestination? {
-        let destination = settingsRoute.returnTo
-        settingsRoute.returnTo = nil
+        let destination = workspaceRoute.returnTo
+        workspaceRoute.returnTo = nil
         return destination
     }
 }

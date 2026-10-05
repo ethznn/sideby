@@ -1,51 +1,50 @@
 {
   "lang": "en",
   "title": "Sideby — Switch Mac desktops across multiple displays",
-  "description": "Save your Mac desktop setups and switch multiple displays together. Return to your previous setup with one shortcut. Free, open-source app for macOS.",
+  "description": "Connect the Spaces already open on your Mac and switch displays together. See app and window titles above the connection table, then drag to adjust only what changed. No separate save step.",
   "skip": "Skip to content",
   "nav_how": "How it works",
   "nav_faq": "Questions",
   "language_label": "Language",
   "eyebrow": "A DESKTOP SWITCHER FOR MAC",
-  "hero_1": "Your screens.",
-  "hero_2": "Back together.",
-  "intro": "Move from development to review, then back to where you left off. Save the desktops you use across your displays as one setup. Choose it to switch those displays together.",
+  "hero_1": "Your displays,",
+  "hero_2": "moving together.",
+  "intro": "Connect the Spaces that should move together. When things change, see what is open in Settings and drag to adjust the cells you need. No names or separate saves required.",
   "download": "Download free",
   "source": "View on GitHub",
   "requirements": "macOS 14+ · Apple silicon · Free & open source",
-  "film_alt": "Sideby 1.0: save a setup, drag a desktop into it, switch displays together, and return.",
-  "play": "Watch the 23-second demo",
-  "pause": "Stop the demo",
-  "film_note": "Illustrated desktops with fictional data. Animation explains the flow; it does not measure switching speed.",
-  "benefit_label": "LESS FINDING. MORE DOING.",
-  "benefit_title": "Your plan, your code, your review. In the right place.",
-  "benefit_text": "A browser on one display. Your editor on another. A review waiting on a different desktop. Sideby remembers which desktops belong together, so you can return to the setup you need.",
+  "film_alt": "Sideby switches three displays together, creates a connection by dragging a Space, and shows moving, swapping, and Option-copying cells.",
+  "play": "Play the 22.5-second film",
+  "pause": "Stop the film",
+  "film_note": "Sideby 1.0.0 · 22.5-second motion graphic with fictional data, not a switching benchmark.",
+  "benefit_label": "Spend less time switching each display",
+  "benefit_title": "Keep the Spaces you already use.",
+  "benefit_text": "An editor on your MacBook, a browser on your external display. Pair their desktops and move your displays together with your usual gesture.",
   "benefits": [
-    "Save the setup you're already using.",
-    "Switch its included displays together.",
-    "Keep the desktops and apps you have open."
+    "See Spaces by display and their connections together.",
+    "Drop into the blank column to create a connection.",
+    "Drag to move, Option-drag to copy, and undo mistakes."
   ],
-  "how_title": "Save a Mac desktop setup. Come back to it.",
-  "how_intro": "Start with the desktops you already use. One useful setup is enough.",
+  "how_title": "Start in the current order.",
+  "how_intro": "Allow access, then connect your Spaces. Start in the current order and adjust only the cells you need.",
   "steps": [
     [
-      "Work as usual.",
-      "Open the apps and documents you need on each display. Use Mission Control to prepare another desktop when you need one."
+      "Allow access.",
+      "Check Accessibility and Screen Switching access in the guide."
     ],
     [
-      "Save this setup.",
-      "Hold ⌥⇧Space and choose Save this setup. Release the keys, give it a name, check which displays to remember, and save."
+      "Connect in current order.",
+      "Pair Spaces at the same positions across selected displays. This does not switch your screens."
     ],
     [
-      "Pick up where you left off.",
-      "Choose a saved setup to switch its displays together. Press ⌥⇧Tab to return to the previous setup."
+      "Adjust the cells you need.",
+      "See your Spaces in Settings and drag to a cell for the same display. Changes are remembered immediately."
     ]
   ],
-  "save_alt": "Sideby's Save this setup form with a fictional Checkout setup and two selected displays.",
-  "matrix_label": "YOUR SETUPS, AT A GLANCE",
-  "matrix_title": "Choose a setup. Every included screen follows.",
-  "matrix_text": "Open the matrix near your pointer with ⌥⇧Space. Columns are your saved setups; rows are the displays connected right now. Use the compact list if you prefer choosing by name.",
-  "matrix_alt": "The Sideby menu with Save this setup and fictional Checkout and PR review setups on MacBook Pro and Studio Display.",
+  "matrix_label": "Quick daily adjustments",
+  "matrix_title": "Edit directly from the menu.",
+  "matrix_text": "Edit cells directly in the menu. Hold ⌥⇧Space and click anywhere in a column to switch together. Choose Edit connections to see Space cards above the table. Drag to a cell for the same display, or click the card and then the cell. Settings uses the same editing flow.",
+  "matrix_alt": "Actual menu with directly editable desktop connections and explicit arrows for switching.",
   "matrix_note": "Actual app views with fictional sample data.",
   "small_features": [
     [
@@ -53,8 +52,8 @@
       "Switch between the desktops on your MacBook, or include an external display when you connect it."
     ],
     [
-      "Arrange it your way.",
-      "In Manage setups, drag desktops from each display into a setup below. Reorder setups and save your changes together."
+      "Connections follow your Spaces.",
+      "If other Spaces are added and positions shift, Sideby follows the connected Space. If it disappears, Sideby asks you to choose again. Connections for unplugged displays are kept."
     ],
     [
       "At home on your Mac.",
@@ -64,16 +63,16 @@
   "faq_title": "A few things to know.",
   "faqs": [
     [
-      "What does Sideby save?",
-      "Sideby remembers connections to existing macOS desktops, also called Spaces. A setup groups the desktops you want to use together across one or more displays."
+      "What does Sideby remember?",
+      "The existing desktops that should switch together across your displays. Connections stay on your Mac and can be edited directly without naming or saving separate setups."
     ],
     [
-      "Does it restore window positions or reopen apps?",
-      "No. Sideby switches existing desktops. It does not reopen apps or documents, move windows into a layout, or save screenshots. Leave the apps you need open on their desktops."
+      "Does it create desktops or launch apps?",
+      "Sideby connects and switches existing Spaces. It does not create or delete desktops, launch or full-screen apps, or restore window positions."
     ],
     [
-      "What happens when I unplug a monitor?",
-      "Disconnected displays disappear from the everyday matrix. Their saved connections stay available in setup editing and return when the display reconnects."
+      "What happens when I disconnect a display?",
+      "Its connections are kept. Use Show disconnected displays to inspect them, then reconnect the display when needed."
     ],
     [
       "Which Macs can run it?",
@@ -84,14 +83,25 @@
       "Accessibility supports configured global gestures and available app or window-title suggestions. Screen Switching access enables desktop commands; some paths also require System Events Automation. Desktop discovery and switching do not request Screen Recording permission."
     ],
     [
-      "Is Sideby free? Where is my setup stored?",
-      "Sideby is free and open source under the MIT License. Saved setups and preferences stay locally on your Mac. The app uses Sparkle for updates, with user-approved installation."
+      "Is it free, and where is my data stored?",
+      "Sideby is free and open source under MIT. Desktop connections and settings stay on your Mac. Sparkle updates require your approval to install."
     ]
   ],
-  "end_title": "Make it easy to come back.",
-  "end_text": "Save one setup today. Add another when you need it.",
+  "end_title": "Keep changes simple.",
+  "end_text": "See what is open. Adjust only the connections you need.",
   "docs": "Read the full guide",
   "release": "Release notes",
   "privacy": "Privacy & permissions",
-  "footer": "Made for the way you already work."
+  "footer": "Made for the way you already work.",
+  "nav_editor": "Connections",
+  "onboarding_alt": "The two-step guide shows Allow access and Connect desktops, with Connect in current order.",
+  "editor_label": "See and connect",
+  "editor_title": "Contents and connections, together.",
+  "editor_text": "Settings and the shortcut’s connection editor show each display’s Spaces above the table, with available app/window titles and the current Space. “Space · position 3” indicates list order, not a Mission Control desktop name. Drop a Space into the blank column on the right to create a connection immediately. Drag between cells for the same display to move or swap. Hold ⌥ Option when dropping to copy and keep the source. Undo restores both cells together.",
+  "editor_note": "Changes are remembered immediately. Undo the last change with the Undo button or ⌘Z. No separate editor or Save changes step is needed.",
+  "editor_alt": "Settings shows desktop contents and the connection table in the same window.",
+  "editor_overview": "What if desktops or displays change?",
+  "editor_overview_text": "Find new desktops in the upper list and connect them. If a desktop disappears, choose again in the affected cell. Sideby never replaces it with a different desktop at the same position. Disconnected displays keep their connections.",
+  "editor_overview_alt": "Current desktop contents and connections.",
+  "image_enlarge": "View full-size image"
 }

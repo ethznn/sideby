@@ -7,6 +7,7 @@ struct NativeDisplaySelector: View {
     let displays: [DisplayInfo]
     let selectedIDs: Set<String>
     let language: AppLanguage
+    var showsArrangement = true
     let isEnabled: Bool
     let setSelected: (DisplayInfo, Bool) -> Void
     private var strings: SettingsRefreshStrings { .init(language: language) }
@@ -21,12 +22,12 @@ struct NativeDisplaySelector: View {
         Group {
             if displays.count > 2 {
                 VStack(alignment: .leading, spacing: 8) {
-                    if WorkspaceTablePresentation.hasGeometry(displays) { diagram.frame(height: 92) }
+                    if showsArrangement && WorkspaceTablePresentation.hasGeometry(displays) { diagram.frame(height: 92) }
                     legend
                 }
             } else {
                 HStack(alignment: .center, spacing: 16) {
-                    if WorkspaceTablePresentation.hasGeometry(displays) { diagram.frame(width: 180, height: 92) }
+                    if showsArrangement && WorkspaceTablePresentation.hasGeometry(displays) { diagram.frame(width: 180, height: 92) }
                     legend
                 }
             }
