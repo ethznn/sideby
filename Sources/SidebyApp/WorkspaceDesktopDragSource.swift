@@ -7,6 +7,8 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
     let enabled: Bool
     let label: String
     let identifier: String
+    var isDraggable = true
+    var accessibilityState: String? = nil
     var allowsMove = false
     let click: () -> Void
     let beginDrag: () -> String
@@ -25,7 +27,9 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
         view.host.rootView = AnyView(content())
         view.isEnabled = enabled
         view.allowsMove = allowsMove
+        view.isDraggable = isDraggable
         view.setAccessibilityLabel(label)
+        view.setAccessibilityValue(accessibilityState)
         view.setAccessibilityIdentifier(identifier)
         view.click = click
         view.beginDrag = beginDrag
@@ -39,6 +43,7 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
         var beginDrag: (() -> String)?
         var endDrag: (() -> Void)?
         var allowsMove = false
+        var isDraggable = true
         private var pressOrigin: NSPoint?
 
         override init(frame: NSRect) {
@@ -63,7 +68,7 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
         }
         override func resetCursorRects() {
             super.resetCursorRects()
-            addCursorRect(bounds, cursor: isEnabled ? .openHand : .arrow)
+            addCursorRect(bounds, cursor: !isEnabled ? .arrow : isDraggable ? .openHand : .pointingHand)
         }
         @objc private func chooseCard() { if isEnabled { click?() } }
 
@@ -79,7 +84,7 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
         }
 
         override func mouseDragged(with event: NSEvent) {
-            guard isEnabled, let origin = pressOrigin else { return }
+            guard isEnabled, isDraggable, let origin = pressOrigin else { return }
             let point = event.locationInWindow
             guard hypot(point.x - origin.x, point.y - origin.y) >= 4 else { return }
             pressOrigin = nil

@@ -43,8 +43,8 @@
   ],
   "matrix_label": "Quick daily adjustments",
   "matrix_title": "Edit directly from the menu.",
-  "matrix_text": "Edit cells directly in the menu. Hold ⌥⇧Space and click anywhere in a column to switch together. Choose Edit connections to see Space cards above the table. Drag to a cell for the same display, or click the card and then the cell. Settings uses the same editing flow.",
-  "matrix_alt": "Actual menu with directly editable desktop connections and explicit arrows for switching.",
+  "matrix_text": "Edit cells directly in the menu. Hold ⌥⇧Space and click anywhere in a column to switch together. Choose Edit connections to see Space cards above the table. Drag to a cell for the same display, or click the card and then the cell. Settings uses the same editing flow. Filled cards show connected Spaces; dashed + cells are available for a connection. Use Move together to switch while editing.",
+  "matrix_alt": "Actual app with distinct connected cards, dashed empty cells, and labelled Move together buttons.",
   "matrix_note": "Actual app views with fictional sample data.",
   "small_features": [
     [

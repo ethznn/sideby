@@ -41,6 +41,7 @@ struct ProductOnboardingView: View {
                     if preparing { preparationContent }
                     else {
                         CurrentConnectionsView(model: model)
+                        if !model.settings.contextPlan.contexts.isEmpty {
                         VStack(alignment: .leading, spacing: 9) {
                             Label(model.strings.horizontalScrollGesture(model.settings.requiredModifiers), systemImage: "hand.draw")
                             if let shortcut = model.availableWorkspaceChooserShortcut {
@@ -50,6 +51,7 @@ struct ProductOnboardingView: View {
                                 .foregroundStyle(NativeSurfaceStyle.secondaryText)
                         }.font(.system(size: 12)).padding(14)
                             .background(NativeSurfaceStyle.headerBackground, in: RoundedRectangle(cornerRadius: 9))
+                        }
                     }
                 }.padding(24)
             }

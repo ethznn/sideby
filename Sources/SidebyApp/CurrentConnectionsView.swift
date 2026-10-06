@@ -20,9 +20,11 @@ struct CurrentConnectionsView: View {
     @State private var drag: WorkspaceComposerDrag?
     @State private var dropCell: String?
     @State private var addRequest = 0
+    @State private var highlightsNewColumn = false
+    @State private var dropOperation: DropOperation = .copy
     @State private var selectedDesktop: WorkspaceDesktopReference?
-    private let rowHeight: CGFloat = 66
-    private let columnWidth: CGFloat = 162
+    private let rowHeight: CGFloat = 72
+    private let columnWidth: CGFloat = 178
     private var copy: CurrentConnectionStrings { model.connectionCopy }
     private var contexts: [ContextDefinition] { model.settings.contextPlan.contexts.sorted { $0.order < $1.order } }
     private var displayIDs: [String] {
@@ -30,15 +32,19 @@ struct CurrentConnectionsView: View {
             assigned: contexts.flatMap(\.displayIDs), order: model.settings.displayRowOrder, includeDisconnected: showsOffline)
     }
     private var connected: Set<String> { Set(model.connectedWorkspaceDisplayIDs) }
+    private var compact: Bool { showsDesktopSources && availableHeight < 580 }
+    private var activeDisplayID: String? { drag?.desktop?.displayID ?? selectedDesktop?.displayID }
+    private var canUndo: Bool { model.settings.savedWorkspaces.undo != nil }
+
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(copy.title).font(.system(size: 17, weight: .semibold))
+                Text(contexts.isEmpty ? copy.title : copy.editing).font(.system(size: 17, weight: .semibold))
                 Spacer()
                 if !contexts.isEmpty {
-                    Button { keepOpen(); addRequest += 1 } label: { Image(systemName: "plus") }
-                        .buttonStyle(.plain).pointingHandCursor().help(copy.add).accessibilityLabel(copy.add)
+                    Button { keepOpen(); highlightsNewColumn = true; addRequest += 1 } label: { Label(copy.add, systemImage: "plus") }
+                        .controlSize(.small).pointingHandCursor().help(copy.add).accessibilityLabel(copy.add)
                         .disabled(!model.canChangeSavedWorkspaces).accessibilityIdentifier("connections-add")
                 }
                 Button { refresh() } label: { Image(systemName: "arrow.clockwise") }
@@ -58,8 +64,11 @@ struct CurrentConnectionsView: View {
                         .accessibilityLabel(model.saveCopy.close)
                 }
             }
-            Text(showsDesktopSources ? copy.text("Drag a Space card to a cell for the same display, or click the card and then the cell. Changes are remembered immediately.", "Space 카드를 같은 모니터의 칸으로 끌어 놓으세요. 카드와 칸을 차례로 눌러도 됩니다. 변경은 바로 기억합니다.") : copy.hint)
-                .font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+            if !contexts.isEmpty && !compact {
+                Text(showsDesktopSources
+                    ? copy.text("Place a Space in a cell for the same display. Use Move together to switch.", "Space를 같은 모니터의 칸에 놓으세요. 화면 이동은 ‘함께 이동’을 누르세요.") : copy.hint)
+                    .font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+            }
             if showsDesktopSources { desktopSources }
             if model.settingsStore.hasUnreadableSettings {
                 Text(model.saveCopy.settingsUnreadable).font(.system(size: 12)).foregroundStyle(.orange)
@@ -80,34 +89,29 @@ struct CurrentConnectionsView: View {
                     }.pointingHandCursor().accessibilityIdentifier("workspace-resume-editing")
                 }.font(.system(size: 11)).accessibilityElement(children: .contain).accessibilityIdentifier("workspace-unsaved-edit-notice")
             }
-            if let message = model.workspaceSaveMessage {
-                HStack(alignment: .top) {
-                    Text(message).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
-                    Spacer()
-                    Button { model.workspaceSaveMessage = nil } label: { Image(systemName: "xmark") }
-                        .buttonStyle(.plain).accessibilityLabel(model.saveCopy.close)
-                }.foregroundStyle(NativeSurfaceStyle.secondaryText).accessibilityIdentifier("connections-feedback")
-            }
-            HStack(alignment: .top) {
+            if let message = model.workspaceSaveMessage { feedback(message) }
+            HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     if !contexts.isEmpty {
                         Text(copy.dragHint).font(.system(size: 11))
                             .accessibilityIdentifier("connections-drag-hint")
                     }
-                    Text(copy.scope).font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    Text(copy.scope).font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 }.fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                Button { keepOpen(); _ = model.undoSavedWorkspaceChange(); readObservation() } label: {
-                    Label(copy.undo, systemImage: "arrow.uturn.backward")
-                }.font(.system(size: 11)).pointingHandCursor()
-                    .disabled(!model.canChangeSavedWorkspaces || model.settings.savedWorkspaces.undo == nil)
-                    .help(copy.undo + " (⌘Z)").accessibilityIdentifier("connections-undo")
+                Spacer(minLength: 0)
+                if canUndo && model.workspaceSaveMessage == nil { undoButton }
             }
+
         }
         .foregroundStyle(NativeSurfaceStyle.primaryText).tint(NativeSurfaceStyle.accent)
         .background(CurrentConnectionsKeyboardCommands(model: model))
         .background(WorkspaceDragCompletion(dragID: drag?.id) { drag = nil; dropCell = nil })
         .onAppear { refresh() }
+        .task(id: addRequest) {
+            guard addRequest > 0 else { return }
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled { highlightsNewColumn = false }
+        }
         .onReceive(model.$workspaceObservedDisplays) { _ in readObservation() }
         .onChange(of: model.displayLayout) { _, _ in readObservation(); picker = nil; drag = nil; selectedDesktop = nil }
         .onChange(of: model.settings.contextPlan.contexts) { _, _ in readObservation() }
@@ -118,15 +122,58 @@ struct CurrentConnectionsView: View {
         }
     }
 
+    private var undoButton: some View {
+        Button { keepOpen(); _ = model.undoSavedWorkspaceChange(); readObservation() } label: {
+            Label(copy.text("Undo", "되돌리기"), systemImage: "arrow.uturn.backward")
+        }.font(.system(size: 12)).pointingHandCursor()
+            .disabled(!model.canChangeSavedWorkspaces || !canUndo)
+            .help((model.settings.savedWorkspaces.undo?.label ?? copy.undo) + " (⌘Z)")
+            .accessibilityLabel(copy.undo).accessibilityIdentifier("connections-undo")
+    }
+
+    private func feedback(_ message: String) -> some View {
+        let failed = model.workspaceSaveFeedbackKind == .failure
+        let success = model.workspaceSaveFeedbackKind == .success
+        return HStack(alignment: .center, spacing: 8) {
+            Image(systemName: failed ? "exclamationmark.triangle.fill" : success ? "checkmark.circle.fill" : "info.circle")
+                .foregroundStyle(failed ? Color.orange : NativeSurfaceStyle.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                if failed { Text(copy.notApplied).fontWeight(.semibold) }
+                Text(message).fixedSize(horizontal: false, vertical: true)
+            }.font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
+            if canUndo { undoButton }
+            Button { model.workspaceSaveMessage = nil } label: { Image(systemName: "xmark").frame(width: 24, height: 24) }
+                .buttonStyle(.plain).pointingHandCursor().accessibilityLabel(model.saveCopy.close)
+        }.padding(9)
+            .background(failed ? Color.orange.opacity(0.10) : NativeSurfaceStyle.selectionBackground,
+                        in: RoundedRectangle(cornerRadius: 7))
+            .accessibilityElement(children: .contain).accessibilityIdentifier("connections-feedback")
+    }
+
+    @ViewBuilder private func displayBadge(_ id: String) -> some View {
+        if !connected.contains(id) || !model.selectedDisplayIDs.contains(id) {
+            Label(!connected.contains(id) ? copy.text("Disconnected", "연결 해제") : copy.text("Not switching", "전환 제외"),
+                  systemImage: !connected.contains(id) ? "cable.connector.slash" : "pause.circle")
+                .font(.system(size: 11, weight: .medium)).lineLimit(2)
+                .padding(.horizontal, 5).padding(.vertical, 3)
+                .background(NativeSurfaceStyle.windowBackground, in: RoundedRectangle(cornerRadius: 4))
+        }
+    }
+
     private var desktopSources: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(copy.text("Spaces on your displays", "모니터별 Space")).font(.system(size: 13, weight: .semibold))
-                if model.connectedWorkspaceDisplayIDs.count > 2 {
+                if activeDisplayID == nil, model.connectedWorkspaceDisplayIDs.count > (compact ? 1 : 2) {
                     Text(copy.text("\(model.connectedWorkspaceDisplayIDs.count) displays · scroll for more", "모니터 \(model.connectedWorkspaceDisplayIDs.count)개 · 스크롤로 더 보기"))
-                        .font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                        .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                 }
                 Spacer()
+                if let id = activeDisplayID {
+                    Text(copy.text("Place in the \(model.displayName(for: id)) row", "\(model.displayName(for: id)) 행에 놓기"))
+                        .font(.system(size: 11, weight: .medium)).lineLimit(1).help(model.displayName(for: id))
+                        .accessibilityIdentifier("connection-active-display")
+                }
                 if selectedDesktop != nil {
                     Button(copy.text("Cancel selection", "선택 취소")) { selectedDesktop = nil }
                         .buttonStyle(.plain).pointingHandCursor().font(.system(size: 11))
@@ -137,11 +184,10 @@ struct CurrentConnectionsView: View {
                     ForEach(model.connectedWorkspaceDisplayIDs, id: \.self) { id in
                         HStack(spacing: 0) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(model.displayName(for: id)).font(.system(size: 11, weight: .medium)).lineLimit(2)
-                                if !model.selectedDisplayIDs.contains(id) {
-                                    Text(copy.excluded).font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                                }
-                            }.padding(.horizontal, 10).frame(width: 132, alignment: .leading)
+                                Text(model.displayName(for: id)).font(.system(size: 12, weight: .medium)).lineLimit(2)
+                                displayBadge(id)
+                            }.padding(.horizontal, 10).frame(width: 132, height: 76, alignment: .leading)
+                                .background(activeDisplayID == id ? NativeSurfaceStyle.selectionBackground : .clear)
                             if let keys = keys(id) {
                                 ScrollView(.horizontal) {
                                     HStack(spacing: 6) {
@@ -154,11 +200,10 @@ struct CurrentConnectionsView: View {
                                 Text(copy.readUnavailable).font(.system(size: 11)).foregroundStyle(.orange)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                        }.frame(height: 72)
+                        }.frame(height: 76)
                     }
                 }
-            }.frame(height: min(CGFloat(max(1, model.connectedWorkspaceDisplayIDs.count)) * 76,
-                                max(90, min(240, availableHeight * 0.29))))
+            }.frame(height: CGFloat(min(max(1, model.connectedWorkspaceDisplayIDs.count), compact ? 1 : 2)) * 80)
                 .background(NativeSurfaceStyle.headerBackground, in: RoundedRectangle(cornerRadius: 9))
                 .accessibilityIdentifier("connection-desktop-sources")
         }
@@ -173,6 +218,7 @@ struct CurrentConnectionsView: View {
             label: model.displayName(for: displayID) + " · " + copy.spacePosition(index) + " · " + title
                 + (current ? copy.text(" · On screen", " · 지금 보고 있음") : ""),
             identifier: "connection-source-" + displayID + "-\(index)",
+            accessibilityState: selected ? copy.text("Selected. Click a cell for this display.", "선택됨. 같은 모니터의 칸을 누르세요.") : nil,
             click: { keepOpen(); selectedDesktop = selected ? nil : desktop; picker = nil }, beginDrag: {
                 keepOpen()
                 selectedDesktop = desktop
@@ -181,16 +227,19 @@ struct CurrentConnectionsView: View {
                 return payload.rawValue
             }, endDrag: { drag = nil; dropCell = nil }) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(.system(size: 11, weight: .medium)).lineLimit(2)
-                    HStack(spacing: 4) {
-                        if title != copy.spacePosition(index) { Text(copy.spacePosition(index)) }
-                        if current { Text(copy.text("On screen", "지금 보고 있음")).foregroundStyle(Color.accentColor) }
-                    }.font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                }.padding(8).frame(width: 154, height: 62, alignment: .leading)
+                    HStack(alignment: .top, spacing: 4) {
+                        Text(title).font(.system(size: 13, weight: .medium)).lineLimit(2)
+                        if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(NativeSurfaceStyle.accent) }
+                    }
+                    HStack(spacing: 5) {
+                        if title != copy.spacePosition(index) { Text(copy.text("Position \(index + 1)", "\(index + 1)번째 Space")) }
+                        if current { Text(copy.text("On screen", "현재")).fontWeight(.medium).foregroundStyle(NativeSurfaceStyle.accent) }
+                    }.font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                }.padding(8).frame(width: 174, height: 70, alignment: .leading)
                     .background(selected ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.inputBackground,
                                 in: RoundedRectangle(cornerRadius: 7))
                     .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(selected ? Color.accentColor : NativeSurfaceStyle.controlBorder))
-            }.frame(width: 154, height: 62).help(title)
+            }.frame(width: 174, height: 70).help(title)
     }
 
     private var empty: some View {
@@ -222,15 +271,18 @@ struct CurrentConnectionsView: View {
         ScrollView(.vertical) {
             HStack(alignment: .top, spacing: 0) {
                 VStack(spacing: 0) {
-                    Text(copy.text("Move together →", "함께 전환 →")).font(.system(size: 10))
+                    Text(copy.text("Connections →", "Space 연결 →")).font(.system(size: 11, weight: .medium))
                         .frame(height: 64).frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(displayIDs, id: \.self) { id in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(model.displayName(for: id)).font(.system(size: 11, weight: .medium)).lineLimit(2)
-                            Text(!connected.contains(id) ? copy.offline : !model.selectedDisplayIDs.contains(id) ? copy.excluded
-                                : copy.text("Click a cell to change", "칸을 눌러 변경"))
-                                .font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText).lineLimit(2)
+                            Text(model.displayName(for: id)).font(.system(size: 12, weight: .medium)).lineLimit(2)
+                            displayBadge(id)
+                            if activeDisplayID == id {
+                                Label(copy.text("Place here", "이 행에 놓기"), systemImage: "arrow.right")
+                                    .font(.system(size: 11, weight: .medium)).foregroundStyle(NativeSurfaceStyle.accent)
+                            }
                         }.frame(maxWidth: .infinity, alignment: .leading).frame(height: rowHeight)
+                            .background(activeDisplayID == id ? NativeSurfaceStyle.selectionBackground : .clear)
                             .help(model.displayName(for: id))
                     }
                 }.padding(.horizontal, 10).frame(width: 132).background(NativeSurfaceStyle.headerBackground)
@@ -246,12 +298,13 @@ struct CurrentConnectionsView: View {
                         VStack(spacing: 0) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(copy.add).font(.system(size: 12, weight: .medium))
-                                Text(copy.createByDropping).font(.system(size: 10))
+                                Text(showsDesktopSources ? copy.createByDropping : copy.text("Choose a Space to create", "Space를 고르면 새 연결이 생겨요")).font(.system(size: 11))
                                     .foregroundStyle(NativeSurfaceStyle.secondaryText).fixedSize(horizontal: false, vertical: true)
                             }.padding(.horizontal, 10).frame(maxWidth: .infinity, alignment: .leading).frame(height: 64)
                                 .accessibilityElement(children: .combine).accessibilityIdentifier("connection-new-hint")
                             ForEach(displayIDs, id: \.self) { id in cell(nil, displayID: id) }
-                        }.frame(width: columnWidth).id("new")
+                        }.frame(width: columnWidth)
+                            .background(highlightsNewColumn ? NativeSurfaceStyle.selectionBackground : .clear).id("new")
                     }
                 }.frame(height: 64 + CGFloat(displayIDs.count) * rowHeight)
                     .onChange(of: addRequest) { _, _ in scroll.scrollTo("new", anchor: .trailing) }
@@ -261,7 +314,7 @@ struct CurrentConnectionsView: View {
                 }
             }
         }
-        .frame(height: min(showsDesktopSources ? max(140, min(300, availableHeight * 0.38)) : 340,
+        .frame(height: min(showsDesktopSources ? (compact ? 64 + rowHeight * 2 + 12 : 310) : 340,
                            64 + CGFloat(max(1, displayIDs.count)) * rowHeight + 12))
         .scrollIndicators(.visible)
         .background(NativeSurfaceStyle.tableBackground)
@@ -271,33 +324,51 @@ struct CurrentConnectionsView: View {
     }
 
     private func header(_ context: ContextDefinition, position: Int) -> some View {
-        HStack(spacing: 5) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(context.name).font(.system(size: 12, weight: .medium)).lineLimit(1).help(context.name)
-                Text(model.verifiedCurrentWorkspaceID == context.id ? "✓ " + copy.text("Current", "현재")
-                    : model.workspaceShortcut(context.id) ?? copy.connection(position))
-                    .font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            Button {
-                if let select { select(context.id) } else { model.activateContext(contextID: context.id) }
-            } label: { Image(systemName: "arrow.right.circle").font(.system(size: 17)) }
-                .buttonStyle(.plain).pointingHandCursor()
-                .disabled(!model.canActivateContext || !model.isWorkspaceAssignmentAvailable(contextID: context.id))
-                .help(copy.move).accessibilityLabel(context.name + " · " + copy.move)
-                .accessibilityIdentifier("connection-go-" + context.id)
-        }.padding(.horizontal, 10).frame(height: 64)
-            .background(model.verifiedCurrentWorkspaceID == context.id ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.headerBackground)
-            .contextMenu {
-                Button(copy.text("Move left", "왼쪽으로 이동")) {
-                    if position > 1 { _ = model.reorderSavedWorkspace(context.id, relativeTo: contexts[position - 2].id, after: false) }
-                }.disabled(position == 1 || !model.canChangeSavedWorkspaces)
-                Button(copy.text("Move right", "오른쪽으로 이동")) {
-                    if position < contexts.count { _ = model.reorderSavedWorkspace(context.id, relativeTo: contexts[position].id, after: true) }
-                }.disabled(position == contexts.count || !model.canChangeSavedWorkspaces)
-                Button(copy.text("Remove connection · Keep Spaces", "연결 삭제 · Space는 유지"), role: .destructive) {
-                    keepOpen(); _ = model.deleteSavedWorkspace(context.id)
-                }.disabled(!model.canChangeSavedWorkspaces)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Text(context.name).font(.system(size: 13, weight: .semibold)).lineLimit(1).help(context.name)
+                Spacer(minLength: 0)
+                if model.verifiedCurrentWorkspaceID == context.id {
+                    Text("✓ " + copy.text("Current", "현재")).font(.system(size: 11))
+                        .foregroundStyle(NativeSurfaceStyle.accent).fixedSize()
+                }
+                Menu { connectionActions(context, position: position) } label: {
+                    Image(systemName: "ellipsis").frame(width: 24, height: 20)
+                }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                    .help(copy.text("Connection actions", "연결 관리"))
+                    .accessibilityLabel(context.name + " · " + copy.text("Connection actions", "연결 관리"))
+                    .accessibilityIdentifier("connection-actions-" + context.id)
             }
+            HStack(spacing: 4) {
+                Text(model.workspaceShortcut(context.id) ?? copy.connection(position))
+                    .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText).lineLimit(1)
+                Spacer(minLength: 0)
+                Button {
+                    if let select { select(context.id) } else { model.activateContext(contextID: context.id) }
+                } label: { Label(copy.moveTogether, systemImage: "arrow.right.circle").font(.system(size: 11)) }
+                    .controlSize(.small).fixedSize().pointingHandCursor()
+                    .disabled(!model.canActivateContext || !model.isWorkspaceAssignmentAvailable(contextID: context.id))
+                    .help(copy.move).accessibilityLabel(context.name + " · " + copy.moveTogether)
+                    .accessibilityIdentifier("connection-go-" + context.id)
+            }
+        }.padding(.horizontal, 9).frame(height: 64)
+            .background(model.verifiedCurrentWorkspaceID == context.id ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.headerBackground)
+            .contextMenu { connectionActions(context, position: position) }
+    }
+
+    @ViewBuilder private func connectionActions(_ context: ContextDefinition, position: Int) -> some View {
+        Button(copy.text("Move left", "왼쪽으로 이동")) {
+            keepOpen()
+            if position > 1 { _ = model.reorderSavedWorkspace(context.id, relativeTo: contexts[position - 2].id, after: false) }
+        }.disabled(position == 1 || !model.canChangeSavedWorkspaces)
+        Button(copy.text("Move right", "오른쪽으로 이동")) {
+            keepOpen()
+            if position < contexts.count { _ = model.reorderSavedWorkspace(context.id, relativeTo: contexts[position].id, after: true) }
+        }.disabled(position == contexts.count || !model.canChangeSavedWorkspaces)
+        Divider()
+        Button(copy.text("Remove connection · Keep Spaces", "연결 삭제 · Space는 유지"), role: .destructive) {
+            keepOpen(); _ = model.deleteSavedWorkspace(context.id)
+        }.disabled(!model.canChangeSavedWorkspaces)
     }
 
     private func cell(_ context: ContextDefinition?, displayID: String) -> some View {
@@ -308,10 +379,14 @@ struct CurrentConnectionsView: View {
         let missing = assigned && connected.contains(displayID) && keys(displayID) != nil && (key == nil || index == nil)
         let unreadable = assigned && connected.contains(displayID) && keys(displayID) == nil
         let title = unreadable ? copy.text("Couldn't read · Retry", "읽기 실패 · 다시 확인") : missing ? copy.repair : index.map { model.workspaceDesktopName(displayID: displayID, spaceIndex: $0) ?? copy.spacePosition($0) }
-            ?? (context == nil ? copy.dropHere : copy.keep)
+            ?? (showsDesktopSources ? copy.dropHere : copy.choose)
         let enabled = model.canChangeSavedWorkspaces && connected.contains(displayID)
+        let hovering = dropCell == cellID
+        let preview = dropPreview(context, assigned: assigned)
         return WorkspaceDesktopDragSource(enabled: enabled, label: model.displayName(for: displayID) + " · " + title,
             identifier: "connection-cell-" + cellID,
+            isDraggable: assigned && !missing && !unreadable && key != nil,
+            accessibilityState: hovering ? preview : assigned ? copy.text("Connected", "연결됨") : copy.text("Empty. Click to connect a Space.", "빈 칸. 눌러서 Space를 연결하세요."),
             allowsMove: true,
             click: {
                 keepOpen()
@@ -333,16 +408,24 @@ struct CurrentConnectionsView: View {
             }, endDrag: { drag = nil; dropCell = nil }) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 4) {
-                        Text(title).font(.system(size: 11, weight: .medium)).lineLimit(2)
+                        if !assigned { Image(systemName: "plus").font(.system(size: 13, weight: .medium)).foregroundStyle(NativeSurfaceStyle.secondaryText) }
+                        Text(title).font(.system(size: 13, weight: .medium)).lineLimit(2)
                         Spacer(minLength: 0)
-                        Image(systemName: "chevron.down").font(.system(size: 8))
+                        if assigned { Image(systemName: "chevron.down").font(.system(size: 9)).foregroundStyle(NativeSurfaceStyle.secondaryText) }
                     }
-                    if let index, title != copy.spacePosition(index) { Text(copy.spacePosition(index)).font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText) }
-                    if context == nil { Text(copy.orChoose).font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText) }
+                    if hovering {
+                        Text(preview).font(.system(size: 11, weight: .medium)).foregroundStyle(NativeSurfaceStyle.accent)
+                    } else if let index, title != copy.spacePosition(index) {
+                        Text(copy.text("Position \(index + 1)", "\(index + 1)번째 Space")).font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    } else if !assigned {
+                        Text(showsDesktopSources ? copy.orChoose : copy.text("Click to connect", "눌러서 연결하기"))
+                            .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    }
                 }.padding(9).frame(maxWidth: .infinity, alignment: .leading).frame(height: rowHeight - 8)
-                    .background(dropCell == cellID ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.inputBackground,
+                    .background(hovering ? NativeSurfaceStyle.selectionBackground : assigned ? NativeSurfaceStyle.inputBackground : NativeSurfaceStyle.tableBackground,
                                 in: RoundedRectangle(cornerRadius: 7))
-                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(missing ? Color.orange : dropCell == cellID || selectedDesktop?.displayID == displayID ? Color.accentColor : NativeSurfaceStyle.controlBorder))
+                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(missing || unreadable ? Color.orange : hovering || selectedDesktop?.displayID == displayID ? Color.accentColor : NativeSurfaceStyle.controlBorder,
+                        style: StrokeStyle(lineWidth: hovering ? 2 : 1, dash: assigned ? [] : [4, 3])))
             }
             .padding(.horizontal, 5).frame(height: rowHeight).help(title)
             .popover(isPresented: Binding(get: { picker == cellID }, set: { if !$0 { picker = nil } })) {
@@ -350,8 +433,15 @@ struct CurrentConnectionsView: View {
             }
             .onDrop(of: [UTType.plainText], delegate: WorkspaceComposerDropDelegate(session: session, active: drag,
                 contextID: context?.id ?? "new", displayID: displayID, enabled: enabled, midpoint: columnWidth / 2,
-                desktopOperation: { drag?.sourceContextID != nil && !NSEvent.modifierFlags.contains(.option) ? .move : .copy },
-                hover: { inside, _ in dropCell = inside ? cellID : nil }, receive: { payload, _, operation in
+                desktopOperation: {
+                    let operation: DropOperation = drag?.sourceContextID != nil && !NSEvent.modifierFlags.contains(.option) ? .move : .copy
+                    if dropOperation != operation { dropOperation = operation }
+                    return operation
+                },
+                hover: { inside, _ in
+                    if inside { dropCell = cellID }
+                    else if dropCell == cellID { dropCell = nil }
+                }, receive: { payload, _, operation in
                     if let source = payload.desktop, source.displayID == displayID {
                         if let sourceID = payload.sourceContextID {
                             _ = model.transferCurrentConnection(source, from: sourceID, to: context?.id,
@@ -362,6 +452,15 @@ struct CurrentConnectionsView: View {
                     }
                     drag = nil; dropCell = nil; selectedDesktop = nil; readObservation()
                 }))
+    }
+
+    private func dropPreview(_ context: ContextDefinition?, assigned: Bool) -> String {
+        guard let sourceID = drag?.sourceContextID else {
+            return copy.text("Release to connect", "놓으면 연결")
+        }
+        if sourceID == context?.id { return copy.text("Already connected here", "이미 연결된 칸") }
+        if dropOperation == .copy { return copy.text("Release to copy · Keep source", "놓으면 복사 · 원래 칸 유지") }
+        return assigned ? copy.text("Release to swap", "놓으면 자리 바꾸기") : copy.text("Release to move", "놓으면 이동")
     }
 
     private func choices(_ context: ContextDefinition?, displayID: String, currentKey: String?) -> some View {

@@ -616,6 +616,9 @@ import SidebyCore
         for (optionStart, optionEnd) in [(false, false), (true, true), (false, true), (true, false)] {
             try await moveMouse(from: cell("setup-0"), to: cell("setup-1"), whileHeld: {
                 XCTAssertEqual(NSEvent.modifierFlags.contains(.option), optionEnd)
+                let target = try XCTUnwrap(self.element("connection-cell-setup-1-display-0", in: window))
+                XCTAssertEqual(self.attribute(target, "AXValue") as? String,
+                    optionEnd ? "놓으면 복사 · 원래 칸 유지" : "놓으면 자리 바꾸기")
             }, optionAtStart: optionStart, optionAtDrop: optionEnd)
             XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["setup-1"]?["display-0"], "display-0-space-0")
             XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["setup-0"]?["display-0"],
@@ -672,7 +675,7 @@ import SidebyCore
             let table = try frame(XCTUnwrap(element("current-connections-table", in: window)))
             XCTAssertTrue(window.frame.contains(sources), "Space cards must be visible alongside the table")
             XCTAssertTrue(window.frame.contains(table), "The table must remain visible in a small editor")
-            XCTAssertGreaterThanOrEqual(sources.height, 90)
+            XCTAssertGreaterThanOrEqual(sources.height, small ? 76 : 152, "Keep whole source rows visible")
             XCTAssertGreaterThanOrEqual(table.height, 140)
             let card = try XCTUnwrap(element("connection-source-display-0-1", in: window))
             let label = try XCTUnwrap(attribute(card, "AXTitle") as? String)
@@ -682,9 +685,15 @@ import SidebyCore
             XCTAssertNotNil(element("connection-new-hint", in: window))
             let newCell = try XCTUnwrap(element("connection-cell-new-display-0", in: window))
             XCTAssertTrue((attribute(newCell, "AXTitle") as? String)?.contains(english ? "Drop a Space here" : "여기로 끌어 놓기") == true)
+            XCTAssertTrue((attribute(newCell, "AXValue") as? String)?.contains(english ? "Empty" : "빈 칸") == true)
+            XCTAssertNotNil(element("connection-actions-setup-0", in: window))
+            let move = try XCTUnwrap(element("connection-go-setup-0", in: window))
+            XCTAssertTrue((attribute(move, "AXTitle") as? String)?.contains(english ? "Move together" : "함께 이동") == true)
             try capture(window, name: "space-editor-\(small ? "small" : english ? "en" : "ko")")
             // Click placement rejects another display, then accepts the matching row.
             try click(card, window: window)
+            XCTAssertTrue((attribute(card, "AXValue") as? String)?.contains(english ? "Selected" : "선택됨") == true)
+            XCTAssertNotNil(element("connection-active-display", in: window))
             if !small {
                 try click(XCTUnwrap(element("connection-cell-setup-0-display-1", in: window)), window: window)
                 XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before)
@@ -747,7 +756,7 @@ import SidebyCore
             let table = try frame(XCTUnwrap(element("current-connections-table", in: window)))
             XCTAssertTrue(window.frame.contains(sources))
             XCTAssertTrue(window.frame.contains(table))
-            XCTAssertGreaterThanOrEqual(sources.height, 90)
+            XCTAssertGreaterThanOrEqual(sources.height, small ? 76 : 152, "Keep whole source rows visible")
             XCTAssertGreaterThanOrEqual(table.height, 140)
             let current = try XCTUnwrap(element("connection-source-display-0-0", in: window))
             XCTAssertTrue((attribute(current, "AXTitle") as? String)?.contains(english ? "On screen" : "지금 보고 있음") == true)
@@ -807,6 +816,8 @@ import SidebyCore
         defer { window.close() }
         try await Task.sleep(for: .milliseconds(300))
         try capture(window, name: "connections-first-use")
+        XCTAssertNil(element("connections-undo", in: window), "No empty undo action before the first edit")
+        XCTAssertNil(element("connections-drag-hint", in: window), "Only explain dragging once cells exist")
         try click(XCTUnwrap(element("connections-start", in: window)), window: window)
         try await Task.sleep(for: .milliseconds(250))
         XCTAssertEqual(model.settings.contextPlan.contexts.count, 7)

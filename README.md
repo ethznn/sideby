@@ -16,7 +16,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 [Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](docs/media/preview.html)
 
-*Sideby 1.0.0 · [What’s new](docs/releases/1.0.0.md).*
+*Sideby 1.0.1 · [What’s new](docs/releases/1.0.1.md).*
 
 ## See and connect in one window
 
@@ -28,18 +28,18 @@ Connect the Spaces you already use across your displays. When your environment c
 
 1. Open **Sideby in the menu bar → Settings**. It opens directly to **Space connections**.
 2. Review the Spaces above the table. Available app/window titles, Space positions, and **On screen** markers show what is open. Start with **Connect in current order**.
-3. Drag a Space into a cell for the same display below. You can also click a Space, then a cell. Changes are remembered immediately. Use **Undo connection change** or `⌘Z` to undo the last change.
+3. Drag a Space into a cell for the same display below. You can also click a Space, then a cell. Changes are remembered immediately. Use **Undo** or `⌘Z` to undo the last change.
 
 Spaces in the same column switch together. You can also click a cell to choose directly.
 
 - **Create a connection:** Drop a Space into a blank cell in the **Add connection** column. The + button scrolls to this column.
 - **Move or swap:** Drag between cells for the same display. Move into an empty cell or swap two occupied cells.
 - **Copy:** **Hold ⌥ Option when dropping** to keep the source cell. Dragging from the Space list also keeps the list intact.
-- **Undo:** **Undo connection change** restores both cells in one step.
+- **Undo:** **Undo** restores both cells in one step.
 
 Right-click a column heading to reorder or remove its connection. Removing a connection keeps the actual desktops and app windows.
 
-Click the **arrow** beside a column heading to move your screens. Editing a cell or dragging a desktop does not switch screens. Displays excluded from switching remain where they are.
+Click **Move together** below a column heading to move your screens. Filled cards show connected Spaces; dashed **+** cells are available for a connection. Use **Add connection** to reveal the blank column, or the **…** menu to reorder or remove a connection. Editing a cell or dragging a desktop does not switch screens. Displays excluded from switching remain where they are.
 
 ## Get started
 

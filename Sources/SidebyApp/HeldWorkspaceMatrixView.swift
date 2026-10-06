@@ -5,7 +5,7 @@ import SwiftUI
 struct HeldMatrixStrings {
     let language: AppLanguage
     private func text(_ en: String, _ ko: String) -> String { language == .korean ? ko : en }
-    var title: String { text("Space connections", "Space 연결표") }
+    var title: String { text("Switch Spaces together", "Space 함께 이동") }
     var hint: String { text("Click anywhere in a column to move your displays together.", "열의 어느 곳이든 누르면 연결된 Space로 함께 이동합니다.") }
     var editConnections: String { text("Edit connections", "연결 수정") }
     var backToSwitching: String { text("Back to switching", "이동 화면으로") }

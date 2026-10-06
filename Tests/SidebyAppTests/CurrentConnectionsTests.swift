@@ -63,6 +63,8 @@ import SidebySystem
         let model = fixture()
         let before = model.settings
         XCTAssertTrue(model.setCurrentConnection(displayID: "mac", key: "mac-c", contextID: "dev"))
+        XCTAssertEqual(model.workspaceSaveFeedbackKind, .success)
+        XCTAssertEqual(model.workspaceSaveMessage, model.connectionCopy.updated(display: "MacBook", connection: "개발", cleared: false))
         XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["dev"]?["mac"], "mac-c")
         XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["dev"]?["offline"], "offline-key")
         XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["review"], before.savedWorkspaces.bookmarks["review"])
@@ -104,7 +106,9 @@ import SidebySystem
         XCTAssertFalse(model.setCurrentConnection(displayID: "mac", key: "mac-b", contextID: "dev"))
         XCTAssertEqual(model.settings, before)
         XCTAssertEqual(model.workspaceSaveMessage, model.connectionCopy.vanished)
+        XCTAssertEqual(model.workspaceSaveFeedbackKind, .failure)
         XCTAssertTrue(model.setCurrentConnection(displayID: "mac", key: "replacement", contextID: "dev"))
+        XCTAssertEqual(model.workspaceSaveFeedbackKind, .success, "A recovered edit must replace the previous warning")
         XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["dev"]?["mac"], "replacement")
     }
 
@@ -135,6 +139,7 @@ import SidebySystem
         XCTAssertFalse(model.setCurrentConnection(displayID: "mac", key: "mac-b", contextID: "dev"))
         XCTAssertEqual(model.settings, before)
         XCTAssertEqual(model.workspaceSaveMessage, model.saveCopy.saveFailed)
+        XCTAssertEqual(model.workspaceSaveFeedbackKind, .failure)
         model.beginWorkspaceComposer()
         model.editWorkspaceComposer { $0.entries[0].name = "저장 전 편집" }
         let draft = model.workspaceComposerDraft?.state

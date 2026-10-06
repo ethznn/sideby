@@ -1,7 +1,8 @@
 # README media
 
-The current film and product views describe Sideby 1.0.0: connect existing
-Spaces, switch displays together, and adjust connections in place.
+The product views show Sideby 1.0.1. The 1.0.0 promotional film still describes
+the same workflow: connect existing Spaces, switch displays together, and adjust
+connections in place. It uses illustrations, not pixel-exact product screens.
 
 ## Current promotional film
 
@@ -39,7 +40,9 @@ The site honors reduced motion and provides a stop button.
 
 ## Current product views
 
-These images render production SwiftUI/AppKit views using fictional fixtures.
+These 1.0.1 images render production SwiftUI/AppKit views using fictional fixtures.
+Connected cards, dashed empty cells, and the explicit Move together action show
+the difference between editing a connection and switching Spaces.
 No personal desktop, window title, account, or Space configuration is captured.
 
 | PNG | Pixels | Contents |

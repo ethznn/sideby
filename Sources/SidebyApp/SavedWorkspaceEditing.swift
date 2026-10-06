@@ -281,9 +281,9 @@ extension SidebyAppModel {
         next.savedWorkspaces.undo = SavedWorkspaceUndo(contexts: settings.contextPlan.contexts,
             bookmarks: settings.savedWorkspaces.bookmarks, shortcutSlots: settings.savedWorkspaces.shortcutSlots,
             label: label, resultingContexts: next.contextPlan.contexts, resultingBookmarks: next.savedWorkspaces.bookmarks)
-        guard settingsStore.saveChecked(next) else { workspaceSaveMessage = saveCopy.saveFailed; return false }
+        guard settingsStore.saveChecked(next) else { showWorkspaceFeedback(saveCopy.saveFailed, kind: .failure); return false }
         applySavedWorkspaceChange(next)
-        workspaceSaveMessage = label
+        showWorkspaceFeedback(label, kind: .success)
         return true
     }
 
@@ -342,7 +342,7 @@ extension SidebyAppModel {
         let shape: ([ContextDefinition]) -> [String] = { $0.map { $0.id + "\u{0}" + $0.name + "\u{0}" + $0.displayIDs.joined(separator: "\u{0}") } }
         guard shape(settings.contextPlan.contexts) == shape(undo.resultingContexts),
               settings.savedWorkspaces.bookmarks == undo.resultingBookmarks else {
-            workspaceSaveMessage = saveCopy.conflict; return false
+            showWorkspaceFeedback(saveCopy.conflict, kind: .failure); return false
         }
         var next = settings
         next.savedWorkspaces.bookmarks = undo.bookmarks
@@ -350,9 +350,9 @@ extension SidebyAppModel {
         next.savedWorkspaces.undo = nil
         let contexts = next.savedWorkspaces.resolved(undo.contexts, spaceKeys: workspaceObservation()?.spaceKeysByDisplayID ?? [:])
         next.contextPlan.replaceContexts(contexts, currentContextID: next.contextPlan.currentContextID)
-        guard settingsStore.saveChecked(next) else { workspaceSaveMessage = saveCopy.saveFailed; return false }
+        guard settingsStore.saveChecked(next) else { showWorkspaceFeedback(saveCopy.saveFailed, kind: .failure); return false }
         applySavedWorkspaceChange(next)
-        workspaceSaveMessage = saveCopy.undone
+        showWorkspaceFeedback(saveCopy.undone, kind: .success)
         return true
     }
 

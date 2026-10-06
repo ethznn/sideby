@@ -625,7 +625,10 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     var workspaceConfigurationRevision = 0
     @Published var workspaceComposerDraft: WorkspaceComposerDraft?
     @Published var workspaceSaveDraft: WorkspaceSaveDraft?
-    @Published var workspaceSaveMessage: String?
+    @Published var workspaceSaveMessage: String? {
+        didSet { workspaceSaveFeedbackKind = .notice }
+    }
+    @Published var workspaceSaveFeedbackKind: WorkspaceSaveFeedbackKind = .notice
     @Published var workspaceSavedFocusID: String?
     var workspaceSaveController: WorkspaceSaveWindowController?
     var workspaceLegacyRuntimeBookmarks: [String: [String: UInt64]] = [:]

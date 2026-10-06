@@ -1,9 +1,16 @@
 import Foundation
 import SidebyCore
 
+enum WorkspaceSaveFeedbackKind { case notice, success, failure }
+
 /// One live connection table. Each edit changes only bookmarks, never Spaces or app windows.
 extension SidebyAppModel {
     var connectionCopy: CurrentConnectionStrings { .init(language: settings.language) }
+
+    func showWorkspaceFeedback(_ message: String, kind: WorkspaceSaveFeedbackKind) {
+        workspaceSaveMessage = message
+        workspaceSaveFeedbackKind = kind
+    }
 
     /// Read current contents even when an old connection points to a missing
     /// Space. This is presentation data; it must never rename or repair a link.
@@ -24,7 +31,7 @@ extension SidebyAppModel {
         let ids = connectedWorkspaceDisplayIDs.filter { selectedDisplayIDs.contains($0) }
         let keys = ids.compactMap { composerKeys($0, observation: observation) }
         guard !ids.isEmpty, keys.count == ids.count, let count = keys.map(\.count).max(), count > 0 else {
-            workspaceSaveMessage = saveCopy.readUnavailable; return false
+            showWorkspaceFeedback(saveCopy.readUnavailable, kind: .failure); return false
         }
         var next = settings
         var contexts: [ContextDefinition] = []
@@ -53,7 +60,7 @@ extension SidebyAppModel {
         var index: Int?
         if let key {
             guard let found = composerKeys(displayID, observation: observation)?.firstIndex(of: key) else {
-                workspaceSaveMessage = connectionCopy.vanished; return false
+                showWorkspaceFeedback(connectionCopy.vanished, kind: .failure); return false
             }
             index = found
         }
@@ -87,7 +94,7 @@ extension SidebyAppModel {
         guard contexts != settings.contextPlan.contexts || next.savedWorkspaces.bookmarks != settings.savedWorkspaces.bookmarks else { return true }
         next.savedWorkspaces.initialized = true
         next.contextPlan.replaceContexts(contexts, currentContextID: next.contextPlan.currentContextID)
-        return commitSavedWorkspaceChange(next, label: connectionCopy.applied)
+        return commitSavedWorkspaceChange(next, label: connectionCopy.updated(display: displayName(for: displayID), connection: old.name, cleared: key == nil))
     }
 
     /// Move/swap both cells in one checked write and one undo record. Never
@@ -104,9 +111,9 @@ extension SidebyAppModel {
               settings.savedWorkspaces.bookmarks[sourceID]?[displayID] == desktop.key,
               destinationID.map({ id in settings.contextPlan.contexts.contains { $0.id == id }
                   && settings.savedWorkspaces.bookmarks[id]?[displayID] == expectedDestinationKey }) ?? (expectedDestinationKey == nil)
-        else { workspaceSaveMessage = saveCopy.conflict; return false }
+        else { showWorkspaceFeedback(saveCopy.conflict, kind: .failure); return false }
         guard let keys = composerKeys(displayID, observation: workspaceObservation(includingUnselectedDisplays: true)),
-              let index = keys.firstIndex(of: desktop.key) else { workspaceSaveMessage = connectionCopy.vanished; return false }
+              let index = keys.firstIndex(of: desktop.key) else { showWorkspaceFeedback(connectionCopy.vanished, kind: .failure); return false }
         if sourceID == destinationID { return true }
         if copying { return setCurrentConnection(displayID: displayID, key: desktop.key, contextID: destinationID) }
 
@@ -115,7 +122,7 @@ extension SidebyAppModel {
         // A filled target swaps back into the source. Do not silently discard a
         // missing or legacy assignment that cannot be safely resolved by key.
         if destination?.spaceIndex(for: displayID) != nil && reverseIndex == nil {
-            workspaceSaveMessage = connectionCopy.vanished; return false
+            showWorkspaceFeedback(connectionCopy.vanished, kind: .failure); return false
         }
         var next = settings
         var contexts = next.contextPlan.contexts.sorted { $0.order < $1.order }
@@ -145,7 +152,8 @@ extension SidebyAppModel {
         guard contexts != settings.contextPlan.contexts || next.savedWorkspaces.bookmarks != settings.savedWorkspaces.bookmarks else { return true }
         next.savedWorkspaces.initialized = true
         next.contextPlan.replaceContexts(contexts, currentContextID: next.contextPlan.currentContextID)
-        return commitSavedWorkspaceChange(next, label: connectionCopy.applied)
+        let targetName = contexts.first(where: { $0.id == targetID })?.name ?? connectionCopy.add
+        return commitSavedWorkspaceChange(next, label: connectionCopy.transferred(display: displayName(for: displayID), from: source.name, to: targetName, swapped: expectedDestinationKey != nil))
     }
 }
 
@@ -153,10 +161,20 @@ struct CurrentConnectionStrings {
     let language: AppLanguage
     func text(_ en: String, _ ko: String) -> String { language == .korean ? ko : en }
     var title: String { text("Space connections", "Space 연결") }
-    var hint: String { text("Choose a Space in each cell. Changes are remembered immediately.", "칸에서 Space를 고르세요. 변경은 바로 기억합니다.") }
+    var editing: String { text("Edit connections", "연결 수정") }
+    var hint: String { text("Click a cell to edit. Use Move together to switch displays.", "칸을 눌러 연결을 편집하세요. 화면 이동은 ‘함께 이동’을 누르세요.") }
     var scope: String { text("Only connections change. Spaces and app windows stay as they are.", "연결만 바뀝니다. 실제 Space와 앱 창은 그대로입니다.") }
     var dragHint: String { text("Same display: drag to move or swap · ⌥ Option-drag to copy", "같은 모니터의 칸끼리: 드래그로 이동·자리 바꾸기 · ⌥ Option + 드래그로 복사") }
     var applied: String { text("Connection updated. You can undo it.", "연결을 반영했어요. 되돌릴 수 있습니다.") }
+    var notApplied: String { text("Change not applied", "변경을 반영하지 못했어요") }
+    func updated(display: String, connection: String, cleared: Bool) -> String {
+        cleared ? text("\(display) · Removed from ‘\(connection)’.", "\(display) · ‘\(connection)’에서 연결을 해제했어요.")
+            : text("\(display) · Updated ‘\(connection)’.", "\(display) · ‘\(connection)’ 연결을 바꿨어요.")
+    }
+    func transferred(display: String, from: String, to: String, swapped: Bool) -> String {
+        swapped ? text("\(display) · Swapped ‘\(from)’ and ‘\(to)’.", "\(display) · ‘\(from)’와 ‘\(to)’의 자리를 바꿨어요.")
+            : text("\(display) · Moved from ‘\(from)’ to ‘\(to)’.", "\(display) · ‘\(from)’에서 ‘\(to)’로 옮겼어요.")
+    }
     var vanished: String { text("That Space is no longer available. Choose again from the current list.", "해당 Space가 사라졌어요. 현재 목록에서 다시 골라 주세요.") }
     var choose: String { text("Choose Space", "Space 선택") }
     var add: String { text("Add connection", "연결 추가") }
@@ -172,6 +190,7 @@ struct CurrentConnectionStrings {
     var offline: String { text("Disconnected · Kept", "연결 해제됨 · 정보 유지") }
     var excluded: String { text("Excluded from switching", "전환에서 제외됨") }
     var move: String { text("Go to this connection", "이 연결로 이동") }
+    var moveTogether: String { text("Move together", "함께 이동") }
     var undo: String { text("Undo connection change", "연결 변경 되돌리기") }
     var readUnavailable: String { text("Couldn't read Spaces. Check your displays and refresh.", "Space를 읽지 못했어요. 모니터 연결을 확인한 뒤 새로고침하세요.") }
     /// Position in this display's Space list, not a Mission Control desktop name.
