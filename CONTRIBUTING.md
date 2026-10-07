@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing to Sideby.
 
-Sideby is pre-1.0 software, so product ideas, usability feedback, bug reports, and careful macOS testing are all useful.
+Sideby 1.x is available through [GitHub Releases](https://github.com/ethznn/sideby/releases/latest). Product ideas, usability feedback, bug reports, and careful macOS testing are welcome.
 
 ## Setup
 
@@ -20,9 +20,12 @@ swift test
 Build local app bundles:
 
 ```bash
-scripts/build_app_bundle.sh
+# Read the latest Sparkle build number, then use that number plus one.
+SIDEBY_BUILD_NUMBER="<next-build-number>" scripts/build_app_bundle.sh
 scripts/build_dev_app_bundle.sh
 ```
+
+The current build number is in the [published Sparkle feed](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml). A local bundle build does not publish a release.
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the short development reference.
 

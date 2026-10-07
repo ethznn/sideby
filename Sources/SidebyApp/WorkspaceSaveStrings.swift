@@ -15,7 +15,7 @@ struct WorkspaceSaveStrings {
     var deleteAll: String { text("Delete all saved setups…", "저장한 구성 모두 삭제…") }
     var deleteAllAction: String { text("Delete all", "모두 삭제") }
     func deleteAllTitle(_ count: Int) -> String { text("Delete all \(count) saved setups?", "저장한 구성 \(count)개를 모두 삭제할까요?") }
-    var deleteAllMessage: String { text("Includes setups on disconnected displays. Your desktops, apps and other settings stay as they are. You can undo this until your next setup change.", "연결되지 않은 화면의 구성도 함께 삭제합니다. 실제 데스크탑·열려 있는 앱·다른 설정은 그대로 유지돼요. 다음에 구성을 추가하거나 수정하기 전까지 ‘최근 변경 되돌리기’로 복구할 수 있어요.") }
+    var deleteAllMessage: String { text("Includes setups on disconnected displays. Your desktops, apps and other settings stay as they are. Undo keeps the last 20 connection changes, including after restarting Sideby.", "연결되지 않은 화면의 구성도 함께 삭제합니다. 실제 데스크탑·열려 있는 앱·다른 설정은 그대로 유지돼요. 앱을 다시 열어도 최근 연결 변경 20단계까지 되돌릴 수 있습니다.") }
     var deleteAllChanged: String { text("The saved setups changed. Review the list before deleting all.", "저장한 구성이 변경됐어요. 목록을 확인한 뒤 다시 삭제해 주세요.") }
     func deletedAll(_ count: Int) -> String { text("Deleted \(count) saved setups. You can undo this.", "저장한 구성 \(count)개를 모두 삭제했어요. 최근 변경을 되돌릴 수 있어요.") }
     var cancel: String { text("Cancel", "취소") }

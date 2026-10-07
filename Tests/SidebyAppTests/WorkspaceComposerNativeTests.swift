@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import XCTest
 import SidebyCore
+import SidebySystem
 @testable import SidebyApp
 
 @MainActor final class WorkspaceComposerNativeTests: XCTestCase {
@@ -778,6 +779,371 @@ import SidebyCore
         }
     }
 
+    func testClearAllConnectionsHasConfirmationAndUndoInBothLanguages() async throws {
+        try requireNative()
+        for english in [false, true] {
+            let model = fixture()
+            if english { model.settings.language = .english }
+            let before = model.settings
+            let size = NSSize(width: 760, height: 560)
+            let window = NSWindow(contentRect: .init(origin: .zero, size: size), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            defer { window.close() }
+            let navigation = ProductUINavigation(preferences: MemoryProductUIPreferences())
+            window.contentView = NSHostingView(rootView: ProductSettingsView(model: model, navigation: navigation,
+                canCheckForUpdates: false, actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {}))
+                .frame(width: size.width, height: size.height))
+            window.center(); window.makeKeyAndOrderFront(nil); window.orderFrontRegardless()
+            try await Task.sleep(for: .milliseconds(300))
+            XCTAssertNil(element("connections-refresh", in: window))
+            XCTAssertNil(element("connections-retry", in: window))
+            let clear = try XCTUnwrap(element("connections-clear-all", in: window))
+            XCTAssertTrue(window.frame.contains(try frame(clear)))
+            try capture(window, name: "connection-cleanup-\(english ? "en" : "ko")")
+            try click(clear, window: window)
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertEqual(model.settings, before)
+            let cancelSheet = try XCTUnwrap(window.attachedSheet)
+            try XCTUnwrap(alertButton(model.saveCopy.cancel, in: cancelSheet.contentView)).performClick(nil)
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertEqual(model.settings, before)
+            try click(XCTUnwrap(element("connections-clear-all", in: window)), window: window)
+            try await Task.sleep(for: .milliseconds(200))
+            let confirmSheet = try XCTUnwrap(window.attachedSheet)
+            try capture(confirmSheet, name: "connection-clear-confirm-\(english ? "en" : "ko")")
+            try XCTUnwrap(alertButton(model.connectionCopy.clearAllAction, in: confirmSheet.contentView)).performClick(nil)
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+            XCTAssertFalse(model.isSwitching)
+            XCTAssertNil(element("connections-clear-all", in: window))
+            XCTAssertNotNil(element("connection-desktop-sources", in: window))
+            try click(XCTUnwrap(element("connections-undo", in: window)), window: window)
+            XCTAssertEqual(model.settings.contextPlan.contexts, before.contextPlan.contexts)
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+            XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, before.savedWorkspaces.shortcutSlots)
+        }
+    }
+
+    private func alertButton(_ title: String, in view: NSView?) -> NSButton? {
+        guard let view else { return nil }
+        if let button = view as? NSButton, button.title == title { return button }
+        return view.subviews.lazy.compactMap { self.alertButton(title, in: $0) }.first
+    }
+
+    private func currentSettingsWindow(_ model: SidebyAppModel) -> NSWindow {
+        let size = NSSize(width: 760, height: 560)
+        let window = NSWindow(contentRect: .init(origin: .zero, size: size), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let navigation = ProductUINavigation(preferences: MemoryProductUIPreferences())
+        window.contentView = NSHostingView(rootView: ProductSettingsView(model: model, navigation: navigation,
+            canCheckForUpdates: false, actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {}))
+            .frame(width: size.width, height: size.height))
+        window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); window.orderFrontRegardless()
+        return window
+    }
+
+    func testConnectionMultiSelectionCancelRemoveAndUndoInBothLanguages() async throws {
+        try requireNative()
+        for english in [false, true] {
+            let model = fixture(contexts: 3)
+            model.settings.language = english ? .english : .korean
+            let original = model.settings
+            let window = currentSettingsWindow(model)
+            defer { window.close() }
+            try await Task.sleep(for: .milliseconds(250))
+            let start = try XCTUnwrap(element("connections-select", in: window))
+            XCTAssertTrue(window.frame.contains(try frame(start)))
+            try click(start, window: window)
+            try await Task.sleep(for: .milliseconds(150))
+            XCTAssertNil(element("connection-go-setup-0", in: window), "Selection mode must not expose switching actions")
+            XCTAssertNil(element("connection-desktop-sources", in: window))
+            XCTAssertNil(element("connection-new-hint", in: window))
+            try click(XCTUnwrap(element("connections-remove-selected", in: window)), window: window)
+            XCTAssertNil(window.attachedSheet, "An empty selection cannot be removed")
+            try click(XCTUnwrap(element("connection-select-setup-0", in: window)), window: window)
+            try click(XCTUnwrap(element("connection-cell-setup-1-display-1", in: window)), window: window)
+            try await Task.sleep(for: .milliseconds(150))
+            let remove = try XCTUnwrap(element("connections-remove-selected", in: window))
+            XCTAssertEqual(attribute(remove, "AXTitle") as? String, model.connectionCopy.removeSelected(2))
+            XCTAssertEqual(model.settings, original, "Selecting cells must not edit or switch connections")
+            XCTAssertFalse(model.isSwitching)
+            XCTAssertTrue(window.frame.contains(try frame(remove)))
+            try capture(window, name: "multi-selection-\(english ? "en" : "ko")")
+            try click(remove, window: window)
+            try await Task.sleep(for: .milliseconds(150))
+            let cancel = try XCTUnwrap(window.attachedSheet)
+            try capture(cancel, name: "multi-selection-confirm-\(english ? "en" : "ko")")
+            try XCTUnwrap(alertButton(model.saveCopy.cancel, in: cancel.contentView)).performClick(nil)
+            try await Task.sleep(for: .milliseconds(150))
+            XCTAssertEqual(model.settings, original)
+            XCTAssertEqual(attribute(try XCTUnwrap(element("connections-remove-selected", in: window)), "AXTitle") as? String,
+                model.connectionCopy.removeSelected(2), "Cancelling confirmation must keep the selection")
+            try click(XCTUnwrap(element("connections-remove-selected", in: window)), window: window)
+            try await Task.sleep(for: .milliseconds(150))
+            let sheet = try XCTUnwrap(window.attachedSheet)
+            try XCTUnwrap(alertButton(model.connectionCopy.removeSelectedAction, in: sheet.contentView)).performClick(nil)
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertEqual(model.settings.contextPlan.contexts.map(\.id), ["setup-2"])
+            XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, ["setup-2": 3])
+            XCTAssertNotNil(element("connections-select", in: window), "Successful removal must finish selection mode")
+            try click(XCTUnwrap(element("connections-undo", in: window)), window: window)
+            try await Task.sleep(for: .milliseconds(100))
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original.savedWorkspaces.bookmarks)
+            XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, original.savedWorkspaces.shortcutSlots)
+            XCTAssertEqual(model.settings.contextPlan.contexts, original.contextPlan.contexts)
+        }
+    }
+
+    func testConnectionSelectAllCanFinishWithoutChangesAndDeleteToEmpty() async throws {
+        try requireNative()
+        let model = fixture(contexts: 4)
+        let original = model.settings
+        let window = currentSettingsWindow(model)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(250))
+        try click(XCTUnwrap(element("connections-select", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(100))
+        try click(XCTUnwrap(element("connections-select-all", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(attribute(try XCTUnwrap(element("connections-remove-selected", in: window)), "AXTitle") as? String, model.connectionCopy.removeSelected(4))
+        try click(XCTUnwrap(element("connections-select-all", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(attribute(try XCTUnwrap(element("connections-remove-selected", in: window)), "AXTitle") as? String, model.connectionCopy.removeSelected(0))
+        try click(XCTUnwrap(element("connection-select-setup-0", in: window)), window: window)
+        try click(XCTUnwrap(element("connections-finish-selection", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(model.settings, original)
+        try click(XCTUnwrap(element("connections-select", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(attribute(try XCTUnwrap(element("connections-remove-selected", in: window)), "AXTitle") as? String, model.connectionCopy.removeSelected(0))
+        try click(XCTUnwrap(element("connections-select-all", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(100))
+        try click(XCTUnwrap(element("connections-remove-selected", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(150))
+        let sheet = try XCTUnwrap(window.attachedSheet)
+        try XCTUnwrap(alertButton(model.connectionCopy.removeSelectedAction, in: sheet.contentView)).performClick(nil)
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+        XCTAssertNotNil(element("connection-cell-new-display-0", in: window))
+        XCTAssertNil(element("connections-remove-selected", in: window))
+        try click(XCTUnwrap(element("connections-undo", in: window)), window: window)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original.savedWorkspaces.bookmarks)
+    }
+
+    func testShortcutEditorMultiSelectionDoesNotSwitchOrChangeCells() async throws {
+        try requireNative()
+        let model = fixture(contexts: 2)
+        let original = model.settings
+        let size = NSSize(width: 680, height: 560)
+        let window = HeldMatrixPanel(contentRect: .init(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.acceptsKeyboard = true
+        defer { window.close() }
+        var switches = 0
+        window.contentView = HeldMatrixHostingView(rootView: HeldWorkspaceMatrixView(model: model,
+            snapshot: .init(model: model), select: { _ in switches += 1 }, keepOpen: {}).frame(width: size.width, height: size.height))
+        window.center(); window.makeKeyAndOrderFront(nil); window.orderFrontRegardless()
+        try await Task.sleep(for: .milliseconds(250))
+        try click(XCTUnwrap(element("held-edit-connections", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(150))
+        try click(XCTUnwrap(element("connections-select", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(150))
+        try click(XCTUnwrap(element("connection-select-setup-0", in: window)), window: window)
+        try click(XCTUnwrap(element("connection-cell-setup-1-display-1", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(switches, 0)
+        XCTAssertEqual(model.settings, original)
+        XCTAssertNil(element("connection-go-setup-0", in: window))
+        try capture(window, name: "multi-selection-shortcut")
+        try click(XCTUnwrap(element("connections-finish-selection", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertNotNil(element("connection-go-setup-0", in: window))
+        XCTAssertEqual(switches, 0)
+        XCTAssertTrue(window.isVisible)
+    }
+
+    func testEmptyConnectionLifecycleCreatesOnlyOneAndUndoRestoresClearedConnections() async throws {
+        try requireNative()
+        for english in [false, true] {
+            let model = fixture()
+            model.settings.language = english ? .english : .korean
+            let original = model.settings.savedWorkspaces.bookmarks
+            let slots = model.settings.savedWorkspaces.shortcutSlots
+            let window = currentSettingsWindow(model)
+            defer { window.close() }
+            try await Task.sleep(for: .milliseconds(250))
+            try click(XCTUnwrap(element("connections-clear-all", in: window)), window: window)
+            try await Task.sleep(for: .milliseconds(150))
+            let sheet = try XCTUnwrap(window.attachedSheet)
+            try XCTUnwrap(alertButton(model.connectionCopy.clearAllAction, in: sheet.contentView)).performClick(nil)
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+            let emptyCell = try XCTUnwrap(element("connection-cell-new-display-0", in: window))
+            XCTAssertTrue(window.frame.contains(try frame(emptyCell)), "An empty library must still have a visible drop/click target")
+            XCTAssertTrue(window.frame.contains(try frame(XCTUnwrap(element("connections-undo", in: window)))))
+            try capture(window, name: "empty-restart-\(english ? "en" : "ko")")
+            try click(XCTUnwrap(element("connection-source-display-0-1", in: window)), window: window)
+            try await Task.sleep(for: .milliseconds(100))
+            try click(emptyCell, window: window)
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertEqual(model.settings.contextPlan.contexts.count, 1)
+            let id = try XCTUnwrap(model.settings.contextPlan.contexts.first?.id)
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks[id], ["display-0": "display-0-space-1"])
+            XCTAssertNil(model.workspaceSaveDraft)
+            XCTAssertFalse(model.isSwitching)
+            // Clear the last cell using the explicit action, then rebuild directly again.
+            try click(XCTUnwrap(element("connection-cell-" + id + "-display-0", in: window)), window: window)
+            try await Task.sleep(for: .milliseconds(150))
+            let (clear, popup) = try popupElement("connection-clear")
+            XCTAssertEqual(attribute(clear, "AXTitle") as? String, model.connectionCopy.clearCell)
+            try click(clear, window: popup)
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+            XCTAssertNotNil(element("connection-cell-new-display-0", in: window))
+            for _ in 0..<3 {
+                try click(XCTUnwrap(element("connections-undo", in: window)), window: window)
+                try await Task.sleep(for: .milliseconds(150))
+            }
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original)
+            XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, slots)
+            XCTAssertNil(element("connections-undo", in: window))
+            try capture(window, name: "lifecycle-restored-\(english ? "en" : "ko")")
+        }
+    }
+
+    func testConnectionUndoKeyboardShortcutStepsBackTwice() async throws {
+        try requireNative()
+        let session = CGSessionCopyCurrentDictionary() as? [String: Any]
+        try XCTSkipIf(session?["CGSSessionScreenIsLocked"] as? Bool == true, "Keyboard routing needs an unlocked key window")
+        let model = fixture(contexts: 2)
+        let original = model.settings.savedWorkspaces.bookmarks
+        let window = currentSettingsWindow(model)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(250))
+        // XCTest's run loop does not dispatch AppKit activation events on its own.
+        // Use the same event pump as the library keyboard regression before routing keys.
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        let activation = Task.detached {
+            try await Task.sleep(for: .milliseconds(250))
+            DispatchQueue.main.async {
+                NSApp.stop(nil)
+                if let wake = NSEvent.otherEvent(with: .applicationDefined, location: .zero, modifierFlags: [],
+                    timestamp: 0, windowNumber: 0, context: nil, subtype: 0, data1: 0, data2: 0) {
+                    NSApp.postEvent(wake, atStart: true)
+                }
+            }
+        }
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue) {
+            MainActor.assumeIsolated { NSApp.run() }
+        }
+        CFRunLoopWakeUp(CFRunLoopGetMain())
+        try await activation.value
+        try await Task.sleep(for: .milliseconds(100))
+        try XCTSkipUnless(window.isKeyWindow, "The test window could not become the key window")
+        XCTAssertTrue(model.setCurrentConnection(displayID: "display-0", key: "display-0-space-2", contextID: "setup-0"))
+        XCTAssertTrue(model.setCurrentConnection(displayID: "display-1", key: "display-1-space-3", contextID: "setup-0"))
+        try await Task.sleep(for: .milliseconds(150))
+        for _ in 0..<2 {
+            let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                context: nil, characters: "z", charactersIgnoringModifiers: "z", isARepeat: false, keyCode: 6))
+            XCTAssertTrue(window.performKeyEquivalent(with: event), "Command-Z must use the same connection history")
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original)
+    }
+
+    func testEmptyConnectionCanStartWithNativeDrag() async throws {
+        try requireNative()
+        let session = CGSessionCopyCurrentDictionary() as? [String: Any]
+        try XCTSkipIf(session?["CGSSessionScreenIsLocked"] as? Bool == true, "Native drag needs an unlocked graphical session")
+        let model = fixture(contexts: 0)
+        let window = currentSettingsWindow(model)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(250))
+        try await moveMouse(from: frame(XCTUnwrap(element("connection-source-display-0-1", in: window))),
+                            to: frame(XCTUnwrap(element("connection-cell-new-display-0", in: window))))
+        XCTAssertEqual(model.settings.contextPlan.contexts.count, 1)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks.values.first, ["display-0": "display-0-space-1"])
+        XCTAssertFalse(model.isSwitching)
+    }
+
+    func testDisplayClearMenuConfirmsAndUndoRestoresItsRow() async throws {
+        try requireNative()
+        let model = fixture(contexts: 2)
+        let original = model.settings.savedWorkspaces.bookmarks
+        let window = currentSettingsWindow(model)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(250))
+        let observer = ConnectionMenuSelection(title: model.connectionCopy.clearDisplay)
+        NotificationCenter.default.addObserver(observer, selector: #selector(ConnectionMenuSelection.choose(_:)),
+            name: NSMenu.didBeginTrackingNotification, object: nil)
+        defer { NotificationCenter.default.removeObserver(observer) }
+        try click(XCTUnwrap(element("connection-display-actions-display-0", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(200))
+        let sheet = try XCTUnwrap(window.attachedSheet)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original)
+        try capture(sheet, name: "clear-display-confirm-ko")
+        try XCTUnwrap(alertButton(model.connectionCopy.clearAllAction, in: sheet.contentView)).performClick(nil)
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(model.settings.contextPlan.contexts.allSatisfy { $0.displayIDs == ["display-1"] })
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["setup-0"]?["display-1"], original["setup-0"]?["display-1"])
+        try click(XCTUnwrap(element("connections-undo", in: window)), window: window)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original)
+        XCTAssertFalse(model.isSwitching)
+    }
+
+    @MainActor private final class ConnectionMenuSelection: NSObject {
+        let title: String
+        init(title: String) { self.title = title }
+        @objc func choose(_ notification: Notification) {
+            guard let menu = notification.object as? NSMenu else { return }
+            // NSMenu tracks in its own run-loop mode while sendEvent is blocked.
+            perform(#selector(selectItem(_:)), with: menu, afterDelay: 0.15, inModes: [.eventTracking, .default])
+        }
+        @objc func selectItem(_ menu: NSMenu) {
+            defer { menu.cancelTracking() }
+            guard let index = menu.items.firstIndex(where: { $0.title == title }) else {
+                XCTFail("Missing cleanup menu item: \(menu.items.map(\.title))")
+                return
+            }
+            menu.performActionForItem(at: index)
+        }
+    }
+
+    func testLiveConnectionRefreshOnlyReadsForVisibleUnpausedViews() async throws {
+        try requireNative()
+        let model = fixture()
+        model.workspaceNameSuggestionProvider = NativeConnectionNames()
+        let view = CurrentConnectionsLiveRefresh.RefreshView()
+        view.model = model
+        let window = NSWindow(contentRect: .init(x: 0, y: 0, width: 200, height: 120), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.contentView = nil; window.close() }
+        window.contentView = view
+        await view.refreshIfVisible()
+        XCTAssertNil(model.connectionContentRefreshTime, "Hidden windows must not read the desktop")
+        let session = CGSessionCopyCurrentDictionary() as? [String: Any]
+        guard session?["CGSSessionScreenIsLocked"] as? Bool != true else {
+            throw XCTSkip("WindowServer visibility is unavailable while the Mac is locked; hidden-view suppression was checked")
+        }
+        view.paused = true
+        window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); window.orderFrontRegardless()
+        try await Task.sleep(for: .milliseconds(150))
+        await view.refreshIfVisible()
+        XCTAssertNil(model.connectionContentRefreshTime, "Dragging, selecting, and confirmation pause polling")
+        view.paused = false
+        await view.refreshIfVisible()
+        XCTAssertEqual(model.workspaceDesktopNames["display-0"]?[0], "Fresh document title")
+        XCTAssertNotNil(model.connectionContentRefreshTime)
+        let lastRead = model.connectionContentRefreshTime
+        window.orderOut(nil)
+        try await Task.sleep(for: .seconds(2.1))
+        XCTAssertEqual(model.connectionContentRefreshTime, lastRead)
+    }
+
     func testCurrentConnectionsMenuEditsInlineAndRemembersWithoutSaveOrNavigation() async throws {
         try requireNative()
         for english in [false, true] {
@@ -1046,4 +1412,10 @@ import SidebyCore
         XCTAssertFalse(model.isSwitching)
     }
 
+}
+
+private struct NativeConnectionNames: SpaceNameSuggestionProviding {
+    func names(for layout: DisplayLayout, spaceIDsByDisplayID: [String: [UInt64]]) -> [String: [Int: String]] {
+        ["display-0": [0: "Fresh document title"]]
+    }
 }

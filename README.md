@@ -16,7 +16,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 [Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](docs/media/preview.html)
 
-*Sideby 1.0.1 · [What’s new](docs/releases/1.0.1.md).*
+*Sideby 1.0.2 · [What’s new](docs/releases/1.0.2.md).*
 
 ## See and connect in one window
 
@@ -27,8 +27,8 @@ Connect the Spaces you already use across your displays. When your environment c
 *Actual app view with fictional data.*
 
 1. Open **Sideby in the menu bar → Settings**. It opens directly to **Space connections**.
-2. Review the Spaces above the table. Available app/window titles, Space positions, and **On screen** markers show what is open. Start with **Connect in current order**.
-3. Drag a Space into a cell for the same display below. You can also click a Space, then a cell. Changes are remembered immediately. Use **Undo** or `⌘Z` to undo the last change.
+2. Review the Spaces above the table. Available app/window titles, Space positions, and **On screen** markers show what is open.
+3. Drag a Space into an empty cell for the same display to make your first connection. You can also click a Space, then a cell. Changes are remembered immediately. Use **Undo** or `⌘Z` to step back through the last 20 changes, including after restarting Sideby.
 
 Spaces in the same column switch together. You can also click a cell to choose directly.
 
@@ -37,7 +37,11 @@ Spaces in the same column switch together. You can also click a cell to choose d
 - **Copy:** **Hold ⌥ Option when dropping** to keep the source cell. Dragging from the Space list also keeps the list intact.
 - **Undo:** **Undo** restores both cells in one step.
 
-Right-click a column heading to reorder or remove its connection. Removing a connection keeps the actual desktops and app windows.
+To clear one cell, click it and choose **Disconnect this cell**. Use **… → Clear connections for this display…** beside a display name to clear just that row. Connections for disconnected displays can also be cleared; other displays' connections are kept. Use a column heading's **…** or right-click menu to reorder or remove a column.
+
+To remove several columns together, choose **Select connections** at the table's top left. Click headings or cells to select their columns, then choose **Remove N selected…** and confirm. You can also **Select all**. **Cancel** leaves your connections unchanged and exits selection mode. One **Undo** restores the removed columns together. Clicking cells in selection mode does not edit connections or switch Spaces.
+
+To start over, choose **Clear all connections…** and confirm. This also clears connections for disconnected displays. The actual Spaces and app windows stay open. Empty cells remain available so you can immediately create a new connection. If you change your mind while rebuilding, use **Undo** repeatedly to go back. Clearing all connections counts as one of the last 20 changes.
 
 Click **Move together** below a column heading to move your screens. Filled cards show connected Spaces; dashed **+** cells are available for a connection. Use **Add connection** to reveal the blank column, or the **…** menu to reorder or remove a connection. Editing a cell or dragging a desktop does not switch screens. Displays excluded from switching remain where they are.
 
@@ -45,7 +49,7 @@ Click **Move together** below a column heading to move your screens. Filled card
 
 1. Download the DMG from [GitHub Releases](https://github.com/ethznn/sideby/releases), move Sideby to Applications, and open it.
 2. Allow Accessibility and Screen Switching access in the guide.
-3. Choose **Connect in current order**, then start using Sideby. Naming, saving, and switching practice are not required.
+3. Choose Spaces in the empty cells to make a connection. You can also choose **Connect in current order** to pair Spaces at the same positions across selected displays. Naming, saving, and switching practice are not required.
 
 Existing connections, names, and numbered shortcuts are kept. No recreation or deletion is required. If you have an unsaved draft in an older editor, finish it before changing connections here.
 
@@ -69,7 +73,7 @@ Connections follow the same surviving desktops when their order changes. A missi
 
 **Space** refers to a macOS workspace, including regular desktops and full-screen apps. **Space · position 3** means its position in that display’s list, not a Mission Control name such as “Desktop 3.” Available app/window names are shown first.
 
-Refresh rereads desktops and available app/window titles. Custom desktop names take priority. These labels do not rename Mission Control desktops. If writing settings fails, Sideby reports the problem and keeps the existing connections.
+While the connection editor is visible, Space lists and available app/window titles update automatically. If Spaces cannot be read, use **Read again** after checking the display connection. Custom desktop names take priority. These labels do not rename Mission Control desktops. If writing settings fails, Sideby reports the problem and keeps the existing connections.
 
 Sideby connects and switches existing Spaces. It does not create or delete desktops, launch apps, put them into full screen, or restore window positions.
 
@@ -79,7 +83,7 @@ Sideby uses Accessibility for its configured global gesture and available app/wi
 
 Setup names, desktop connection bookmarks, custom desktop names, display choices, shortcut assignments, undo data, migration backups, input preferences, and guide progress stay locally on your Mac. Runtime numeric Space IDs, window IDs, raw input events, and screenshots are not saved. Sideby does not save typed input from its global shortcut handling.
 
-The direct-distribution app uses private SkyLight APIs with App Sandbox off. Updates use Sparkle 2, with user-approved installation.
+The direct-distribution app uses private SkyLight APIs with App Sandbox off. Updates use Sparkle 2, with user-approved installation. The update window follows your selected app language after Sideby is reopened; release notes are in English.
 
 ## Development
 

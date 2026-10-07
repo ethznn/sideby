@@ -45,6 +45,147 @@ import SidebySystem
         XCTAssertFalse(model.isSwitching)
     }
 
+    func testClearCreateEditRestartAndUndoAllTheWayBack() throws {
+        let model = fixture()
+        let original = model.settings
+        XCTAssertTrue(model.removeConnections(try XCTUnwrap(model.prepareConnectionRemoval(.all))))
+        XCTAssertTrue(model.setCurrentConnection(displayID: "mac", key: "mac-b", contextID: nil))
+        let id = try XCTUnwrap(model.settings.contextPlan.contexts.first?.id)
+        XCTAssertEqual(model.settings.contextPlan.contexts.count, 1)
+        XCTAssertTrue(model.setCurrentConnection(displayID: "studio", key: "studio-c", contextID: id))
+        model.settings = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(model.settings))
+        model.workspaceObservationOverride = { self.observation(keys: ["mac-c", "mac-b", "mac-a"]) }
+        model.refreshWorkspaceStatus()
+        XCTAssertEqual(model.settings.savedWorkspaces.undoCount, 3)
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks[id], ["mac": "mac-b"])
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original.savedWorkspaces.bookmarks)
+        XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, original.savedWorkspaces.shortcutSlots)
+        XCTAssertEqual(model.settings.contextPlan.contexts.first?.spaceIndex(for: "mac"), 2)
+        XCTAssertEqual(model.settings.savedWorkspaces.undoCount, 0)
+        XCTAssertFalse(model.undoSavedWorkspaceChange())
+        XCTAssertFalse(model.isSwitching)
+    }
+
+    func testClearOneDisplayKeepsOtherMembersAndWorksOffline() throws {
+        let model = fixture()
+        let original = model.settings
+        let selection = model.selectedDisplayIDs
+        let proposal = try XCTUnwrap(model.prepareConnectionRemoval(.display("studio")))
+        XCTAssertEqual(proposal.count, 3)
+        XCTAssertTrue(model.removeConnections(proposal))
+        XCTAssertTrue(model.settings.contextPlan.contexts.allSatisfy { !$0.displayIDs.contains("studio") })
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["dev"], ["mac": "mac-a", "offline": "offline-key"])
+        XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, original.savedWorkspaces.shortcutSlots)
+        XCTAssertEqual(model.selectedDisplayIDs, selection)
+        XCTAssertTrue(model.removeConnections(try XCTUnwrap(model.prepareConnectionRemoval(.display("offline")))))
+        XCTAssertNil(model.settings.savedWorkspaces.bookmarks["dev"]?["offline"])
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original.savedWorkspaces.bookmarks)
+        XCTAssertFalse(model.isSwitching)
+    }
+
+    func testClearingLastDisplayRemovesColumnsAndRestoresTheirShortcuts() throws {
+        let model = fixture()
+        let original = model.settings
+        for id in ["offline", "studio", "mac"] {
+            XCTAssertTrue(model.removeConnections(try XCTUnwrap(model.prepareConnectionRemoval(.display(id)))))
+        }
+        XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+        XCTAssertTrue(model.settings.savedWorkspaces.shortcutSlots.isEmpty)
+        for _ in 0..<3 { XCTAssertTrue(model.undoSavedWorkspaceChange()) }
+        XCTAssertEqual(model.settings.contextPlan.contexts, original.contextPlan.contexts)
+        XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, original.savedWorkspaces.shortcutSlots)
+    }
+
+    func testOfflineCellCanBeClearedWithoutReadingOrMovingSpaces() {
+        let model = fixture()
+        let before = model.settings
+        model.workspaceObservationOverride = { nil }
+        XCTAssertTrue(model.setCurrentConnection(displayID: "offline", key: nil, contextID: "dev"))
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["dev"], ["mac": "mac-a", "studio": "studio-a"])
+        XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, before.savedWorkspaces.shortcutSlots)
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        XCTAssertFalse(model.isSwitching)
+    }
+
+    func testRemovalConfirmationAndFailedWritesDoNotLoseEditsOrHistory() throws {
+        let model = fixture()
+        let stale = try XCTUnwrap(model.prepareConnectionRemoval(.display("studio")))
+        XCTAssertTrue(model.setCurrentConnection(displayID: "mac", key: "mac-c", contextID: "dev"))
+        let before = model.settings
+        XCTAssertFalse(model.removeConnections(stale))
+        XCTAssertEqual(model.settings, before)
+        let proposal = try XCTUnwrap(model.prepareConnectionRemoval(.display("studio")))
+        model.settingsStore = ConnectionRejectingStore()
+        XCTAssertFalse(model.removeConnections(proposal))
+        XCTAssertFalse(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings, before)
+        XCTAssertEqual(model.workspaceSaveFeedbackKind, .failure)
+        XCTAssertFalse(model.isSwitching)
+    }
+
+    func testSelectedConnectionsAreRemovedAndRestoredTogetherAfterReload() throws {
+        let model = fixture()
+        let original = model.settings
+        let selectedDisplays = model.selectedDisplayIDs
+        XCTAssertNil(model.prepareConnectionRemoval(.connections([])))
+        XCTAssertNil(model.prepareConnectionRemoval(.connections(["unknown"])))
+        let proposal = try XCTUnwrap(model.prepareConnectionRemoval(.connections(["dev", "meeting"])))
+        XCTAssertEqual(proposal.count, 2)
+        XCTAssertEqual(model.settings, original, "Preparing or cancelling a confirmation must not change settings")
+        XCTAssertTrue(model.removeConnections(proposal))
+        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.id), ["review"])
+        XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, ["review": 2])
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, ["review": original.savedWorkspaces.bookmarks["review"]!])
+        XCTAssertEqual(model.settings.savedWorkspaces.undoCount, 1, "A batch must be one undo step")
+        model.settings = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(model.settings))
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.contextPlan.contexts, original.contextPlan.contexts)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original.savedWorkspaces.bookmarks, "Offline connections must also return")
+        XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, original.savedWorkspaces.shortcutSlots)
+        XCTAssertEqual(model.selectedDisplayIDs, selectedDisplays)
+        XCTAssertFalse(model.isSwitching)
+    }
+
+    func testSelectedRemovalRejectsStaleConfirmationAndFailedStorage() throws {
+        let model = fixture()
+        let scope = ConnectionRemovalScope.connections(["dev", "meeting"])
+        let stale = try XCTUnwrap(model.prepareConnectionRemoval(scope))
+        XCTAssertTrue(model.setCurrentConnection(displayID: "mac", key: "mac-b", contextID: "dev"))
+        let before = model.settings
+        XCTAssertFalse(model.removeConnections(stale))
+        XCTAssertEqual(model.settings, before)
+        let proposal = try XCTUnwrap(model.prepareConnectionRemoval(scope))
+        model.settingsStore = ConnectionRejectingStore()
+        XCTAssertFalse(model.removeConnections(proposal))
+        XCTAssertEqual(model.settings, before)
+        model.isSwitching = true
+        XCTAssertFalse(model.removeConnections(proposal))
+        XCTAssertEqual(model.settings, before)
+    }
+
+    func testSelectingAllCanReachEmptyAndCreateOneThenUndoTwice() throws {
+        let model = fixture()
+        let original = model.settings
+        let proposal = try XCTUnwrap(model.prepareConnectionRemoval(.connections(Set(original.contextPlan.contexts.map(\.id)))))
+        XCTAssertTrue(model.removeConnections(proposal))
+        XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+        XCTAssertTrue(model.settings.savedWorkspaces.bookmarks.isEmpty)
+        XCTAssertTrue(model.setCurrentConnection(displayID: "mac", key: "mac-b", contextID: nil))
+        XCTAssertEqual(model.settings.contextPlan.contexts.count, 1)
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original.savedWorkspaces.bookmarks)
+        XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, original.savedWorkspaces.shortcutSlots)
+    }
+
     func testContentRefreshReadsCurrentTitlesEvenWithMissingConnectionsWithoutMutatingSettings() {
         let model = fixture()
         model.settings.savedWorkspaces.bookmarks["dev"]?["mac"] = "vanished"
@@ -57,6 +198,57 @@ import SidebySystem
         XCTAssertEqual(model.workspaceDesktopNames["studio"]?[0], "Current browser")
         XCTAssertEqual(model.settings, before)
         XCTAssertFalse(model.isSwitching)
+    }
+
+    func testAutomaticRefreshUpdatesTitlesPreservesConnectionsAndThrottlesRepeatedReads() async {
+        let model = fixture()
+        let provider = ConnectionNameProbe()
+        model.workspaceNameSuggestionProvider = provider
+        let before = model.settings
+        await model.refreshVisibleConnections()
+        XCTAssertEqual(model.workspaceDesktopNames["mac"]?[0], "Updated document")
+        XCTAssertEqual(provider.readCount, 1)
+        await model.refreshVisibleConnections()
+        XCTAssertEqual(provider.readCount, 1, "Two visible editors must not duplicate expensive title reads")
+        XCTAssertEqual(model.settings, before)
+        model.isSwitching = true
+        await model.refreshVisibleConnections(force: true)
+        XCTAssertEqual(provider.readCount, 1)
+        model.isSwitching = false
+        await model.refreshVisibleConnections(force: true)
+        XCTAssertEqual(provider.readCount, 2, "An explicit retry bypasses only the time throttle")
+    }
+
+    func testAutomaticRefreshDiscardsTitlesIfSpacesChangeWhileReading() async throws {
+        let model = fixture()
+        let provider = ConnectionNameProbe(blocks: true)
+        model.workspaceNameSuggestionProvider = provider
+        model.workspaceDesktopNames = ["mac": [0: "Previous document"]]
+        let refresh = Task { await model.refreshVisibleConnections() }
+        defer { provider.resume.signal() }
+        for _ in 0..<100 where provider.readCount == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(provider.readCount, 1)
+        model.workspaceObservationOverride = { self.observation(keys: ["mac-c", "mac-a", "mac-b"]) }
+        provider.resume.signal()
+        await refresh.value
+        XCTAssertEqual(model.workspaceDesktopNames["mac"]?[0], "Previous document")
+        XCTAssertFalse(model.connectionContentRefreshInFlight)
+    }
+
+    func testClearedConnectionsStayEmptyDuringAutomaticRefreshAndCanBeUndone() async throws {
+        let model = fixture()
+        let before = model.settings
+        let proposal = try XCTUnwrap(model.prepareDeleteAllSavedWorkspaces())
+        XCTAssertTrue(model.deleteAllSavedWorkspaces(proposal, label: model.connectionCopy.clearedAll(proposal.contexts.count)))
+        model.workspaceNameSuggestionProvider = ConnectionNames()
+        await model.refreshVisibleConnections(force: true)
+        XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+        XCTAssertTrue(model.settings.savedWorkspaces.bookmarks.isEmpty)
+        XCTAssertEqual(model.workspaceSaveFeedbackKind, .success)
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.contextPlan.contexts, before.contextPlan.contexts)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, before.savedWorkspaces.shortcutSlots)
     }
 
     func testOneCellEditImmediatelyPersistsKeepsOtherConnectionsAndUndoes() throws {
@@ -285,5 +477,19 @@ private struct ConnectionRejectingStore: SettingsStoring {
 private struct ConnectionNames: SpaceNameSuggestionProviding {
     func names(for layout: DisplayLayout, spaceIDsByDisplayID: [String: [UInt64]]) -> [String: [Int: String]] {
         ["mac": [0: "Current document"], "studio": [0: "Current browser"]]
+    }
+}
+
+private final class ConnectionNameProbe: SpaceNameSuggestionProviding, @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    let blocks: Bool
+    let resume = DispatchSemaphore(value: 0)
+    init(blocks: Bool = false) { self.blocks = blocks }
+    var readCount: Int { lock.withLock { count } }
+    func names(for layout: DisplayLayout, spaceIDsByDisplayID: [String: [UInt64]]) -> [String: [Int: String]] {
+        lock.withLock { count += 1 }
+        if blocks { _ = resume.wait(timeout: .now() + 5) }
+        return ["mac": [0: "Updated document"]]
     }
 }

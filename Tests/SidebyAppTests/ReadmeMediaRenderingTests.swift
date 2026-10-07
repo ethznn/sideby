@@ -14,7 +14,7 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     }
 
-    func testOnboardingLoadsNamesAfterBusyCaptureWithoutChangingWorkOrProgress() async throws {
+    func testOffscreenOnboardingDefersNamesUntilExplicitRefreshWithoutChangingWorkOrProgress() async throws {
         let model = try makeModel(language: .english)
         let original = model.settings.contextPlan.contexts
         let progress = model.firstWorkProgress
@@ -28,9 +28,14 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         let window = mount(host, size: .init(width: 640, height: 700), dark: false)
         defer { window.close() }
         try await Task.sleep(for: .milliseconds(200))
+        await model.refreshVisibleConnections(force: true)
         XCTAssertTrue(model.workspaceDesktopNames.isEmpty, "Busy capture must defer name discovery")
         model.isSwitching = false
         try await Task.sleep(for: .milliseconds(250))
+        XCTAssertTrue(model.workspaceDesktopNames.isEmpty, "Offscreen media views must not start automatic title queries")
+        // Rendering uses an explicit read. Visible-window polling has its own
+        // native test; this offscreen fixture must not depend on WindowServer.
+        await model.refreshVisibleConnections(force: true)
         XCTAssertEqual(model.workspaceDesktopName(displayID: "display-0", spaceIndex: 0), "Checkout.swift")
         XCTAssertEqual(model.workspaceDesktopName(displayID: "display-1", spaceIndex: 0), "Checkout API")
         XCTAssertNil(model.workspaceDesktopName(displayID: "display-1", spaceIndex: 99))

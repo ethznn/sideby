@@ -2,13 +2,13 @@
 
 ## Supported Versions
 
-Sideby is pre-1.0 software. Security fixes target the default branch until tagged releases are published.
+Use the [latest stable release](https://github.com/ethznn/sideby/releases/latest). Security fixes are developed on the default branch and distributed in tagged releases.
 
 ## Reporting a Vulnerability
 
 Please do not open a public issue for security vulnerabilities.
 
-When the GitHub repository is public, use GitHub's private vulnerability reporting if it is enabled. If private vulnerability reporting is not available, contact the maintainer through the repository owner's public GitHub profile or another private channel published by the project.
+Use GitHub's private vulnerability reporting if it is enabled. If it is not available, contact the maintainer through the repository owner's public GitHub profile or another private channel published by the project.
 
 Include:
 

@@ -278,9 +278,9 @@ extension SidebyAppModel {
     @discardableResult
     func commitSavedWorkspaceChange(_ candidate: AppSettings, label: String) -> Bool {
         var next = candidate
-        next.savedWorkspaces.undo = SavedWorkspaceUndo(contexts: settings.contextPlan.contexts,
+        next.savedWorkspaces.recordUndo(SavedWorkspaceUndo(contexts: settings.contextPlan.contexts,
             bookmarks: settings.savedWorkspaces.bookmarks, shortcutSlots: settings.savedWorkspaces.shortcutSlots,
-            label: label, resultingContexts: next.contextPlan.contexts, resultingBookmarks: next.savedWorkspaces.bookmarks)
+            label: label, resultingContexts: next.contextPlan.contexts, resultingBookmarks: next.savedWorkspaces.bookmarks))
         guard settingsStore.saveChecked(next) else { showWorkspaceFeedback(saveCopy.saveFailed, kind: .failure); return false }
         applySavedWorkspaceChange(next)
         showWorkspaceFeedback(label, kind: .success)
@@ -318,19 +318,19 @@ extension SidebyAppModel {
     }
 
     @discardableResult
-    func deleteAllSavedWorkspaces(_ proposal: WorkspaceDeleteAllProposal) -> Bool {
+    func deleteAllSavedWorkspaces(_ proposal: WorkspaceDeleteAllProposal, label: String? = nil) -> Bool {
         guard canDeleteAllSavedWorkspaces else { return false }
         // A confirmation must never delete work added or changed while it was open.
         guard settings.contextPlan.contexts == proposal.contexts,
               settings.savedWorkspaces.bookmarks == proposal.bookmarks else {
-            workspaceSaveMessage = saveCopy.deleteAllChanged
+            showWorkspaceFeedback(saveCopy.deleteAllChanged, kind: .failure)
             return false
         }
         var next = settings
         next.contextPlan.replaceContexts([], currentContextID: "")
         next.savedWorkspaces.bookmarks.removeAll()
         next.savedWorkspaces.shortcutSlots.removeAll()
-        guard commitSavedWorkspaceChange(next, label: saveCopy.deletedAll(proposal.contexts.count)) else { return false }
+        guard commitSavedWorkspaceChange(next, label: label ?? saveCopy.deletedAll(proposal.contexts.count)) else { return false }
         workspaceSavedFocusID = nil
         return true
     }
@@ -338,16 +338,13 @@ extension SidebyAppModel {
     @discardableResult
     func undoSavedWorkspaceChange() -> Bool {
         guard canChangeSavedWorkspaces, let undo = settings.savedWorkspaces.undo else { return false }
-        // Index rebasing is an observation, not a new edit. Compare definitions by identity and name.
-        let shape: ([ContextDefinition]) -> [String] = { $0.map { $0.id + "\u{0}" + $0.name + "\u{0}" + $0.displayIDs.joined(separator: "\u{0}") } }
-        guard shape(settings.contextPlan.contexts) == shape(undo.resultingContexts),
-              settings.savedWorkspaces.bookmarks == undo.resultingBookmarks else {
+        guard undo.matchesResult(contexts: settings.contextPlan.contexts, bookmarks: settings.savedWorkspaces.bookmarks) else {
             showWorkspaceFeedback(saveCopy.conflict, kind: .failure); return false
         }
         var next = settings
         next.savedWorkspaces.bookmarks = undo.bookmarks
         next.savedWorkspaces.shortcutSlots = undo.shortcutSlots
-        next.savedWorkspaces.undo = nil
+        next.savedWorkspaces.popUndo()
         let contexts = next.savedWorkspaces.resolved(undo.contexts, spaceKeys: workspaceObservation()?.spaceKeysByDisplayID ?? [:])
         next.contextPlan.replaceContexts(contexts, currentContextID: next.contextPlan.currentContextID)
         guard settingsStore.saveChecked(next) else { showWorkspaceFeedback(saveCopy.saveFailed, kind: .failure); return false }

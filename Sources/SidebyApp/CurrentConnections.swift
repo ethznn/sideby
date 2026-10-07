@@ -55,7 +55,7 @@ extension SidebyAppModel {
     @discardableResult
     func setCurrentConnection(displayID: String, key: String?, contextID: String?) -> Bool {
         guard canChangeSavedWorkspaces,
-              displayLayout.displays.contains(where: { $0.id == displayID }) else { return false }
+              key == nil || displayLayout.displays.contains(where: { $0.id == displayID }) else { return false }
         let observation = workspaceObservation(includingUnselectedDisplays: true)
         var index: Int?
         if let key {
@@ -94,7 +94,9 @@ extension SidebyAppModel {
         guard contexts != settings.contextPlan.contexts || next.savedWorkspaces.bookmarks != settings.savedWorkspaces.bookmarks else { return true }
         next.savedWorkspaces.initialized = true
         next.contextPlan.replaceContexts(contexts, currentContextID: next.contextPlan.currentContextID)
-        return commitSavedWorkspaceChange(next, label: connectionCopy.updated(display: displayName(for: displayID), connection: old.name, cleared: key == nil))
+        let label = connectionCopy.updated(display: displayName(for: displayID), connection: old.name, cleared: key == nil)
+            + (members.isEmpty ? connectionCopy.text(" The empty column was removed.", " 빈 연결 열도 삭제했습니다.") : "")
+        return commitSavedWorkspaceChange(next, label: label)
     }
 
     /// Move/swap both cells in one checked write and one undo record. Never
@@ -184,15 +186,26 @@ struct CurrentConnectionStrings {
     var start: String { text("Connect in current order", "현재 순서로 연결") }
     var empty: String { text("Start with the Spaces already open.", "이미 열어 둔 Space로 시작하세요.") }
     var emptyDetail: String { text("Pairs Spaces in the same order across your selected displays. Adjust any cell afterward.", "선택한 모니터의 Space를 같은 순서끼리 연결합니다. 다른 짝을 원하면 해당 칸만 바꾸세요.") }
+    var emptyDirectHint: String { text("Choose a Space in an empty cell to make your first connection.", "빈 칸에서 Space를 골라 첫 연결을 만드세요.") }
+    var emptyDragHint: String { text("Drop a Space into an empty cell, or click to choose.", "빈 칸에 Space를 놓거나, 칸을 눌러 골라 주세요.") }
     var repair: String { text("Space missing · Choose again", "Space 사라짐 · 다시 선택") }
     var keep: String { text("Leave this display as it is", "이 모니터는 그대로 두기") }
+    var clearCell: String { text("Disconnect this cell", "이 칸 연결 해제") }
+    var clearDisplay: String { text("Clear connections for this display…", "이 모니터의 연결 비우기…") }
     var displays: String { text("Displays", "함께 움직일 모니터") }
     var offline: String { text("Disconnected · Kept", "연결 해제됨 · 정보 유지") }
     var excluded: String { text("Excluded from switching", "전환에서 제외됨") }
     var move: String { text("Go to this connection", "이 연결로 이동") }
     var moveTogether: String { text("Move together", "함께 이동") }
     var undo: String { text("Undo connection change", "연결 변경 되돌리기") }
-    var readUnavailable: String { text("Couldn't read Spaces. Check your displays and refresh.", "Space를 읽지 못했어요. 모니터 연결을 확인한 뒤 새로고침하세요.") }
+    var clearAll: String { text("Clear all connections…", "연결 모두 비우기…") }
+    var clearAllAction: String { text("Clear connections", "연결 비우기") }
+    func clearedAll(_ count: Int) -> String { text("Cleared \(count) connections. You can undo this.", "연결 \(count)개를 비웠어요. 되돌릴 수 있습니다.") }
+    func clearAllTitle(_ count: Int) -> String { text("Clear all \(count) connections?", "연결 \(count)개를 모두 비울까요?") }
+    var undoHistoryHint: String { text("Undo keeps the last 20 connection changes, including after restarting Sideby.", "앱을 다시 열어도 최근 연결 변경 20단계까지 되돌릴 수 있습니다.") }
+    var clearAllMessage: String { text("Includes connections on disconnected displays. Your Spaces, open apps and other settings stay as they are.", "연결 해제된 모니터의 연결도 함께 비웁니다. 실제 Space와 열린 앱, 다른 설정은 그대로입니다.") + " " + undoHistoryHint }
+    var readAgain: String { text("Read again", "다시 읽기") }
+    var readUnavailable: String { text("Couldn't read Spaces. Check your display connections.", "Space를 읽지 못했어요. 모니터 연결을 확인해 주세요.") }
     /// Position in this display's Space list, not a Mission Control desktop name.
     func spacePosition(_ index: Int) -> String { text("Space · position \(index + 1)", "\(index + 1)번째 Space") }
     func connection(_ index: Int) -> String { text("Connection \(index)", "연결 \(index)") }

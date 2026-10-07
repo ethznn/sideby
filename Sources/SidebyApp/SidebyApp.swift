@@ -24,7 +24,7 @@ struct SidebyApp: App {
             exit(0)
         }
         let model = SidebyAppModel()
-        let updater = SidebyUpdater()
+        let updater = SidebyUpdater(model: model)
         let preferences = UserDefaultsProductUIPreferences(defaults: .standard)
         let navigation = ProductUINavigation(preferences: preferences)
         let presentation = ProductOnboardingPresentation(preferences: preferences)
@@ -135,6 +135,7 @@ private struct ProductSettingsHost: View {
     var body: some View {
         ProductSettingsView(model: model, navigation: navigation,
                             canCheckForUpdates: updater.canCheckForUpdates,
+                            updaterLanguageRequiresRestart: updater.languageRequiresRestart,
                             actions: actions)
     }
 }
@@ -645,6 +646,8 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var workspaceNameRefreshCount = 0
     var workspaceNameOrigins: [String: String] = [:]
     var workspaceNameSuggestionProvider: (any SpaceNameSuggestionProviding)? = MacSpaceNameSuggestionProvider()
+    var connectionContentRefreshInFlight = false
+    var connectionContentRefreshTime: TimeInterval?
 
     var settingsStore: any SettingsStoring = UserDefaultsSettingsStore()
     private let permissionService = AccessibilityPermissionService()
@@ -3062,10 +3065,10 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
                     } else { workspaceLegacyRuntimeBookmarks[context.id]?.removeValue(forKey: displayID) }
                 }
             }
-            next.savedWorkspaces.undo = SavedWorkspaceUndo(contexts: previousPlan.contexts,
+            next.savedWorkspaces.recordUndo(SavedWorkspaceUndo(contexts: previousPlan.contexts,
                 bookmarks: settings.savedWorkspaces.bookmarks, shortcutSlots: settings.savedWorkspaces.shortcutSlots,
                 label: saveCopy.text("Setup edit", "구성 편집"), resultingContexts: plan.contexts,
-                resultingBookmarks: next.savedWorkspaces.bookmarks)
+                resultingBookmarks: next.savedWorkspaces.bookmarks))
         }
         guard settingsStore.saveChecked(next) else { workspaceSaveMessage = saveCopy.saveFailed; return }
         settings = next

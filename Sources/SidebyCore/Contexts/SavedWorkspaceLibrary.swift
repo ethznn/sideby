@@ -8,8 +8,30 @@ public struct SavedWorkspaceLibrary: Codable, Equatable, Sendable {
     public var shortcutSlots: [String: Int] = [:]
     public var lastIncludedDisplayIDs: [String]?
     public var undo: SavedWorkspaceUndo?
+    // Optional for compatibility with settings written before multi-step undo.
+    private var previousUndos: [SavedWorkspaceUndo]?
+    public static let undoLimit = 20
+    public var undoCount: Int { undo == nil ? 0 : 1 + (previousUndos?.count ?? 0) }
 
     public init() {}
+
+    public mutating func recordUndo(_ change: SavedWorkspaceUndo) {
+        var history = previousUndos ?? []
+        if let undo, undo.matchesResult(contexts: change.contexts, bookmarks: change.bookmarks) {
+            history.append(undo)
+        } else {
+            history.removeAll()
+        }
+        previousUndos = Array(history.suffix(Self.undoLimit - 1))
+        undo = change
+    }
+
+    public mutating func popUndo() {
+        guard undo != nil else { return }
+        var history = previousUndos ?? []
+        undo = history.popLast()
+        previousUndos = history.isEmpty ? nil : history
+    }
 
     public mutating func assignAvailableShortcut(to id: String) {
         guard shortcutSlots[id] == nil,
@@ -49,6 +71,13 @@ public struct SavedWorkspaceUndo: Codable, Equatable, Sendable {
     public let label: String
     public let resultingContexts: [ContextDefinition]
     public let resultingBookmarks: [String: [String: String]]
+
+    /// Space indexes can change during observation without being a user edit.
+    public func matchesResult(contexts: [ContextDefinition], bookmarks: [String: [String: String]]) -> Bool {
+        contexts.count == resultingContexts.count && zip(contexts, resultingContexts).allSatisfy {
+            $0.id == $1.id && $0.name == $1.name && $0.order == $1.order && $0.displayIDs == $1.displayIDs
+        } && bookmarks == resultingBookmarks
+    }
 
     public init(contexts: [ContextDefinition], bookmarks: [String: [String: String]],
                 shortcutSlots: [String: Int], label: String, resultingContexts: [ContextDefinition],

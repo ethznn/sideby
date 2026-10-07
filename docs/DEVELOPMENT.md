@@ -223,3 +223,5 @@ Tests/
 - Add or update tests for logic changes.
 - Run `swift test` before opening a pull request.
 - For macOS permission, global input, synthetic input, bundle signing, or distribution changes, open an issue first so the tradeoffs are clear.
+
+Release notes under `docs/releases/` are written in English for the update window. Do not concatenate Korean and English copies in a single note. README and site guides remain available in both languages. Once release notes and appcasts are signed and published, do not edit those assets in place; include documentation changes with the next release.

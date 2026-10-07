@@ -25,16 +25,16 @@
     "Drop into the blank column to create a connection.",
     "Drag to move, Option-drag to copy, and undo mistakes."
   ],
-  "how_title": "Start in the current order.",
-  "how_intro": "Allow access, then connect your Spaces. Start in the current order and adjust only the cells you need.",
+  "how_title": "Start with the Spaces you need.",
+  "how_intro": "Allow access, then choose Spaces in the empty cells. Start with just one connection.",
   "steps": [
     [
       "Allow access.",
       "Check Accessibility and Screen Switching access in the guide."
     ],
     [
-      "Connect in current order.",
-      "Pair Spaces at the same positions across selected displays. This does not switch your screens."
+      "Choose Spaces in empty cells.",
+      "Connect Spaces you want to see together in the same column. You can also start with Connect in current order. This does not switch your screens."
     ],
     [
       "Adjust the cells you need.",
@@ -97,7 +97,7 @@
   "onboarding_alt": "The two-step guide shows Allow access and Connect desktops, with Connect in current order.",
   "editor_label": "See and connect",
   "editor_title": "Contents and connections, together.",
-  "editor_text": "Settings and the shortcut’s connection editor show each display’s Spaces above the table, with available app/window titles and the current Space. “Space · position 3” indicates list order, not a Mission Control desktop name. Drop a Space into the blank column on the right to create a connection immediately. Drag between cells for the same display to move or swap. Hold ⌥ Option when dropping to copy and keep the source. Undo restores both cells together.",
+  "editor_text": "Settings and the shortcut’s connection editor show each display’s Spaces above the table, with available app/window titles and the current Space. “Space · position 3” indicates list order, not a Mission Control desktop name. Even with no connections, drop a Space into an empty cell to create your first one. Drag between cells for the same display to move or swap. Hold ⌥ Option when dropping to copy. Clear one cell or one display, or select several columns to remove together. Even after clearing all connections, you can start again immediately. Undo keeps the last 20 connection changes, including after restarting Sideby.",
   "editor_note": "Changes are remembered immediately. Undo the last change with the Undo button or ⌘Z. No separate editor or Save changes step is needed.",
   "editor_alt": "Settings shows desktop contents and the connection table in the same window.",
   "editor_overview": "What if desktops or displays change?",

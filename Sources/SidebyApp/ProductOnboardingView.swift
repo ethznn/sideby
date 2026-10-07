@@ -35,7 +35,7 @@ struct ProductOnboardingView: View {
                             : copy.text("Pair the Spaces you already use.", "지금 쓰는 Space의 짝만 맞추세요."))
                             .font(.system(size: 25, weight: .semibold)).accessibilityAddTraits(.isHeader)
                         Text(preparing ? copy.text("Sideby connects existing Spaces — desktops and full-screen apps — so your usual gesture can move your displays together.", "Space는 데스크탑과 전체 화면 앱을 포함하는 macOS 작업 공간입니다. 함께 볼 Space를 연결하면 평소 제스처로 여러 모니터를 함께 넘길 수 있습니다.")
-                            : copy.text("Start in the current order, then change any cell. No names or separate saves are needed.", "현재 순서로 시작한 뒤 필요한 칸만 바꾸세요. 이름을 붙이거나 따로 저장할 필요가 없습니다."))
+                            : copy.text("Choose Spaces in the empty cells to make a connection. You can also connect them all in the current order. No names or separate saves are needed.", "빈 칸에서 Space를 골라 연결하세요. 현재 순서대로 한 번에 연결할 수도 있습니다. 이름을 붙이거나 따로 저장할 필요가 없습니다."))
                             .font(.system(size: 13)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     }
                     if preparing { preparationContent }

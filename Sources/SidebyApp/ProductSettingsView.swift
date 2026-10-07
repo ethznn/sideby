@@ -13,6 +13,7 @@ struct ProductSettingsView: View {
     @ObservedObject var model: SidebyAppModel
     @ObservedObject var navigation: ProductUINavigation
     let canCheckForUpdates: Bool
+    let updaterLanguageRequiresRestart: Bool
     let actions: ProductSettingsActions
     @State private var isPracticing = false
     @State private var hostingWindow: NSWindow?
@@ -23,10 +24,12 @@ struct ProductSettingsView: View {
     private var strings: SettingsRefreshStrings { .init(language: model.settings.language) }
 
     init(model: SidebyAppModel, navigation: ProductUINavigation, canCheckForUpdates: Bool,
+         updaterLanguageRequiresRestart: Bool = false,
          actions: ProductSettingsActions) {
         self.model = model
         self.navigation = navigation
         self.canCheckForUpdates = canCheckForUpdates
+        self.updaterLanguageRequiresRestart = updaterLanguageRequiresRestart
         self.actions = actions
     }
 
@@ -189,6 +192,12 @@ struct ProductSettingsView: View {
         VStack(alignment: .leading, spacing: 24) {
             Text(strings.generalDescription).foregroundStyle(NativeSurfaceStyle.secondaryText)
             LanguageSettingsView(settings: settingsBinding)
+            if updaterLanguageRequiresRestart {
+                Text(model.saveCopy.text("The update window will use this language after you reopen Sideby.",
+                    "업데이트 창의 언어 변경은 Sideby를 다시 열면 적용됩니다."))
+                    .font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    .accessibilityIdentifier("updater-language-restart")
+            }
             Divider()
             Toggle(model.strings.startAtLogin, isOn: Binding(
                 get: { model.settings.launchAtLogin }, set: { model.setLaunchAtLogin($0) }
