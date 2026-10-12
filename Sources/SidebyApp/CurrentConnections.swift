@@ -24,6 +24,94 @@ extension SidebyAppModel {
         workspaceDesktopNameSpaceIDs = observation.spaceIDsByDisplayID
     }
 
+    /// Capture the currently visible Space on every participating, connected display
+    /// in one write. Never switch screens or silently save only part of the selection.
+    @discardableResult
+    func addCurrentConnection() -> String? {
+        guard canChangeSavedWorkspaces else { return nil }
+        let included = Set(displayLayout.displays.map(\.id)).intersection(selectedDisplayIDs)
+        guard !included.isEmpty else {
+            showWorkspaceFeedback(connectionCopy.chooseDisplays, kind: .failure); return nil
+        }
+        guard let observation = workspaceObservation(includingUnselectedDisplays: true) else {
+            showWorkspaceFeedback(saveCopy.readUnavailable, kind: .failure); return nil
+        }
+        var members: [String: Int] = [:]
+        var bookmarks: [String: String] = [:]
+        for id in included {
+            guard let key = durableCurrentKey(id, observation: observation),
+                  let display = observation.displays.first(where: { $0.displayID == id }) else {
+                showWorkspaceFeedback(saveCopy.readUnavailable, kind: .failure); return nil
+            }
+            members[id] = display.currentSpaceIndex
+            bookmarks[id] = key
+        }
+        if let existing = settings.contextPlan.contexts.first(where: {
+            Set($0.displayIDs) == included && settings.savedWorkspaces.bookmarks[$0.id] == bookmarks
+        }) {
+            showWorkspaceFeedback(connectionCopy.alreadyConnected(existing.name), kind: .notice)
+            return existing.id
+        }
+        var next = settings
+        let id = "connection-" + UUID().uuidString
+        let name = currentConnectionName(members: members, bookmarks: bookmarks, observation: observation)
+        let context = ContextDefinition(id: id, order: next.contextPlan.contexts.count + 1,
+                                        name: name, displaySpaceIndexes: members)
+        next.contextPlan.replaceContexts(next.contextPlan.contexts + [context], currentContextID: next.contextPlan.currentContextID)
+        next.savedWorkspaces.initialized = true
+        next.savedWorkspaces.bookmarks[id] = bookmarks
+        next.savedWorkspaces.assignAvailableShortcut(to: id)
+        guard commitSavedWorkspaceChange(next, label: connectionCopy.addedCurrent(name)) else { return nil }
+        return id
+    }
+
+    /// Name the captured pair once; later title refreshes must not rename it.
+    private func currentConnectionName(members: [String: Int], bookmarks: [String: String],
+                                       observation: WorkspaceLayoutObservation) -> String {
+        let ordered = WorkspaceTablePresentation.displayIDs(connected: displayLayout.displays.map(\.id),
+            remembered: [], assigned: [], order: settings.displayRowOrder, includeDisconnected: false)
+            .filter { members[$0] != nil }
+        let names = ordered.map { id -> String in
+            let index = members[id]!
+            let alias = bookmarks[id].flatMap { DesktopNameIdentity(spaceKey: $0, displayID: id) }
+                .flatMap { workspaceDesktopAliases[$0.storageKey] }
+            // Cached titles belong to Space identities, not their old list positions.
+            let handle = observation.spaceIDsByDisplayID[id]?[index]
+            let cachedIndex = handle.flatMap { workspaceDesktopNameSpaceIDs[id]?.firstIndex(of: $0) }
+            let title = cachedIndex.flatMap { workspaceDesktopNames[id]?[$0] }
+            let name = (alias ?? title ?? "").split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            return name.isEmpty ? connectionCopy.spacePosition(index) : name
+        }
+        // Keep a part from each display when window titles are long, within the rename field's limit.
+        let budget = max(1, (60 - max(0, names.count - 1) * 3) / max(1, names.count))
+        let base = String(names.map { name in
+            name.count > budget ? String(name.prefix(max(0, budget - 1))) + "…" : name
+        }.joined(separator: " / ").prefix(60))
+        let existing = Set(settings.contextPlan.contexts.map(\.name))
+        var candidate = base, number = 2
+        while existing.contains(candidate) {
+            let suffix = " (\(number))"
+            candidate = String(base.prefix(60 - suffix.count)) + suffix
+            number += 1
+        }
+        return candidate
+    }
+
+    @discardableResult
+    func renameCurrentConnection(_ id: String, originalName: String, name: String) -> Bool {
+        guard canChangeSavedWorkspaces else { return false }
+        guard case let .valid(value) = DesktopNameValidation.validate(name) else {
+            showWorkspaceFeedback(connectionCopy.invalidName, kind: .failure); return false
+        }
+        guard let current = settings.contextPlan.contexts.first(where: { $0.id == id }), current.name == originalName else {
+            showWorkspaceFeedback(connectionCopy.renameConflict, kind: .failure); return false
+        }
+        guard value != current.name else { return true }
+        var next = settings
+        next.contextPlan.renameContext(id: id, name: value)
+        return commitSavedWorkspaceChange(next, label: connectionCopy.renamed(value))
+    }
+
     @discardableResult
     func connectCurrentDesktopOrder() -> Bool {
         guard canChangeSavedWorkspaces, settings.contextPlan.contexts.isEmpty,
@@ -163,8 +251,17 @@ struct CurrentConnectionStrings {
     let language: AppLanguage
     func text(_ en: String, _ ko: String) -> String { language == .korean ? ko : en }
     var title: String { text("Space connections", "Space 연결") }
+    var addCurrent: String { text("Connect current Spaces", "지금 화면으로 연결 추가") }
+    var rename: String { text("Rename connection", "연결 이름 수정") }
+    var invalidName: String { text("Enter a single-line name between 1 and 60 characters.", "이름을 1~60자의 한 줄로 입력해 주세요.") }
+    var renameConflict: String { text("This connection changed. Close and reopen the name editor.", "이 연결이 변경됐어요. 이름 수정을 닫고 다시 열어 주세요.") }
+    func renamed(_ name: String) -> String { text("Renamed to ‘\(name)’.", "‘\(name)’로 이름을 바꿨어요.") }
+    var addCurrentHint: String { text("Add the Space currently visible on each participating display as one connection. Your screens stay where they are.", "함께 움직일 모니터에서 지금 보고 있는 Space들을 하나의 연결로 추가합니다. 화면은 이동하지 않습니다.") }
+    var chooseDisplays: String { text("Choose participating displays in Edit connections first.", "연결 수정에서 함께 움직일 모니터를 먼저 선택해 주세요.") }
+    func addedCurrent(_ name: String) -> String { text("Current Spaces added as \(name).", "지금 화면을 ‘\(name)’로 연결했어요.") }
+    func alreadyConnected(_ name: String) -> String { text("Already connected as \(name).", "이미 ‘\(name)’로 연결되어 있어요.") }
     var editing: String { text("Edit connections", "연결 수정") }
-    var hint: String { text("Click a cell to edit. Use Move together to switch displays.", "칸을 눌러 연결을 편집하세요. 화면 이동은 ‘함께 이동’을 누르세요.") }
+    var hint: String { text("Click a cell to edit. Use Go together to switch displays.", "칸을 눌러 연결을 편집하세요. 화면 이동은 ‘함께 이동’을 누르세요.") }
     var scope: String { text("Only connections change. Spaces and app windows stay as they are.", "연결만 바뀝니다. 실제 Space와 앱 창은 그대로입니다.") }
     var dragHint: String { text("Same display: drag to move or swap · ⌥ Option-drag to copy", "같은 모니터의 칸끼리: 드래그로 이동·자리 바꾸기 · ⌥ Option + 드래그로 복사") }
     var applied: String { text("Connection updated. You can undo it.", "연결을 반영했어요. 되돌릴 수 있습니다.") }
@@ -196,7 +293,7 @@ struct CurrentConnectionStrings {
     var offline: String { text("Disconnected · Kept", "연결 해제됨 · 정보 유지") }
     var excluded: String { text("Excluded from switching", "전환에서 제외됨") }
     var move: String { text("Go to this connection", "이 연결로 이동") }
-    var moveTogether: String { text("Move together", "함께 이동") }
+    var moveTogether: String { text("Go together", "함께 이동") }
     var undo: String { text("Undo connection change", "연결 변경 되돌리기") }
     var clearAll: String { text("Clear all connections…", "연결 모두 비우기…") }
     var clearAllAction: String { text("Clear connections", "연결 비우기") }

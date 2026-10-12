@@ -71,7 +71,7 @@ enum HeldMatrixPanelLayout {
     static func size(columns: Int, displays: Int, visibleFrame: NSRect, accessoryHeight: CGFloat = 0, editing: Bool = false) -> NSSize {
         let width = max(editing ? 820 : 440, 162 + CGFloat(max(1, columns)) * (columnWidth + 6))
         let tableHeight = min(360, headerHeight + CGFloat(max(1, displays)) * rowHeight + 14)
-        let height = editing ? 680 : max(280, 130 + tableHeight + accessoryHeight)
+        let height = editing ? 680 : max(360, 230 + tableHeight + accessoryHeight)
         return NSSize(width: min(width, 1040, max(1, visibleFrame.width - 32)),
                       height: min(height, max(1, visibleFrame.height - 48)))
     }

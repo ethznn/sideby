@@ -45,6 +45,177 @@ import SidebySystem
         XCTAssertFalse(model.isSwitching)
     }
 
+    func testAddCurrentSpacesUsesEachDisplaysActualPositionAndOneUndo() throws {
+        let model = fixture()
+        let base = observation()
+        model.workspaceObservationOverride = {
+            .init(displays: [.init(displayID: "mac", spaceCount: 3, currentSpaceIndex: 2),
+                             .init(displayID: "studio", spaceCount: 3, currentSpaceIndex: 1)],
+                  spaceIDsByDisplayID: base.spaceIDsByDisplayID, spaceKeysByDisplayID: base.spaceKeysByDisplayID)
+        }
+        let before = model.settings
+        let id = try XCTUnwrap(model.addCurrentConnection())
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks[id], ["mac": "mac-c", "studio": "studio-b"])
+        XCTAssertEqual(model.settings.contextPlan.contexts.last?.displaySpaceIndexes, ["mac": 2, "studio": 1])
+        XCTAssertEqual(Array(model.settings.contextPlan.contexts.dropLast()), before.contextPlan.contexts)
+        for (key, slot) in before.savedWorkspaces.shortcutSlots { XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots[key], slot) }
+        XCTAssertEqual(model.settings.savedWorkspaces.undoCount, 1)
+        XCTAssertNil(model.workspaceSaveDraft)
+        XCTAssertNil(model.workspaceComposerDraft)
+        XCTAssertFalse(model.isSwitching)
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, before.savedWorkspaces.shortcutSlots)
+    }
+
+    func testAddCurrentSpacesStartsEmptyAndRepeatedClickDoesNotDuplicateOrReplaceUndo() throws {
+        let model = fixture()
+        XCTAssertTrue(model.removeConnections(try XCTUnwrap(model.prepareConnectionRemoval(.all))))
+        let before = model.settings
+        let id = try XCTUnwrap(model.addCurrentConnection())
+        let added = model.settings
+        XCTAssertEqual(added.contextPlan.contexts.count, 1)
+        XCTAssertEqual(added.savedWorkspaces.bookmarks[id], ["mac": "mac-a", "studio": "studio-a"])
+        XCTAssertEqual(model.addCurrentConnection(), id)
+        XCTAssertEqual(model.settings, added)
+        XCTAssertEqual(model.workspaceSaveFeedbackKind, .notice)
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        XCTAssertEqual(model.settings.savedWorkspaces.undoCount, before.savedWorkspaces.undoCount)
+    }
+
+    func testAddCurrentSpacesUsesOnlyParticipatingConnectedDisplays() throws {
+        let model = fixture()
+        model.selectedDisplayIDs = ["mac", "offline"]
+        model.settings.savedWorkspaces.lastIncludedDisplayIDs = ["studio"]
+        let id = try XCTUnwrap(model.addCurrentConnection())
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks[id], ["mac": "mac-a"])
+        XCTAssertEqual(model.selectedDisplayIDs, ["mac", "offline"])
+    }
+
+    func testAddCurrentSpacesRejectsPartialObservationFailedWritesAndBusyState() {
+        let model = fixture()
+        let before = model.settings
+        let base = observation()
+        model.workspaceObservationOverride = {
+            .init(displays: base.displays, spaceIDsByDisplayID: base.spaceIDsByDisplayID,
+                  spaceKeysByDisplayID: ["mac": ["mac-a", "mac-b", "mac-c"]])
+        }
+        XCTAssertNil(model.addCurrentConnection())
+        XCTAssertEqual(model.settings, before, "Never save only the readable monitor")
+        model.workspaceObservationOverride = { self.observation() }
+        model.settingsStore = ConnectionRejectingStore()
+        XCTAssertNil(model.addCurrentConnection())
+        XCTAssertEqual(model.settings, before)
+        model.isSwitching = true
+        XCTAssertNil(model.addCurrentConnection())
+        model.isSwitching = false
+        model.selectedDisplayIDs = []
+        XCTAssertNil(model.addCurrentConnection())
+        XCTAssertEqual(model.settings, before)
+    }
+
+    func testAddCurrentSpacesPreservesAnUnsavedEditor() {
+        let model = fixture()
+        model.beginWorkspaceComposer()
+        model.editWorkspaceComposer { $0.entries[0].name = "아직 편집 중" }
+        let before = model.settings, draft = model.workspaceComposerDraft?.state
+        XCTAssertNil(model.addCurrentConnection())
+        XCTAssertEqual(model.settings, before)
+        XCTAssertEqual(model.workspaceComposerDraft?.state, draft)
+    }
+
+    func testCurrentConnectionNameUsesDisplayOrderAndDoesNotFollowLaterWindowTitles() throws {
+        let model = fixture()
+        model.settings.displayRowOrder = ["studio", "mac"]
+        model.workspaceDesktopNameSpaceIDs = observation().spaceIDsByDisplayID
+        model.workspaceDesktopNames = ["mac": [0: "Xcode"], "studio": [0: "Figma"]]
+        let id = try XCTUnwrap(model.addCurrentConnection())
+        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "Figma / Xcode")
+        model.workspaceDesktopNames = ["mac": [0: "Safari"], "studio": [0: "Calendar"]]
+        model.refreshWorkspaceStatus()
+        XCTAssertEqual(model.settings.contextPlan.contexts.first { $0.id == id }?.name, "Figma / Xcode")
+        XCTAssertEqual(model.settings.savedWorkspaces.undoCount, 1)
+    }
+
+    func testCurrentConnectionNameFollowsCachedSpaceIdentityAfterReordering() throws {
+        let model = fixture()
+        model.workspaceDesktopNameSpaceIDs = observation().spaceIDsByDisplayID
+        model.workspaceDesktopNames = ["mac": [0: "Xcode", 2: "Notes"], "studio": [0: "Figma"]]
+        model.workspaceObservationOverride = { self.observation(keys: ["mac-c", "mac-b", "mac-a"]) }
+        let id = try XCTUnwrap(model.addCurrentConnection())
+        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "Notes / Figma")
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks[id]?["mac"], "mac-c")
+    }
+
+    func testCurrentConnectionNamePrefersAliasesAndFallsBackWhenTitlesCannotBeRead() throws {
+        let model = fixture()
+        let key = "uuid:12345678-1234-1234-1234-123456789012"
+        let base = observation(keys: [key, "mac-b", "mac-c"])
+        model.workspaceObservationOverride = { base }
+        let identity = try XCTUnwrap(DesktopNameIdentity(spaceKey: key, displayID: "mac"))
+        model.workspaceDesktopAliases[identity.storageKey] = "개발"
+        model.workspaceDesktopNameSpaceIDs = base.spaceIDsByDisplayID
+        model.workspaceDesktopNames = ["mac": [0: "Xcode"]]
+        XCTAssertNotNil(model.addCurrentConnection())
+        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "개발 / 1번째 Space")
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        model.settings.language = .english
+        model.selectedDisplayIDs = ["studio"]
+        XCTAssertNotNil(model.addCurrentConnection())
+        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "Space · position 1")
+    }
+
+    func testCurrentConnectionNameKeepsBothLongTitlesAndDisambiguatesOtherPairs() throws {
+        let model = fixture()
+        let mac = "Xcode " + String(repeating: "작업", count: 45)
+        let studio = "Figma " + String(repeating: "검토", count: 45)
+        model.workspaceDesktopNameSpaceIDs = observation().spaceIDsByDisplayID
+        model.workspaceDesktopNames = ["mac": [0: mac, 1: mac], "studio": [0: studio]]
+        XCTAssertNotNil(model.addCurrentConnection())
+        let name = try XCTUnwrap(model.settings.contextPlan.contexts.last?.name)
+        XCTAssertLessThanOrEqual(name.count, 60)
+        XCTAssertTrue(name.hasPrefix("Xcode "))
+        XCTAssertTrue(name.contains(" / Figma "))
+        model.workspaceObservationOverride = { self.observation(keys: ["mac-b", "mac-a", "mac-c"]) }
+        XCTAssertNotNil(model.addCurrentConnection())
+        let duplicateName = try XCTUnwrap(model.settings.contextPlan.contexts.last?.name)
+        XCTAssertTrue(duplicateName.hasSuffix(" (2)"))
+        XCTAssertLessThanOrEqual(duplicateName.count, 60)
+        XCTAssertTrue(duplicateName.contains(" / Figma "))
+    }
+
+    func testRenameCurrentConnectionPreservesSpacesAndShortcutsAndUndoRestoresDefaultName() throws {
+        let model = fixture()
+        let id = try XCTUnwrap(model.addCurrentConnection())
+        let initial = try XCTUnwrap(model.settings.contextPlan.contexts.last)
+        let before = model.settings
+        XCTAssertTrue(model.renameCurrentConnection(id, originalName: initial.name, name: "  집중 작업  "))
+        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "집중 작업")
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, before.savedWorkspaces.shortcutSlots)
+        XCTAssertEqual(model.addCurrentConnection(), id, "Capturing again keeps a manually chosen name")
+        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "집중 작업")
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, initial.name)
+        XCTAssertFalse(model.isSwitching)
+    }
+
+    func testRenameRejectsInvalidStaleNamesAndFailedWrites() {
+        let model = fixture()
+        let before = model.settings
+        for name in ["", " \n ", "First\nSecond", String(repeating: "긴", count: 61)] {
+            XCTAssertFalse(model.renameCurrentConnection("dev", originalName: "개발", name: name))
+        }
+        XCTAssertFalse(model.renameCurrentConnection("dev", originalName: "이전 이름", name: "새 이름"))
+        XCTAssertTrue(model.renameCurrentConnection("dev", originalName: "개발", name: "개발"))
+        XCTAssertEqual(model.settings, before)
+        model.settingsStore = ConnectionRejectingStore()
+        XCTAssertFalse(model.renameCurrentConnection("dev", originalName: "개발", name: "새 이름"))
+        XCTAssertEqual(model.settings, before)
+        XCTAssertEqual(model.workspaceSaveFeedbackKind, .failure)
+    }
+
     func testClearCreateEditRestartAndUndoAllTheWayBack() throws {
         let model = fixture()
         let original = model.settings

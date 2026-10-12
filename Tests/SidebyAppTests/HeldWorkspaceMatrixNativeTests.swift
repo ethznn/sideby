@@ -48,6 +48,65 @@ import XCTest
         }
     }
 
+    func testCurrentSpacesCanBeAddedWithoutEditingAndUndoneInTheQuickPanel() async throws {
+        try requireNative()
+        for english in [false, true] {
+            let model = heldMatrixFixture(count: 3, displayCount: 2)
+            model.workspacePreferences = nil
+            model.workspaceNameSuggestionProvider = nil
+            model.settings.language = english ? .english : .korean
+            model.workspaceDesktopNames = ["mac": [0: "Xcode", 1: "Safari", 2: "Notes"],
+                                           "external-1": [0: "Safari", 1: "Figma", 2: "Calendar"]]
+            let base = try XCTUnwrap(model.workspaceObservationOverride?())
+            model.workspaceObservationOverride = {
+                .init(displays: base.displays.map { .init(displayID: $0.displayID, spaceCount: $0.spaceCount,
+                                                        currentSpaceIndex: $0.displayID == "mac" ? 0 : 1) },
+                      spaceIDsByDisplayID: base.spaceIDsByDisplayID, spaceKeysByDisplayID: base.spaceKeysByDisplayID)
+            }
+            model.refreshWorkspaceStatus()
+            let before = model.settings
+            let controller = HeldWorkspaceMatrixController(model: model)
+            controller.showPersistent()
+            let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
+            defer { controller.dismiss(); window.close() }
+            try await Task.sleep(for: .milliseconds(250))
+            let output = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE_OUTPUT"] ?? "/tmp/sideby-current-spaces")
+            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+            func capture(_ suffix: String) throws {
+                let view = try XCTUnwrap(window.contentView)
+                view.layoutSubtreeIfNeeded()
+                let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                    .write(to: output.appendingPathComponent("current-spaces-\(english ? "en" : "ko")-\(suffix).png"))
+            }
+            let button = try XCTUnwrap(element("held-add-current-connection", in: window))
+            XCTAssertTrue(window.frame.contains(try frame(button)))
+            try capture("before")
+            try click(button, window: window)
+            try await Task.sleep(for: .milliseconds(250))
+            let id = try XCTUnwrap(model.settings.contextPlan.contexts.last?.id)
+            XCTAssertEqual(model.settings.contextPlan.contexts.count, before.contextPlan.contexts.count + 1)
+            XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "Xcode / Figma")
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks[id], ["mac": base.spaceKeysByDisplayID["mac"]![0],
+                                                                         "external-1": base.spaceKeysByDisplayID["external-1"]![1]])
+            XCTAssertNotNil(element("held-switch-table", in: window))
+            XCTAssertNil(element("current-connections-table", in: window), "Stay in the switching view")
+            XCTAssertTrue(window.frame.contains(try frame(XCTUnwrap(element("held-workspace-" + id, in: window)))))
+            let undo = try XCTUnwrap(element("held-undo-connection", in: window))
+            XCTAssertTrue(window.frame.contains(try frame(undo)))
+            XCTAssertFalse(model.isSwitching)
+            XCTAssertNil(model.workspaceSaveDraft)
+            try capture("added")
+            try click(button, window: window)
+            XCTAssertEqual(model.settings.contextPlan.contexts.count, before.contextPlan.contexts.count + 1)
+            try click(undo, window: window)
+            try await Task.sleep(for: .milliseconds(150))
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+            XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, before.savedWorkspaces.shortcutSlots)
+        }
+    }
+
     func testEditingRequiresExplicitChoiceAndReturnsToSwitchingInTheSamePanel() async throws {
         try requireNative()
         let model = heldMatrixFixture(count: 4, displayCount: 1)
@@ -91,6 +150,64 @@ import XCTest
         XCTAssertTrue(window.isVisible)
         XCTAssertTrue(model.undoSavedWorkspaceChange())
         XCTAssertEqual(model.settings.contextPlan.contexts, before.contextPlan.contexts)
+    }
+
+    func testRenameInShortcutEditorCanCancelApplyAndUndoWithoutLeavingPanel() async throws {
+        try requireNative()
+        for english in [false, true] {
+            let model = heldMatrixFixture(count: 3, displayCount: 2)
+            model.workspacePreferences = nil; model.workspaceNameSuggestionProvider = nil
+            model.settings.language = english ? .english : .korean
+            let controller = HeldWorkspaceMatrixController(model: model)
+            controller.showPersistent()
+            let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
+            defer { controller.dismiss(); window.close() }
+            try await Task.sleep(for: .milliseconds(150))
+            try click(XCTUnwrap(element("held-edit-connections", in: window)), window: window)
+            try await Task.sleep(for: .milliseconds(200))
+            let before = model.settings
+            let button = try XCTUnwrap(element("connection-rename-work-0", in: window))
+            try click(button, window: window)
+            try await Task.sleep(for: .milliseconds(200))
+            var popup = try XCTUnwrap(NSApp.windows.first { $0.isVisible && element("connection-name-cancel", in: $0) != nil })
+            let editor = try XCTUnwrap(popup.firstResponder as? NSTextView)
+            editor.selectAll(nil); editor.insertText("미저장 입력", replacementRange: editor.selectedRange())
+            try click(XCTUnwrap(element("connection-name-cancel", in: popup)), window: popup)
+            XCTAssertEqual(model.settings, before)
+            XCTAssertTrue(window.isVisible)
+            try click(button, window: window)
+            try await Task.sleep(for: .milliseconds(200))
+            popup = try XCTUnwrap(NSApp.windows.first { $0.isVisible && element("connection-name-apply", in: $0) != nil })
+            let input = try XCTUnwrap(popup.firstResponder as? NSTextView)
+            let name = english ? "Focused work" : "집중 작업"
+            input.selectAll(nil); input.insertText(name, replacementRange: input.selectedRange())
+            try await Task.sleep(for: .milliseconds(100))
+            let output = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE_OUTPUT"] ?? "/tmp/sideby-current-spaces")
+            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+            let host = try XCTUnwrap(popup.contentView)
+            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                .write(to: output.appendingPathComponent("connection-rename-\(english ? "en" : "ko").png"))
+            try click(XCTUnwrap(element("connection-name-apply", in: popup)), window: popup)
+            try await Task.sleep(for: .milliseconds(150))
+            XCTAssertEqual(model.settings.contextPlan.contexts.first?.name, name)
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+            XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, before.savedWorkspaces.shortcutSlots)
+            XCTAssertTrue(window.isVisible)
+            let undo = try XCTUnwrap(element("connections-undo", in: window))
+            let undoFrame = try frame(undo)
+            XCTAssertTrue(window.frame.contains(undoFrame), "Rename undo must remain visible: panel \(window.frame), undo \(undoFrame)")
+            let panelHost = try XCTUnwrap(window.contentView)
+            let panelBitmap = try XCTUnwrap(panelHost.bitmapImageRepForCachingDisplay(in: panelHost.bounds))
+            panelHost.cacheDisplay(in: panelHost.bounds, to: panelBitmap)
+            try XCTUnwrap(panelBitmap.representation(using: .png, properties: [:]))
+                .write(to: output.appendingPathComponent("connection-renamed-\(english ? "en" : "ko").png"))
+            try click(undo, window: window)
+            try await Task.sleep(for: .milliseconds(100))
+            XCTAssertEqual(model.settings.contextPlan.contexts.first?.name, before.contextPlan.contexts.first?.name)
+            XCTAssertFalse(model.isSwitching)
+        }
     }
 
     func testOpeningManyConnectionsRevealsCurrentColumnAndTracksCurrentChange() async throws {

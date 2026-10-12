@@ -27,6 +27,7 @@ struct CurrentConnectionsView: View {
     @State private var confirmsClearAll = false
     @State private var isSelectingConnections = false
     @State private var selectedConnectionIDs: Set<String> = []
+    @State private var renaming: ContextDefinition?
     private let rowHeight: CGFloat = 72
     private let columnWidth: CGFloat = 178
     private var copy: CurrentConnectionStrings { model.connectionCopy }
@@ -87,7 +88,7 @@ struct CurrentConnectionsView: View {
                 Text(copy.selectionHint).font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
             } else if !contexts.isEmpty && !compact {
                 Text(showsDesktopSources
-                    ? copy.text("Place a Space in a cell for the same display. Use Move together to switch.", "Space를 같은 모니터의 칸에 놓으세요. 화면 이동은 ‘함께 이동’을 누르세요.") : copy.hint)
+                    ? copy.text("Place a Space in a cell for the same display. Use Go together to switch.", "Space를 같은 모니터의 칸에 놓으세요. 화면 이동은 ‘함께 이동’을 누르세요.") : copy.hint)
                     .font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
             }
             if showsDesktopSources && !isSelectingConnections { desktopSources }
@@ -135,7 +136,7 @@ struct CurrentConnectionsView: View {
         .foregroundStyle(NativeSurfaceStyle.primaryText).tint(NativeSurfaceStyle.accent)
         .background(CurrentConnectionsKeyboardCommands(model: model))
         .background(CurrentConnectionsLiveRefresh(model: model,
-            paused: drag != nil || selectedDesktop != nil || picker != nil || showsDisplays || confirmsClearAll || isSelectingConnections,
+            paused: drag != nil || selectedDesktop != nil || picker != nil || showsDisplays || confirmsClearAll || isSelectingConnections || renaming != nil,
             didRefresh: { readObservation() }))
         .background(WorkspaceDragCompletion(dragID: drag?.id) { drag = nil; dropCell = nil })
         .onAppear { model.refreshWorkspaceStatus(); readObservation() }
@@ -158,10 +159,12 @@ struct CurrentConnectionsView: View {
         .onChange(of: model.settings.contextPlan.contexts) { _, _ in
             readObservation()
             selectedConnectionIDs.formIntersection(contexts.map(\.id))
+            if let renaming, !contexts.contains(where: { $0.id == renaming.id }) { self.renaming = nil }
             if contexts.isEmpty { finishSelectingConnections() }
         }
         .onChange(of: model.isSwitching) { _, busy in if !busy { readObservation() } }
         .onExitCommand {
+            if renaming != nil { renaming = nil; return }
             if isSelectingConnections && !confirmsClearAll { finishSelectingConnections(); return }
             if picker == nil && drag == nil && selectedDesktop == nil && !showsDisplays && !confirmsClearAll { close?() }
             picker = nil; drag = nil; dropCell = nil; selectedDesktop = nil; showsDisplays = false
@@ -170,6 +173,7 @@ struct CurrentConnectionsView: View {
 
     private func startSelectingConnections() {
         keepOpen(); selectedDesktop = nil; picker = nil; drag = nil; dropCell = nil
+        renaming = nil
         selectedConnectionIDs.removeAll(); isSelectingConnections = true
     }
 
@@ -233,6 +237,7 @@ struct CurrentConnectionsView: View {
         }.padding(9)
             .background(failed ? Color.orange.opacity(0.10) : NativeSurfaceStyle.selectionBackground,
                         in: RoundedRectangle(cornerRadius: 7))
+            .id("connections-feedback")
             .accessibilityElement(children: .contain).accessibilityIdentifier("connections-feedback")
     }
 
@@ -451,12 +456,21 @@ struct CurrentConnectionsView: View {
         } else {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
-                Text(context.name).font(.system(size: 13, weight: .semibold)).lineLimit(1).help(context.name)
+                Button { beginRenaming(context) } label: {
+                    HStack(spacing: 3) {
+                        Text(context.name).font(.system(size: 13, weight: .semibold)).lineLimit(2)
+                        Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    }
+                }.buttonStyle(.plain).pointingHandCursor().disabled(!model.canChangeSavedWorkspaces)
+                    .help(context.name + " · " + copy.rename)
+                    .accessibilityLabel(context.name + " · " + copy.rename)
+                    .accessibilityIdentifier("connection-rename-" + context.id)
+                    .popover(isPresented: Binding(get: { renaming?.id == context.id }, set: { if !$0 { renaming = nil } })) {
+                        if let target = renaming {
+                            ConnectionNameEditor(model: model, target: target, close: { renaming = nil })
+                        }
+                    }
                 Spacer(minLength: 0)
-                if model.verifiedCurrentWorkspaceID == context.id {
-                    Text("✓ " + copy.text("Current", "현재")).font(.system(size: 11))
-                        .foregroundStyle(NativeSurfaceStyle.accent).fixedSize()
-                }
                 Menu { connectionActions(context, position: position) } label: {
                     Image(systemName: "ellipsis").frame(width: 24, height: 20)
                 }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
@@ -465,8 +479,14 @@ struct CurrentConnectionsView: View {
                     .accessibilityIdentifier("connection-actions-" + context.id)
             }
             HStack(spacing: 4) {
+                if model.verifiedCurrentWorkspaceID == context.id {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 11))
+                        .foregroundStyle(NativeSurfaceStyle.accent)
+                        .help(copy.text("Current", "현재"))
+                        .accessibilityLabel(copy.text("Current", "현재"))
+                }
                 Text(model.workspaceShortcut(context.id) ?? copy.connection(position))
-                    .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText).lineLimit(1)
+                    .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText).lineLimit(1).fixedSize()
                 Spacer(minLength: 0)
                 Button {
                     if let select { select(context.id) } else { model.activateContext(contextID: context.id) }
@@ -483,6 +503,8 @@ struct CurrentConnectionsView: View {
     }
 
     @ViewBuilder private func connectionActions(_ context: ContextDefinition, position: Int) -> some View {
+        Button(copy.rename) { beginRenaming(context) }.disabled(!model.canChangeSavedWorkspaces)
+        Divider()
         Button(copy.text("Move left", "왼쪽으로 이동")) {
             keepOpen()
             if position > 1 { _ = model.reorderSavedWorkspace(context.id, relativeTo: contexts[position - 2].id, after: false) }
@@ -495,6 +517,11 @@ struct CurrentConnectionsView: View {
         Button(copy.text("Remove connection · Keep Spaces", "연결 삭제 · Space는 유지"), role: .destructive) {
             keepOpen(); _ = model.deleteSavedWorkspace(context.id)
         }.disabled(!model.canChangeSavedWorkspaces)
+    }
+
+    private func beginRenaming(_ context: ContextDefinition) {
+        keepOpen(); selectedDesktop = nil; picker = nil; drag = nil; dropCell = nil
+        renaming = context
     }
 
     private func cell(_ context: ContextDefinition?, displayID: String) -> some View {

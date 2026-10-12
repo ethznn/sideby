@@ -16,7 +16,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 [Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](docs/media/preview.html)
 
-*Sideby 1.0.2 · [What’s new](docs/releases/1.0.2.md).*
+*Sideby 1.0.3 · [What’s new](docs/releases/1.0.3.md).*
 
 ## See and connect in one window
 
@@ -43,7 +43,7 @@ To remove several columns together, choose **Select connections** at the table's
 
 To start over, choose **Clear all connections…** and confirm. This also clears connections for disconnected displays. The actual Spaces and app windows stay open. Empty cells remain available so you can immediately create a new connection. If you change your mind while rebuilding, use **Undo** repeatedly to go back. Clearing all connections counts as one of the last 20 changes.
 
-Click **Move together** below a column heading to move your screens. Filled cards show connected Spaces; dashed **+** cells are available for a connection. Use **Add connection** to reveal the blank column, or the **…** menu to reorder or remove a connection. Editing a cell or dragging a desktop does not switch screens. Displays excluded from switching remain where they are.
+Click **Go together** below a column heading to move your screens. Filled cards show connected Spaces; dashed **+** cells are available for a connection. Use **Add connection** to reveal the blank column, or the **…** menu to reorder or remove a connection. Editing a cell or dragging a desktop does not switch screens. Displays excluded from switching remain where they are.
 
 ## Get started
 
@@ -54,6 +54,12 @@ Click **Move together** below a column heading to move your screens. Filled card
 Existing connections, names, and numbered shortcuts are kept. No recreation or deletion is required. If you have an unsaved draft in an older editor, finish it before changing connections here.
 
 ## Daily use
+
+Open **⌥⇧Space → Connect current Spaces** to keep the Spaces you are currently looking at as one connection. The default name joins the Space names, such as **Xcode / Figma**. No separate name or save dialog is needed. Existing identical connections are shown instead of duplicated. To rename, choose **Edit connections** and click the column name or pencil, then **Apply**. **Cancel** keeps the old name; **Undo** restores it after applying. The same name editor is available in Settings.
+
+<p align="center">
+  <img src="./docs/images/sideby-connections-en.png" width="680" alt="Actual shortcut window with Connect current Spaces and automatic connection names." />
+</p>
 
 Hold `⌥⇧Space` to open the switcher with your current connection in view. **Click anywhere in a column** to move the connected desktops together. Choose **Edit connections** only when you need to change them; the panel shows **Spaces on your displays** above the connection table. Drag a card to a cell for the same display, or click the card and then the cell. Edits are immediate, and **Back to switching** returns within the same panel. **Settings** shows the same list and connection table. The menu-bar table still allows direct cell editing.
 

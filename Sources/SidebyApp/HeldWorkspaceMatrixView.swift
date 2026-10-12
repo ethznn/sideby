@@ -19,7 +19,7 @@ struct HeldMatrixStrings {
     var off: String { text("Turn on Sideby from the menu bar to switch setups.", "메뉴바에서 Sideby를 켜 주세요.") }
     var permission: String { text("Check switching access in Settings.", "설정에서 전환 권한을 확인해 주세요.") }
     var noDisplays: String { text("Choose participating displays in Edit connections.", "연결 수정에서 함께 움직일 모니터를 선택해 주세요.") }
-    var empty: String { text("Choose Edit connections to connect your Spaces.", "연결 수정을 눌러 현재 Space를 연결해 주세요.") }
+    var empty: String { text("Connect the Spaces on screen now, or choose Edit connections to pick others.", "지금 화면을 연결로 추가하거나, 연결 수정에서 다른 Space를 골라 주세요.") }
     var busy: String { text("Finishing the current operation…", "진행 중인 동작을 마무리하고 있습니다…") }
     var failed: String { text("Switch incomplete. Click the column to retry.", "일부 모니터가 이동하지 못했습니다. 열을 눌러 다시 시도하세요.") }
     var previous: String { text("Show earlier setups", "앞쪽 구성 보기") }
@@ -45,6 +45,9 @@ struct HeldWorkspaceMatrixView: View {
     @State private var isEditing = false
     @State private var hasEnteredEditing = false
     @State private var hoveredID: String?
+    @State private var showsAddFeedback = false
+    @State private var revealedConnectionID: String?
+    @State private var additionUndo: SavedWorkspaceUndo?
     private var copy: HeldMatrixStrings { .init(language: model.settings.language) }
     private var live: HeldWorkspaceSnapshot { .init(model: model, previousColumnID: snapshot.initialColumnID) }
 
@@ -58,11 +61,16 @@ struct HeldWorkspaceMatrixView: View {
                         Button(copy.backToSwitching) { setEditing(false) }
                             .pointingHandCursor().accessibilityIdentifier("held-finish-editing")
                     }
-                    ScrollView {
-                        CurrentConnectionsView(model: model, showsDesktopSources: true,
-                            availableHeight: max(280, geometry.size.height - 80),
-                            select: { id in if let column = live.columns.first(where: { $0.id == id }) { select(column) } },
-                            keepOpen: keepOpen, close: close)
+                    ScrollViewReader { scroll in
+                        ScrollView {
+                            CurrentConnectionsView(model: model, showsDesktopSources: true,
+                                availableHeight: max(280, geometry.size.height - 80),
+                                select: { id in if let column = live.columns.first(where: { $0.id == id }) { select(column) } },
+                                keepOpen: keepOpen, close: close)
+                        }
+                        .onChange(of: model.workspaceSaveMessage) { _, message in
+                            if message != nil { scroll.scrollTo("connections-feedback", anchor: .bottom) }
+                        }
                     }
                 } else {
                     HStack {
@@ -75,11 +83,41 @@ struct HeldWorkspaceMatrixView: View {
                             .buttonStyle(.plain).pointingHandCursor().accessibilityLabel(model.saveCopy.close)
                     }
                     Text(copy.hint).font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    Button {
+                        keepOpen(); hasEnteredEditing = true
+                        let previousUndo = model.settings.savedWorkspaces.undo
+                        revealedConnectionID = model.addCurrentConnection()
+                        if previousUndo != model.settings.savedWorkspaces.undo { additionUndo = model.settings.savedWorkspaces.undo }
+                        showsAddFeedback = true
+                    } label: {
+                        Label(model.connectionCopy.addCurrent, systemImage: "plus.circle")
+                    }
+                    .pointingHandCursor().disabled(!model.canChangeSavedWorkspaces)
+                    .help(model.connectionCopy.addCurrentHint)
+                    .accessibilityIdentifier("held-add-current-connection")
                     if live.columns.isEmpty || live.displayIDs.isEmpty {
-                        Text(live.columns.isEmpty ? copy.empty : copy.noDisplays)
+                        Text(live.displayIDs.isEmpty ? copy.noDisplays : copy.empty)
                             .font(.system(size: 13)).frame(maxWidth: .infinity, minHeight: 100, alignment: .center)
                     } else {
-                        quickTable(live, maxHeight: max(120, geometry.size.height - (statusMessage == nil ? 130 : 172)))
+                        quickTable(live, maxHeight: max(80, geometry.size.height - 170
+                            - (statusMessage == nil ? 0 : 42) - (showsAddFeedback ? 60 : 0)))
+                    }
+                    if showsAddFeedback, let message = model.workspaceSaveMessage {
+                        HStack {
+                            Text(message).font(.system(size: 12))
+                                .foregroundStyle(model.workspaceSaveFeedbackKind == .failure ? Color.orange : NativeSurfaceStyle.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("held-add-feedback")
+                            Spacer(minLength: 8)
+                            if let additionUndo, model.settings.savedWorkspaces.undo == additionUndo {
+                                Button(model.connectionCopy.text("Undo", "되돌리기")) {
+                                    keepOpen()
+                                    if model.undoSavedWorkspaceChange() { self.additionUndo = nil }
+                                }.pointingHandCursor().disabled(!model.canChangeSavedWorkspaces)
+                                    .keyboardShortcut("z", modifiers: .command)
+                                    .accessibilityIdentifier("held-undo-connection")
+                            }
+                        }
                     }
                     if let statusMessage {
                         Text(statusMessage).font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
@@ -134,6 +172,11 @@ struct HeldWorkspaceMatrixView: View {
                         }
                         .onChange(of: model.verifiedCurrentWorkspaceID) { _, id in
                             if let id { scroll.scrollTo(id, anchor: .center) }
+                        }
+                        .task(id: revealedConnectionID) {
+                            guard let id = revealedConnectionID else { return }
+                            await Task.yield()
+                            scroll.scrollTo(id, anchor: .center)
                         }
                 }
             }

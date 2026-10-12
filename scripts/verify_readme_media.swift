@@ -17,7 +17,7 @@ var expected: [String: (Int, Int)] = ["sideby-demo-poster-en.png": (960, 640)]
 for language in ["en", "ko"] {
     expected["sideby-connections-film-\(language).png"] = (1920, 1080)
     expected["sideby-connections-settings-\(language).png"] = (2080, 1280)
-    expected["sideby-connections-\(language).png"] = (1360, 1160)
+    expected["sideby-connections-\(language).png"] = (1440, 840)
     expected["sideby-connections-onboarding-\(language).png"] = (1360, 1280)
     expected["sideby-kinetic-\(language).png"] = (1920, 1080)
     expected["sideby-setups-film-\(language).png"] = (1920, 1080)

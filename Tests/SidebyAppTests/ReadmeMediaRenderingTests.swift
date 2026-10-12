@@ -55,12 +55,19 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             let suffix = language == .english ? "en" : "ko"
             let model = try makeModel(language: language)
             completeProgress(model)
+            let original = try XCTUnwrap(model.workspaceObservationOverride?())
+            let current = WorkspaceLayoutObservation(displays: original.displays.enumerated().map { offset, display in
+                .init(displayID: display.displayID, spaceCount: display.spaceCount, currentSpaceIndex: offset == 0 ? 0 : 1)
+            }, spaceIDsByDisplayID: original.spaceIDsByDisplayID, spaceKeysByDisplayID: original.spaceKeysByDisplayID)
+            model.workspaceObservationOverride = { current }
+            model.refreshWorkspaceStatus()
+            XCTAssertNotNil(model.addCurrentConnection())
             try await render(ProductSettingsView(model: model,
                 navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
                 actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {})),
                 to: output.appendingPathComponent("sideby-connections-settings-\(suffix).png"), width: 1040, height: 640, dark: false)
-            try await render(ProductFloatingMenuPanelView(model: model, actions: .init(route: { _ in }, quit: {})),
-                to: output.appendingPathComponent("sideby-connections-\(suffix).png"), width: 680, height: 580, dark: true)
+            try await render(HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model), select: { _ in }, persistent: true),
+                to: output.appendingPathComponent("sideby-connections-\(suffix).png"), width: 720, height: 420, dark: true)
             let empty = try makeModel(language: language, workspaceCount: 0)
             let preferences = MemoryProductUIPreferences()
             preferences.onboardingStage = .workspaces
