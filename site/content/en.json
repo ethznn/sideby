@@ -33,8 +33,8 @@
       "Check Accessibility and Screen Switching access in the guide."
     ],
     [
-      "Choose Spaces in empty cells.",
-      "Connect Spaces you want to see together in the same column. You can also start with Connect in current order. This does not switch your screens."
+      "Drop Spaces into the same column.",
+      "Drop the first Space into an empty cell to create a connection, then add another display’s Space to its row in that column. You can also click cells to choose, or use Connect in current order. This does not switch your screens."
     ],
     [
       "Adjust the cells you need.",
@@ -103,5 +103,10 @@
   "editor_overview": "What if desktops or displays change?",
   "editor_overview_text": "Find new desktops in the upper list and connect them. If a desktop disappears, choose again in the affected cell. Sideby never replaces it with a different desktop at the same position. Disconnected displays keep their connections.",
   "editor_overview_alt": "Current desktop contents and connections.",
-  "image_enlarge": "View full-size image"
+  "image_enlarge": "View full-size image",
+  "tutorial_title": "How to use Sideby in 16 seconds",
+  "tutorial_text": "Drop the first display’s Space into an empty cell to create a connection. Add the other display’s Space to the same column. Then adjust, use ⌥⇧Space to connect your current Spaces, switch, and return with ⌥⇧Tab.",
+  "tutorial_alt": "Sideby tutorial showing two-display connection setup, same-display dragging, Connect current Spaces, switching and returning.",
+  "tutorial_note": "16 seconds · Actual app UI and fictional data, reconstructed for explanation · Use the play button",
+  "tutorial_play": "Play 16-second tutorial"
 }

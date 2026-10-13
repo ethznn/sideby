@@ -31,7 +31,7 @@ args = parser.parse_args(); root = args.directory.resolve()
 base = args.base_url.rstrip('/') + '/'; parsed_base = urlparse(base)
 expected = {'index.html', 'ko/index.html', '404.html', '.nojekyll', 'sitemap.xml', 'assets/style.css', 'assets/site.js'}
 for language in ['en', 'ko']:
-    expected.update(f'assets/{stem}-{language}.{ext}' for stem, exts in [('sideby-connections-film', ['png', 'gif']), ('sideby-connections', ['png']), ('sideby-connections-settings', ['png']), ('sideby-connections-onboarding', ['png'])] for ext in exts)
+    expected.update(f'assets/{stem}-{language}.{ext}' for stem, exts in [('sideby-connections-film', ['png', 'gif']), ('sideby-tutorial', ['png', 'gif']), ('sideby-connections', ['png']), ('sideby-connections-settings', ['png']), ('sideby-connections-onboarding', ['png'])] for ext in exts)
 actual = {str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
 assert actual == expected, f'Unexpected deployment files: {actual ^ expected}'
 assert not any(p.is_symlink() for p in root.rglob('*')), 'Symlinks are not deployable'
@@ -66,6 +66,8 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     assert page.find('a', href='#edit')
     assert page.find('button', id='play-film', **{'aria-controls': 'film', 'aria-pressed': 'false'}), 'Provide film playback controls'
     assert page.find('img', id='film', src=f'{parsed_base.path}assets/sideby-connections-film-{language}.png')
+    assert page.find('img', id='tutorial-film', src=f'{parsed_base.path}assets/sideby-tutorial-{language}.png')
+    assert page.find('button', id='play-tutorial', **{'aria-controls': 'tutorial-film', 'aria-pressed': 'false', 'hidden': None})
     for tag, attrs in page.tags:
         if tag == 'img':
             assert attrs.get('alt') and attrs.get('width') and attrs.get('height')

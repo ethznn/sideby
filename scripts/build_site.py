@@ -60,7 +60,7 @@ for language in ['en', 'ko']:
     target = output / path
     target.mkdir(parents=True, exist_ok=True)
     (target / 'index.html').write_text(template.substitute(values))
-    for stem, suffixes in [('sideby-connections-film', ['png', 'gif']), ('sideby-connections', ['png']), ('sideby-connections-settings', ['png']), ('sideby-connections-onboarding', ['png'])]:
+    for stem, suffixes in [('sideby-connections-film', ['png', 'gif']), ('sideby-tutorial', ['png', 'gif']), ('sideby-connections', ['png']), ('sideby-connections-settings', ['png']), ('sideby-connections-onboarding', ['png'])]:
         for suffix in suffixes:
             filename = f'{stem}-{language}.{suffix}'
             shutil.copyfile(ROOT / 'docs/images' / filename, assets / filename)

@@ -16,6 +16,7 @@ let expectedDuration = timeline?.reduce(0.0) { $0 + ($1["seconds"] as! Double) }
 var expected: [String: (Int, Int)] = ["sideby-demo-poster-en.png": (960, 640)]
 for language in ["en", "ko"] {
     expected["sideby-connections-film-\(language).png"] = (1920, 1080)
+    expected["sideby-tutorial-\(language).png"] = (1920, 1080)
     expected["sideby-connections-settings-\(language).png"] = (2080, 1280)
     expected["sideby-connections-\(language).png"] = (1440, 840)
     expected["sideby-connections-onboarding-\(language).png"] = (1360, 1280)
@@ -82,7 +83,8 @@ for language in ["en", "ko"] {
     ("sideby-save-flow", 105, 21.0, false),
     ("sideby-setups-film", 120, 12.0, false),
     ("sideby-kinetic", 450, 22.5, false),
-    ("sideby-connections-film", 450, 22.5, false)
+    ("sideby-connections-film", 450, 22.5, false),
+    ("sideby-tutorial", 320, 16.0, false)
   ] {
     let url = directory.appendingPathComponent("\(stem)-\(language).gif")
     let loop = CGImageSourceCreateWithURL(url as CFURL, nil)!
@@ -97,7 +99,7 @@ for language in ["en", "ko"] {
         let properties = CGImageSourceCopyPropertiesAtIndex(loop, index, nil)! as NSDictionary
         let timing = properties[kCGImagePropertyGIFDictionary] as! NSDictionary
         let delay = (timing[kCGImagePropertyGIFUnclampedDelayTime] ?? timing[kCGImagePropertyGIFDelayTime]) as! NSNumber
-        precondition(abs(delay.doubleValue - (stem == "sideby-save-flow" ? 0.2 : (stem == "sideby-kinetic" || stem == "sideby-connections-film") ? 0.05 : 0.1)) < 0.001)
+        precondition(abs(delay.doubleValue - (stem == "sideby-save-flow" ? 0.2 : (stem == "sideby-kinetic" || stem == "sideby-connections-film" || stem == "sideby-tutorial") ? 0.05 : 0.1)) < 0.001)
         loopDuration += delay.doubleValue
     }
     precondition(abs(loopDuration - seconds) < 0.001)

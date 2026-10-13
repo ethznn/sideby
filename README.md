@@ -14,7 +14,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 *22.5-second motion graphic with fictional data. Illustrated workflow, not an app capture or a switching benchmark.*
 
-[Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](docs/media/preview.html)
+[Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](https://ethznn.github.io/sideby/#film)
 
 *Sideby 1.0.3 · [What’s new](docs/releases/1.0.3.md).*
 
@@ -32,7 +32,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 Spaces in the same column switch together. You can also click a cell to choose directly.
 
-- **Create a connection:** Drop a Space into a blank cell in the **Add connection** column. The + button scrolls to this column.
+- **Create a connection:** Drop a Space into a blank cell in the **Add connection** column. This creates a new connection. Then drag a Space from another display into its row in that same column. The + button scrolls to the blank column.
 - **Move or swap:** Drag between cells for the same display. Move into an empty cell or swap two occupied cells.
 - **Copy:** **Hold ⌥ Option when dropping** to keep the source cell. Dragging from the Space list also keeps the list intact.
 - **Undo:** **Undo** restores both cells in one step.
@@ -58,8 +58,12 @@ Existing connections, names, and numbered shortcuts are kept. No recreation or d
 Open **⌥⇧Space → Connect current Spaces** to keep the Spaces you are currently looking at as one connection. The default name joins the Space names, such as **Xcode / Figma**. No separate name or save dialog is needed. Existing identical connections are shown instead of duplicated. To rename, choose **Edit connections** and click the column name or pencil, then **Apply**. **Cancel** keeps the old name; **Undo** restores it after applying. The same name editor is available in Settings.
 
 <p align="center">
-  <img src="./docs/images/sideby-connections-en.png" width="680" alt="Actual shortcut window with Connect current Spaces and automatic connection names." />
+  <img src="./docs/images/sideby-tutorial-en.gif" width="880" alt="16-second tutorial: connect two displays by dragging, adjust, connect current Spaces, switch and return. Actual app UI with fictional data and reconstructed actions." />
 </p>
+
+*16-second usage guide: connect two displays, adjust, connect current Spaces, switch, and return. Actual app UI with fictional data; pointer motion and transitions are reconstructed.*
+
+[Play with controls](https://ethznn.github.io/sideby/#tutorial) · [Still image](docs/images/sideby-tutorial-en.png)
 
 Hold `⌥⇧Space` to open the switcher with your current connection in view. **Click anywhere in a column** to move the connected desktops together. Choose **Edit connections** only when you need to change them; the panel shows **Spaces on your displays** above the connection table. Drag a card to a cell for the same display, or click the card and then the cell. Edits are immediate, and **Back to switching** returns within the same panel. **Settings** shows the same list and connection table. The menu-bar table still allows direct cell editing.
 

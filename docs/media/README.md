@@ -1,6 +1,6 @@
 # README media
 
-The product views show Sideby 1.0.1. The 1.0.0 promotional film still describes
+The product views show Sideby 1.0.3. The 1.0.0 promotional film still describes
 the same workflow: connect existing Spaces, switch displays together, and adjust
 connections in place. It uses illustrations, not pixel-exact product screens.
 
@@ -23,7 +23,7 @@ There is no naming dialog or separate save action in the current workflow.
 [English GIF](../images/sideby-connections-film-en.gif) ·
 [한국어 정지 이미지](../images/sideby-connections-film-ko.png) ·
 [English still](../images/sideby-connections-film-en.png) ·
-[Preview with playback controls](preview.html)
+[Preview with playback controls](https://ethznn.github.io/sideby/#film)
 
 | Export | Size | Timing |
 | --- | --- | --- |
@@ -34,21 +34,50 @@ There is no naming dialog or separate save action in the current workflow.
 The full MP4s, score, HTML source, and render tools remain in the ignored
 `marketing/motion/showreel-connections-1.0.0/` and
 `marketing/scripts/connections100/` directories. Earlier originals are preserved.
-The README links only to tracked GIFs, stills, and the portable preview page.
+The README links to tracked GIFs and stills, with playback controls on the public site.
+Portable local previews are also available as `preview.html` and `tutorial.html`.
 The preview starts with a still and supports both languages and playback controls.
 The site honors reduced motion and provides a stop button.
 
+## Current usage tutorial
+
+A separate 16-second tutorial starts with dragging one Space from each of two
+display lists into the same connection. The first drop creates the connection;
+the second fills the other display row. It then shows dragging between cells
+for the same display,
+opening the shortcut window with `⌥⇧Space`, choosing **Connect current Spaces**,
+and switching to another connection before returning with `⌥⇧Tab`.
+The production app views use fictional fixtures. Pointer movement and connection
+state changes are reconstructed examples, not live recordings or speed benchmarks.
+
+[한국어 GIF](../images/sideby-tutorial-ko.gif) · [English GIF](../images/sideby-tutorial-en.gif) · [한국어 재생·정지](https://ethznn.github.io/sideby/ko/#tutorial) · [English playback controls](https://ethznn.github.io/sideby/#tutorial)
+
+The GIFs are 960 × 540, 20 fps, 320 frames, 16 seconds. Posters are 1920 × 1080.
+The tutorial contains only app operations, without an intro, outro, or music.
+Each drag lasts 0.6 seconds. The edited row is magnified, both cards visibly
+swap, the new column and automatic name appear progressively, and enlarged
+current-Space labels slide during switching and returning.
+Production sources and masters remain in ignored `marketing/motion/tutorial-1.0.3/`
+and `marketing/scripts/tutorial103/`. The website starts this tutorial as a still;
+users can play or stop it. README playback controls are linked below the GIF.
+
+Regenerate the tutorial’s native scene images with isolated fictional data:
+
+```bash
+SIDEBY_RENDER_TUTORIAL=1 SIDEBY_MEDIA_OUTPUT=/tmp/sideby-tutorial-scenes swift test --filter ReadmeMediaRenderingTests.testRenderConnectionTutorialScenes
+```
+
 ## Current product views
 
-These 1.0.1 images render production SwiftUI/AppKit views using fictional fixtures.
-Connected cards, dashed empty cells, and the explicit Move together action show
+These 1.0.3 images render production SwiftUI/AppKit views using fictional fixtures.
+Connected cards, dashed empty cells, and the explicit Go together action show
 the difference between editing a connection and switching Spaces.
 No personal desktop, window title, account, or Space configuration is captured.
 
 | PNG | Pixels | Contents |
 | --- | --- | --- |
 | `sideby-connections-settings-{en,ko}.png` | 2080 × 1280 | Space list and directly editable connection table |
-| `sideby-connections-{en,ko}.png` | 1360 × 1160 | Menu-bar connection table |
+| `sideby-connections-{en,ko}.png` | 1440 × 840 | Shortcut window with Connect current Spaces |
 | `sideby-connections-onboarding-{en,ko}.png` | 1360 × 1280 | First-use guide |
 
 Regenerate product views from a graphical macOS session:
@@ -74,7 +103,8 @@ The media verifier checks current PNG dimensions, every current GIF frame,
 timing, loop flags, animation, size limits, localized README references, and
 local documentation links. It also retains checks on historical media. It does
 not establish visual correctness or release availability. Inspect both language
-versions at README display size and inspect the final MP4 separately.
+versions at README display size. For promotional film exports, inspect the final
+MP4 separately; the usage tutorial is a silent GIF.
 
 The local film verifier decodes every MP4 video and audio frame, checks 60 fps,
 duration, dimensions, stereo audio, clipping, and progressive playback metadata.

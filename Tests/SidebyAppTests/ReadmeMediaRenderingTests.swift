@@ -76,6 +76,72 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         }
     }
 
+    func testRenderConnectionTutorialScenes() async throws {
+        guard ProcessInfo.processInfo.environment["SIDEBY_RENDER_TUTORIAL"] == "1" else {
+            throw XCTSkip("Opt-in tutorial scenes with fictional data")
+        }
+        let output = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SIDEBY_MEDIA_OUTPUT"] ?? "/tmp/sideby-tutorial-scenes")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        for language in [AppLanguage.korean, .english] {
+            let lang = language == .korean ? "ko" : "en"
+            let setup = try makeModel(language: language, workspaceCount: 0)
+            completeProgress(setup)
+            let setupObservation = try XCTUnwrap(setup.workspaceObservationOverride?())
+            func setupScene(_ name: String) async throws {
+                try await render(ProductSettingsView(model: setup,
+                    navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
+                    actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {})),
+                    to: output.appendingPathComponent("\(name)-\(lang).png"), width: 1040, height: 640, dark: false)
+            }
+            try await setupScene("setup-empty")
+            let firstSpace = try XCTUnwrap(setupObservation.spaceKeysByDisplayID["display-0"]?.first)
+            XCTAssertTrue(setup.setCurrentConnection(displayID: "display-0", key: firstSpace, contextID: nil))
+            let newConnection = try XCTUnwrap(setup.settings.contextPlan.contexts.first)
+            XCTAssertEqual(newConnection.displayIDs.count, 1)
+            try await setupScene("setup-first")
+            let secondSpace = try XCTUnwrap(setupObservation.spaceKeysByDisplayID["display-1"]?.first)
+            XCTAssertTrue(setup.setCurrentConnection(displayID: "display-1", key: secondSpace, contextID: newConnection.id))
+            XCTAssertEqual(setup.settings.contextPlan.contexts.count, 1)
+            XCTAssertEqual(setup.settings.contextPlan.contexts.first?.displayIDs.count, 2)
+            XCTAssertEqual(setup.workspaceObservationOverride?(), setupObservation)
+            try await setupScene("setup-complete")
+            let model = try makeModel(language: language)
+            completeProgress(model)
+            func settings(_ name: String) async throws {
+                try await render(ProductSettingsView(model: model,
+                    navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
+                    actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {})),
+                    to: output.appendingPathComponent("\(name)-\(lang).png"), width: 1040, height: 640, dark: false)
+            }
+            func quick(_ name: String) async throws {
+                try await render(HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model), select: { _ in }, persistent: true),
+                    to: output.appendingPathComponent("\(name)-\(lang).png"), width: 720, height: 420, dark: true)
+            }
+            try await settings("drag-before")
+            let key = try XCTUnwrap(model.settings.savedWorkspaces.bookmarks["checkout"]?["display-1"])
+            let target = try XCTUnwrap(model.settings.savedWorkspaces.bookmarks["review"]?["display-1"])
+            XCTAssertTrue(model.transferCurrentConnection(.init(displayID: "display-1", key: key),
+                from: "checkout", to: "review", expectedDestinationKey: target, copying: false))
+            try await settings("drag-after")
+            model.workspaceSaveMessage = nil
+            try await quick("capture-before")
+            let captured = try XCTUnwrap(model.addCurrentConnection())
+            XCTAssertEqual(model.settings.contextPlan.contexts.first(where: { $0.id == captured })?.name,
+                "Checkout.swift / Checkout API")
+            try await quick("capture-after")
+            // Simulated observation for explanatory media; never send an actual Space command.
+            let original = try XCTUnwrap(model.workspaceObservationOverride?())
+            let review = WorkspaceLayoutObservation(displays: original.displays.map { display in
+                .init(displayID: display.displayID, spaceCount: display.spaceCount,
+                      currentSpaceIndex: display.displayID == "display-0" ? 1 : 0)
+            }, spaceIDsByDisplayID: original.spaceIDsByDisplayID, spaceKeysByDisplayID: original.spaceKeysByDisplayID)
+            model.workspaceObservationOverride = { review }; model.refreshWorkspaceStatus()
+            try await quick("switch-review")
+            model.workspaceObservationOverride = { original }; model.refreshWorkspaceStatus()
+            try await quick("switch-return")
+        }
+    }
+
     func testRenderReadmeMedia() async throws {
         guard ProcessInfo.processInfo.environment["SIDEBY_RENDER_MEDIA"] == "1" else {
             throw XCTSkip("Opt-in deterministic README media generation")
