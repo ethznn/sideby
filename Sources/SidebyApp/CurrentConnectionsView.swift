@@ -723,37 +723,7 @@ struct ConnectionSpacePicker: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(Array(keys.enumerated()), id: \.element) { index, key in
-                            let name = model.workspaceDesktopName(displayID: displayID, spaceIndex: index)
-                            let selected = currentKey == key
-                            Button {
-                                if model.setCurrentConnection(displayID: displayID, key: key, contextID: context?.id) { close() }
-                                readObservation()
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "rectangle.on.rectangle")
-                                        .font(.system(size: 15)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(name ?? copy.spacePosition(index))
-                                            .font(.system(size: 12, weight: .medium)).lineLimit(1)
-                                        if let name, name != copy.spacePosition(index) {
-                                            Text(copy.spacePosition(index)).font(.system(size: 10))
-                                                .foregroundStyle(NativeSurfaceStyle.secondaryText)
-                                        }
-                                    }.frame(maxWidth: .infinity, alignment: .leading)
-                                    Image(systemName: selected ? "checkmark.circle.fill" : "chevron.right")
-                                        .font(.system(size: selected ? 14 : 10, weight: .semibold))
-                                        .foregroundStyle(selected ? NativeSurfaceStyle.accent : NativeSurfaceStyle.secondaryText)
-                                }
-                                .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(height: 48)
-                                .contentShape(RoundedRectangle(cornerRadius: 7))
-                            }
-                                .buttonStyle(ConnectionSpaceChoiceStyle(selected: selected, focused: focusedKey == key))
-                                .focused($focusedKey, equals: key).pointingHandCursor()
-                                .disabled(!model.canChangeSavedWorkspaces)
-                                .help(name.map { $0 + " · " + copy.spacePosition(index) } ?? copy.spacePosition(index))
-                                .accessibilityLabel(name.map { $0 + " · " + copy.spacePosition(index) } ?? copy.spacePosition(index))
-                                .accessibilityValue(selected ? copy.text("Connected", "연결됨") : "")
-                                .accessibilityIdentifier("connection-choice-" + displayID + "-\(index)")
+                            spaceChoice(index: index, key: key)
                         }
                     }.padding(2)
                 }.frame(height: min(260, CGFloat(keys.count) * 48 + CGFloat(max(0, keys.count - 1)) * 6 + 4))
@@ -774,6 +744,46 @@ struct ConnectionSpacePicker: View {
         }.padding(14).font(.system(size: 12))
             .onAppear { readObservation() }
             .onExitCommand { close() }
+    }
+
+    private func spaceChoice(index: Int, key: String) -> some View {
+        let name = model.workspaceDesktopName(displayID: displayID, spaceIndex: index)
+        let position = copy.spacePosition(index)
+        let selected = currentKey == key
+        let accessibleName = name.map { $0 + " · " + position } ?? position
+        return Button {
+            if model.setCurrentConnection(displayID: displayID, key: key, contextID: context?.id) { close() }
+            readObservation()
+        } label: {
+            spaceChoiceLabel(name: name, position: position, selected: selected)
+        }
+        .buttonStyle(ConnectionSpaceChoiceStyle(selected: selected, focused: focusedKey == key))
+        .focused($focusedKey, equals: key).pointingHandCursor()
+        .disabled(!model.canChangeSavedWorkspaces)
+        .help(accessibleName)
+        .accessibilityLabel(accessibleName)
+        .accessibilityValue(selected ? copy.text("Connected", "연결됨") : "")
+        .accessibilityIdentifier("connection-choice-" + displayID + "-\(index)")
+    }
+
+    private func spaceChoiceLabel(name: String?, position: String, selected: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "rectangle.on.rectangle")
+                .font(.system(size: 15)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(name ?? position)
+                    .font(.system(size: 12, weight: .medium)).lineLimit(1)
+                if let name, name != position {
+                    Text(position).font(.system(size: 10))
+                        .foregroundStyle(NativeSurfaceStyle.secondaryText)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: selected ? "checkmark.circle.fill" : "chevron.right")
+                .font(.system(size: selected ? 14 : 10, weight: .semibold))
+                .foregroundStyle(selected ? NativeSurfaceStyle.accent : NativeSurfaceStyle.secondaryText)
+        }
+        .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(height: 48)
+        .contentShape(RoundedRectangle(cornerRadius: 7))
     }
 
     private func keys(_ id: String) -> [String]? { model.composerKeys(id, observation: observation) }
