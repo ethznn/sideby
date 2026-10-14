@@ -68,12 +68,15 @@ enum HeldMatrixPanelLayout {
     static let headerHeight: CGFloat = 64
     static let labelWidth: CGFloat = 120
 
-    static func size(columns: Int, displays: Int, visibleFrame: NSRect, accessoryHeight: CGFloat = 0, editing: Bool = false) -> NSSize {
+    static func size(columns: Int, displays: Int, visibleFrame: NSRect, accessoryHeight: CGFloat = 0,
+                     editing: Bool = false, contentHeight: CGFloat? = nil) -> NSSize {
         let width = max(editing ? 820 : 440, 162 + CGFloat(max(1, columns)) * (columnWidth + 6))
         let tableHeight = min(360, headerHeight + CGFloat(max(1, displays)) * rowHeight + 14)
-        let height = editing ? 680 : max(360, 230 + tableHeight + accessoryHeight)
+        // The estimate is only for the first, offscreen layout pass. Visible
+        // panels use the rendered content height, including wrapped messages.
+        let height = contentHeight.map { ceil($0) } ?? (230 + tableHeight + accessoryHeight)
         return NSSize(width: min(width, 1040, max(1, visibleFrame.width - 32)),
-                      height: min(height, max(1, visibleFrame.height - 48)))
+                      height: min(max(1, height), max(1, visibleFrame.height - 48)))
     }
 
     static func origin(size: NSSize, pointer: NSPoint, visibleFrame: NSRect) -> NSPoint {
@@ -114,5 +117,15 @@ extension SidebyAppModel {
         isEnabled && canActivateContext && pendingContextCaptureAlignment == nil
             && hasSwitchingAccess && column.stillMatches(model: self, displayIDs: displayIDs)
             && isWorkspaceAssignmentAvailable(contextID: column.id)
+    }
+}
+
+/// Opening the held matrix must not turn its first drag into an Option-copy.
+/// After Option is released, a fresh Option press requests copying normally.
+struct HeldMatrixCopyModifiers {
+    var ignoresOpeningOption = false
+    mutating func update(optionDown: Bool) -> Bool {
+        if !optionDown { ignoresOpeningOption = false }
+        return optionDown && !ignoresOpeningOption
     }
 }

@@ -212,7 +212,7 @@ extension SidebyAppModel {
         // A filled target swaps back into the source. Do not silently discard a
         // missing or legacy assignment that cannot be safely resolved by key.
         if destination?.spaceIndex(for: displayID) != nil && reverseIndex == nil {
-            showWorkspaceFeedback(connectionCopy.vanished, kind: .failure); return false
+            showWorkspaceFeedback(connectionCopy.missingSwapTarget, kind: .failure); return false
         }
         var next = settings
         var contexts = next.contextPlan.contexts.sorted { $0.order < $1.order }
@@ -274,7 +274,8 @@ struct CurrentConnectionStrings {
         swapped ? text("\(display) · Swapped ‘\(from)’ and ‘\(to)’.", "\(display) · ‘\(from)’와 ‘\(to)’의 자리를 바꿨어요.")
             : text("\(display) · Moved from ‘\(from)’ to ‘\(to)’.", "\(display) · ‘\(from)’에서 ‘\(to)’로 옮겼어요.")
     }
-    var vanished: String { text("That Space is no longer available. Choose again from the current list.", "해당 Space가 사라졌어요. 현재 목록에서 다시 골라 주세요.") }
+    var vanished: String { text("That Space can't be found in the current list. Choose again.", "현재 목록에서 해당 Space를 찾을 수 없어요. 다시 골라 주세요.") }
+    var missingSwapTarget: String { text("The destination Space can't be found, so it can't be swapped. Option-drag to copy here, or disconnect this cell first.", "대상 Space를 찾을 수 없어 자리를 바꿀 수 없어요. Option 드래그로 복사하거나 이 칸의 연결을 먼저 해제해 주세요.") }
     var choose: String { text("Choose Space", "Space 선택") }
     var add: String { text("Add connection", "연결 추가") }
     var createByDropping: String { text("Drop a Space to create", "Space를 놓으면 새 연결이 생겨요") }
@@ -285,7 +286,8 @@ struct CurrentConnectionStrings {
     var emptyDetail: String { text("Pairs Spaces in the same order across your selected displays. Adjust any cell afterward.", "선택한 모니터의 Space를 같은 순서끼리 연결합니다. 다른 짝을 원하면 해당 칸만 바꾸세요.") }
     var emptyDirectHint: String { text("Choose a Space in an empty cell to make your first connection.", "빈 칸에서 Space를 골라 첫 연결을 만드세요.") }
     var emptyDragHint: String { text("Drop a Space into an empty cell, or click to choose.", "빈 칸에 Space를 놓거나, 칸을 눌러 골라 주세요.") }
-    var repair: String { text("Space missing · Choose again", "Space 사라짐 · 다시 선택") }
+    var repair: String { text("Space not found · Choose again", "Space 찾을 수 없음 · 다시 선택") }
+    var repairHint: String { text("The saved Space can't be found. Choose another Space, or disconnect this cell below.", "저장한 Space를 현재 찾을 수 없어요. 다른 Space를 고르거나 아래에서 이 칸의 연결을 해제하세요.") }
     var keep: String { text("Leave this display as it is", "이 모니터는 그대로 두기") }
     var clearCell: String { text("Disconnect this cell", "이 칸 연결 해제") }
     var clearDisplay: String { text("Clear connections for this display…", "이 모니터의 연결 비우기…") }

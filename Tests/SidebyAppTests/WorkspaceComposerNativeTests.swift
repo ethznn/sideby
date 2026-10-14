@@ -590,6 +590,221 @@ import SidebySystem
         throw NSError(domain: "Sideby.NativeEvidence.MissingPopup", code: 1)
     }
 
+    func testQuickPanelNameSwitchesOnlyPencilRenamesAndPinnedPanelShowsSystemHand() async throws {
+        try requireNative()
+        for dark in [false, true] {
+            let model = fixture(contexts: 3)
+            let before = model.settings
+            let size = NSSize(width: 710, height: 420)
+            let window = HeldMatrixPanel(contentRect: .init(origin: .zero, size: size),
+                styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            defer { window.close() }
+            var selections: [String] = [], pinned = false
+            window.contentView = HeldMatrixHostingView(rootView: HeldWorkspaceMatrixView(model: model,
+                snapshot: .init(model: model), select: { selections.append($0.id) }, keepOpen: {
+                    pinned = true; window.acceptsKeyboard = true
+                    NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil)
+                }).frame(width: size.width, height: size.height))
+            window.center(); window.orderFrontRegardless(); NSApp.deactivate()
+            try await Task.sleep(for: .milliseconds(250))
+            XCTAssertFalse(window.isKeyWindow)
+            let title = try XCTUnwrap(element("held-title-setup-1", in: window))
+            let pencil = try XCTUnwrap(element("held-rename-setup-1", in: window))
+            let cell = try XCTUnwrap(element("held-cell-setup-1-display-0", in: window))
+            let titleFrame = try frame(title), pencilFrame = try frame(pencil)
+            XCTAssertLessThanOrEqual(titleFrame.maxX, pencilFrame.minX, "Title and rename hit areas must not overlap")
+            XCTAssertGreaterThanOrEqual(pencilFrame.width, 24)
+            let outside = NSRect(x: window.frame.minX - 20, y: window.frame.midY, width: 1, height: 1)
+            for (target, label) in [(title, "title"), (pencil, "pencil"), (cell, "space")] {
+                try await moveMouse(from: outside, to: frame(target), dragging: false)
+                // NSCursor.current is app-local; a background panel cannot use it to prove the visible cursor.
+                try capture(window, name: "quick-hover-\(dark ? "dark" : "light")-\(label)")
+
+            }
+            try click(title, window: window)
+            XCTAssertEqual(selections, ["setup-1"])
+            XCTAssertFalse(pinned, "Name click switches without entering edit mode")
+            XCTAssertFalse(NSApp.windows.contains { $0.isVisible && element("connection-name-apply", in: $0) != nil })
+            // Deliver a real mouse click so macOS handles activation as it does for the user.
+            try await moveMouse(from: pencilFrame, to: pencilFrame, stepMilliseconds: 1)
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertEqual(selections, ["setup-1"], "Pencil must not switch Spaces")
+            XCTAssertTrue(pinned)
+            let popup = try XCTUnwrap(NSApp.windows.first { $0.isVisible && element("connection-name-cancel", in: $0) != nil })
+            try click(XCTUnwrap(element("connection-name-cancel", in: popup)), window: popup)
+            XCTAssertEqual(model.settings, before)
+            XCTAssertTrue(NSApp.isActive, "Explicit editing activates the app")
+            for target in [title, pencil, cell] {
+                try await moveMouse(from: outside, to: frame(target), dragging: false)
+                let actual = try XCTUnwrap(NSCursor.currentSystem)
+                // Inspect the WindowServer cursor, not only this process's requested cursor.
+                XCTAssertEqual(actual.hotSpot, NSCursor.pointingHand.hotSpot)
+                func cursorPixels(_ cursor: NSCursor) throws -> Data {
+                    let rep = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(cursor.image.tiffRepresentation)))
+                    return try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+                }
+                XCTAssertEqual(try cursorPixels(actual), try cursorPixels(NSCursor.pointingHand))
+            }
+            try click(cell, window: window)
+            XCTAssertEqual(selections, ["setup-1", "setup-1"])
+        }
+    }
+
+    func testQuickPanelDirectSpaceDragAndTitleReorderKeepPanelOpenAndUndo() async throws {
+        try requireNative()
+        let model = fixture(contexts: 3)
+        let before = model.settings
+        let size = NSSize(width: 850, height: 680)
+        let window = HeldMatrixPanel(contentRect: .init(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: .darkAqua)
+        defer { window.close() }
+        var switches = 0, pinned = false
+        window.contentView = HeldMatrixHostingView(rootView: HeldWorkspaceMatrixView(model: model,
+            snapshot: .init(model: model), select: { _ in switches += 1 }, keepOpen: {
+                pinned = true; window.acceptsKeyboard = true
+                NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil)
+            }).frame(width: size.width, height: size.height))
+        window.center(); window.orderFrontRegardless()
+        try await Task.sleep(for: .milliseconds(300))
+        func cell(_ context: String, _ display: String = "display-0") throws -> NSRect {
+            try frame(XCTUnwrap(element("held-cell-" + context + "-" + display, in: window)))
+        }
+        for copying in [false, true] {
+            try await moveMouse(from: cell("setup-0"), to: cell("setup-1"), whileHeld: {
+                XCTAssertTrue(pinned)
+                XCTAssertEqual(self.attribute(try XCTUnwrap(self.element("held-cell-setup-1-display-0", in: window)), "AXValue") as? String,
+                    copying ? "놓으면 복사" : "놓으면 이동·자리 바꾸기")
+                try self.capture(window, name: copying ? "quick-direct-copy" : "quick-direct-move")
+            }, optionAtStart: copying)
+            XCTAssertEqual(NSCursor.current, .pointingHand, "Dropping restores the click cursor")
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["setup-1"]?["display-0"], "display-0-space-0")
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["setup-0"]?["display-0"], copying ? "display-0-space-0" : "display-0-space-1")
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["setup-0"]?["display-1"], "display-1-space-0")
+            try click(XCTUnwrap(element("held-undo-connection", in: window)), window: window)
+            try await Task.sleep(for: .milliseconds(150))
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        }
+        try await moveMouse(from: cell("setup-0"), to: cell("setup-1", "display-1"))
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        try await moveMouse(from: cell("setup-0"), to: cell("setup-1"), cancel: true)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        // Both views use native title dragging and preserve keyboard shortcut assignments.
+        for editing in [false, true] {
+            if editing {
+                try click(XCTUnwrap(element("held-edit-connections", in: window)), window: window)
+                try await Task.sleep(for: .milliseconds(200))
+            }
+            let prefix = editing ? "connection-rename-" : "held-title-"
+            let target = try frame(XCTUnwrap(element(prefix + "setup-2", in: window)))
+            let after = NSRect(x: target.maxX - 8, y: target.midY, width: 2, height: 2)
+            try await moveMouse(from: frame(XCTUnwrap(element(prefix + "setup-0", in: window))), to: after)
+            XCTAssertEqual(model.settings.contextPlan.contexts.sorted { $0.order < $1.order }.map(\.id), ["setup-1", "setup-2", "setup-0"])
+            XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, before.savedWorkspaces.shortcutSlots)
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+            XCTAssertTrue(window.isVisible)
+            try capture(window, name: editing ? "editor-title-reordered" : "quick-title-reordered")
+            try click(XCTUnwrap(element(editing ? "connections-undo" : "held-undo-connection", in: window)), window: window)
+            try await Task.sleep(for: .milliseconds(150))
+            XCTAssertEqual(model.settings.contextPlan.contexts, before.contextPlan.contexts)
+        }
+        XCTAssertEqual(switches, 0)
+        XCTAssertFalse(model.isSwitching)
+        XCTAssertEqual(model.settings.contextPlan.currentContextID, before.contextPlan.currentContextID)
+    }
+
+    func testQuickPanelOptionCopyRepairsMissingSpaceAndDisconnectRemovesLastCell() async throws {
+        try requireNative()
+        let model = fixture(displays: 1, contexts: 2)
+        model.settings.savedWorkspaces.bookmarks["setup-0"]?["display-0"] = "missing-space"
+        model.refreshWorkspaceStatus()
+        let before = model.settings
+        let size = NSSize(width: 700, height: 420)
+        let window = HeldMatrixPanel(contentRect: .init(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.acceptsKeyboard = true
+        defer { window.close() }
+        var switches = 0
+        window.contentView = HeldMatrixHostingView(rootView: HeldWorkspaceMatrixView(model: model,
+            snapshot: .init(model: model), select: { _ in switches += 1 },
+            keepOpen: { window.makeKeyAndOrderFront(nil) }).frame(width: size.width, height: size.height))
+        window.center(); NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil); window.orderFrontRegardless()
+        try await Task.sleep(for: .milliseconds(250))
+        func cell(_ id: String) throws -> NSRect {
+            try frame(XCTUnwrap(element("held-cell-" + id + "-display-0", in: window)))
+        }
+        try await moveMouse(from: cell("setup-1"), to: cell("setup-0"), dragging: false)
+        try capture(window, name: "missing-space-hover")
+        try await moveMouse(from: cell("setup-1"), to: cell("setup-0"), whileHeld: {
+            let target = try XCTUnwrap(self.element("held-cell-setup-0-display-0", in: window))
+            XCTAssertEqual(self.attribute(target, "AXValue") as? String, "Option을 누르면 여기에 복사")
+        })
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        XCTAssertEqual(model.workspaceSaveMessage, model.connectionCopy.missingSwapTarget)
+        try await moveMouse(from: cell("setup-1"), to: cell("setup-0"), whileHeld: {
+            let target = try XCTUnwrap(self.element("held-cell-setup-0-display-0", in: window))
+            XCTAssertEqual(self.attribute(target, "AXValue") as? String, "놓으면 복사")
+        }, optionAtStart: true)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["setup-0"]?["display-0"], "display-0-space-1")
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["setup-1"]?["display-0"], "display-0-space-1", "Copy keeps the source")
+        XCTAssertTrue(model.unresolvedWorkspaceMembers(model.settings.contextPlan.contexts[0]).isEmpty)
+        XCTAssertEqual(switches, 0)
+        XCTAssertFalse(model.isSwitching)
+        try click(XCTUnwrap(element("held-undo-connection", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        try click(XCTUnwrap(element("held-cell-setup-0-display-0", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(200))
+        let popup = try XCTUnwrap(NSApp.windows.first { $0.isVisible && element("connection-clear", in: $0) != nil })
+        try click(XCTUnwrap(element("connection-clear", in: popup)), window: popup)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertNil(model.settings.contextPlan.contexts.first { $0.id == "setup-0" }, "Disconnecting the last cell removes the empty connection")
+        XCTAssertNil(model.settings.savedWorkspaces.shortcutSlots["setup-0"])
+        try click(XCTUnwrap(element("held-undo-connection", in: window)), window: window)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        XCTAssertEqual(model.settings.contextPlan.contexts, before.contextPlan.contexts)
+        XCTAssertEqual(switches, 0)
+    }
+
+    func testQuickEditorFirstNativeDropsKeepWindowAndTargetsStill() async throws {
+        try requireNative()
+        let model = fixture(contexts: 2)
+        let observation = model.workspaceObservationOverride?()
+        XCTAssertTrue(model.removeConnections(try XCTUnwrap(model.prepareConnectionRemoval(.all))))
+        model.workspaceSaveMessage = nil
+        let controller = HeldWorkspaceMatrixController(model: model)
+        let screen = try XCTUnwrap(NSScreen.main).visibleFrame
+        controller.showPersistent(anchor: NSRect(x: screen.midX, y: screen.minY + 100, width: 1, height: 1))
+        let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
+        defer { controller.dismiss(); window.close() }
+        try await Task.sleep(for: .milliseconds(200))
+        try click(XCTUnwrap(element("held-edit-connections", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(250))
+        let initialPanel = window.frame
+        let sources = try (0..<2).map { try frame(XCTUnwrap(element("connection-source-display-\($0)-0", in: window))) }
+        let emptyCells = try (0..<2).map { try frame(XCTUnwrap(element("connection-cell-new-display-\($0)", in: window))) }
+        try capture(window, name: "quick-editor-empty-before-native-drag")
+        try await moveMouse(from: sources[0], to: emptyCells[0])
+        XCTAssertEqual(window.frame, initialPanel)
+        let id = try XCTUnwrap(model.settings.contextPlan.contexts.first?.id)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks[id]?["display-0"], "display-0-space-0")
+        for display in 0..<2 {
+            XCTAssertEqual(try frame(XCTUnwrap(element("connection-source-display-\(display)-0", in: window))), sources[display])
+            XCTAssertEqual(try frame(XCTUnwrap(element("connection-cell-\(id)-display-\(display)", in: window))), emptyCells[display])
+        }
+        try capture(window, name: "quick-editor-first-native-drop")
+        try await moveMouse(from: sources[1], to: emptyCells[1])
+        XCTAssertEqual(window.frame, initialPanel)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks[id]?["display-1"], "display-1-space-0")
+        try capture(window, name: "quick-editor-second-native-drop")
+        XCTAssertEqual(model.workspaceObservationOverride?(), observation)
+        XCTAssertFalse(model.isSwitching)
+        XCTAssertNil(model.workspacePreferences)
+    }
+
     func testHeldEditorMovesSwapsAndOptionCopiesAtDropTime() async throws {
         try requireNative()
         let model = fixture(contexts: 2)

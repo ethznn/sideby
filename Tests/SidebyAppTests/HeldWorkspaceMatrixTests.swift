@@ -4,6 +4,17 @@ import XCTest
 @testable import SidebyApp
 
 @MainActor final class HeldWorkspaceMatrixTests: XCTestCase {
+    func testOpeningOptionDoesNotCopyUntilReleasedAndPressedAgain() {
+        var modifiers = HeldMatrixCopyModifiers(ignoresOpeningOption: true)
+        XCTAssertFalse(modifiers.update(optionDown: true))
+        XCTAssertFalse(modifiers.update(optionDown: true))
+        XCTAssertFalse(modifiers.update(optionDown: false))
+        XCTAssertTrue(modifiers.update(optionDown: true))
+        XCTAssertFalse(modifiers.update(optionDown: false))
+        var persistent = HeldMatrixCopyModifiers()
+        XCTAssertTrue(persistent.update(optionDown: true))
+    }
+
     func testSnapshotKeepsOrderUsesAliasesAndOmitsOfflineAndExcludedDisplays() throws {
         let model = heldMatrixFixture()
         let target = try XCTUnwrap(model.prepareDesktopNameEdit(displayID: "mac", spaceIndex: 0))
@@ -63,6 +74,46 @@ import XCTest
                 XCTAssertTrue(frame.contains(rect))
             }
         }
+    }
+
+    func testMeasuredPanelHeightHasNoFixedMinimumAndCapsAtAvailableScreenHeight() {
+        let screen = NSRect(x: -900, y: -100, width: 900, height: 600)
+        for editing in [false, true] {
+            let short = HeldMatrixPanelLayout.size(columns: 2, displays: 1, visibleFrame: screen,
+                                                   editing: editing, contentHeight: 231.2)
+            XCTAssertEqual(short.height, 232)
+            let tall = HeldMatrixPanelLayout.size(columns: 2, displays: 8, visibleFrame: screen,
+                                                  editing: editing, contentHeight: 1000)
+            XCTAssertEqual(tall.height, 552)
+            let rect = NSRect(origin: HeldMatrixPanelLayout.origin(size: tall,
+                pointer: NSPoint(x: screen.midX, y: screen.maxY), visibleFrame: screen), size: tall)
+            XCTAssertTrue(screen.contains(rect))
+        }
+    }
+
+    func testMissingSavedIdentityBlocksOnlyThatConnectionEvenWhenItsPositionIsReused() throws {
+        let model = heldMatrixFixture(count: 3, displayCount: 2)
+        model.settings.savedWorkspaces.bookmarks["work-0"]?["mac"] = "default-desktop"
+        model.refreshWorkspaceStatus()
+        let snapshot = HeldWorkspaceSnapshot(model: model)
+        let missing = try XCTUnwrap(snapshot.columns.first { $0.id == "work-0" })
+        XCTAssertFalse(model.heldMatrixCanActivate(missing, displayIDs: snapshot.displayIDs))
+        XCTAssertEqual(model.unresolvedWorkspaceMembers(model.settings.contextPlan.contexts[0]), ["mac"])
+        XCTAssertTrue(model.heldMatrixCanActivate(snapshot.columns[1], displayIDs: snapshot.displayIDs))
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["work-0"]?["mac"], "default-desktop", "Never silently replace a missing Space with a reused position")
+    }
+
+    func testConnectionsSharingTheCurrentSpacesRemainSelectable() throws {
+        let model = heldMatrixFixture(count: 2)
+        let original = model.settings.contextPlan.contexts[0]
+        let duplicate = ContextDefinition(id: "duplicate", order: 3, name: "Same Spaces", displaySpaceIndexes: original.displaySpaceIndexes)
+        model.settings.contextPlan = .init(contexts: model.settings.contextPlan.contexts + [duplicate], currentContextID: original.id)
+        model.settings.savedWorkspaces.bookmarks[duplicate.id] = model.settings.savedWorkspaces.bookmarks[original.id]
+        model.refreshWorkspaceStatus()
+        let snapshot = HeldWorkspaceSnapshot(model: model)
+        XCTAssertEqual(model.verifiedCurrentWorkspaceID, original.id)
+        let column = try XCTUnwrap(snapshot.columns.first { $0.id == duplicate.id })
+        XCTAssertTrue(model.heldMatrixCanActivate(column, displayIDs: snapshot.displayIDs), "Identical Spaces are not a reason to disable another connection")
     }
 }
 

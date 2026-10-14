@@ -1,6 +1,6 @@
 # README media
 
-The product views show Sideby 1.0.3. The 1.0.0 promotional film still describes
+The product views show Sideby 1.0.4. The 1.0.0 promotional film still describes
 the same workflow: connect existing Spaces, switch displays together, and adjust
 connections in place. It uses illustrations, not pixel-exact product screens.
 
@@ -41,35 +41,38 @@ The site honors reduced motion and provides a stop button.
 
 ## Current usage tutorial
 
-A separate 16-second tutorial starts with dragging one Space from each of two
-display lists into the same connection. The first drop creates the connection;
-the second fills the other display row. It then shows dragging between cells
-for the same display,
-opening the shortcut window with `⌥⇧Space`, choosing **Connect current Spaces**,
-and switching to another connection before returning with `⌥⇧Tab`.
-The production app views use fictional fixtures. Pointer movement and connection
-state changes are reconstructed examples, not live recordings or speed benchmarks.
+The 25-second tutorial uses current production views and fictional fixtures:
+
+1. Drag one Space from each display into the same connection (0–3.2s).
+2. Use ⌥⇧Space and Connect current Spaces to add the current combination (3.2–6.2s).
+3. Switch from coding to PR review with the quick matrix (6.2–11.2s).
+4. Swap same-display cells, undo, and Option-drag to copy (11.2–16.6s).
+5. Click the pencil to rename, switch together, and return with ⌥⇧Tab (16.6–25s).
 
 [한국어 GIF](../images/sideby-tutorial-ko.gif) · [English GIF](../images/sideby-tutorial-en.gif) · [한국어 재생·정지](https://ethznn.github.io/sideby/ko/#tutorial) · [English playback controls](https://ethznn.github.io/sideby/#tutorial)
 
-The GIFs are 960 × 540, 20 fps, 320 frames, 16 seconds. Posters are 1920 × 1080.
-The tutorial contains only app operations, without an intro, outro, or music.
-Each drag lasts 0.6 seconds. The edited row is magnified, both cards visibly
-swap, the new column and automatic name appear progressively, and enlarged
-current-Space labels slide during switching and returning.
-Production sources and masters remain in ignored `marketing/motion/tutorial-1.0.3/`
-and `marketing/scripts/tutorial103/`. The website starts this tutorial as a still;
-users can play or stop it. README playback controls are linked below the GIF.
+Both GIFs are 960 × 540, 20 fps, 500 frames, 25 seconds. Posters are 1920 × 1080.
+There is no intro, outro, or music. Each drag takes 0.4 seconds. The first-drop
+layout stays in place. A native pointing-hand image and column hover identify
+clickable targets without an extra floating rectangle around the name.
+Pointer motion, hover, text entry, and screen transitions are explanatory
+reconstructions, not live recordings or switching benchmarks.
 
-Regenerate the tutorial’s native scene images with isolated fictional data:
+Production sources and masters remain in ignored
+`marketing/motion/tutorial-fast-20261014/` and
+`marketing/scripts/tutorial-fast-20261014/`. Earlier cuts are archived there.
+The public website starts with a still and supports playing, stopping, and reduced
+motion. The local `tutorial.html` offers the same GIF controls.
+
+Regenerate native scenes with isolated fictional data:
 
 ```bash
-SIDEBY_RENDER_TUTORIAL=1 SIDEBY_MEDIA_OUTPUT=/tmp/sideby-tutorial-scenes swift test --filter ReadmeMediaRenderingTests.testRenderConnectionTutorialScenes
+SIDEBY_RENDER_TUTORIAL_FAST=1 SIDEBY_MEDIA_OUTPUT=/tmp/sideby-tutorial-scenes swift test --filter ReadmeMediaRenderingTests.testRenderFastConnectionTutorialScenes
 ```
 
 ## Current product views
 
-These 1.0.3 images render production SwiftUI/AppKit views using fictional fixtures.
+These 1.0.4 images render production SwiftUI/AppKit views using fictional fixtures.
 Connected cards, dashed empty cells, and the explicit Go together action show
 the difference between editing a connection and switching Spaces.
 No personal desktop, window title, account, or Space configuration is captured.
@@ -77,7 +80,7 @@ No personal desktop, window title, account, or Space configuration is captured.
 | PNG | Pixels | Contents |
 | --- | --- | --- |
 | `sideby-connections-settings-{en,ko}.png` | 2080 × 1280 | Space list and directly editable connection table |
-| `sideby-connections-{en,ko}.png` | 1440 × 840 | Shortcut window with Connect current Spaces |
+| `sideby-connections-{en,ko}.png` | 1440 × 700 | Shortcut window with Connect current Spaces |
 | `sideby-connections-onboarding-{en,ko}.png` | 1360 × 1280 | First-use guide |
 
 Regenerate product views from a graphical macOS session:

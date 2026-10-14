@@ -66,8 +66,19 @@ final class ReadmeMediaRenderingTests: XCTestCase {
                 navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
                 actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {})),
                 to: output.appendingPathComponent("sideby-connections-settings-\(suffix).png"), width: 1040, height: 640, dark: false)
-            try await render(HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model), select: { _ in }, persistent: true),
-                to: output.appendingPathComponent("sideby-connections-\(suffix).png"), width: 720, height: 420, dark: true)
+            // Match the content-fitting production panel instead of retaining
+            // the old fixed-height screenshot's unused bottom area.
+            var quickHeight: CGFloat = 0
+            let quick = HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model), select: { _ in },
+                persistent: true, contentMeasured: { size, _ in quickHeight = size.height })
+            let measurementHost = NSHostingView(rootView: quick.frame(width: 720, height: 420))
+            let measurementWindow = mount(measurementHost, size: .init(width: 720, height: 420), dark: true)
+            try await Task.sleep(for: .milliseconds(150))
+            measurementWindow.close()
+            XCTAssertGreaterThan(quickHeight, 0)
+            XCTAssertLessThan(quickHeight, 420)
+            try await render(quick, to: output.appendingPathComponent("sideby-connections-\(suffix).png"),
+                width: 720, height: ceil(quickHeight), dark: true)
             let empty = try makeModel(language: language, workspaceCount: 0)
             let preferences = MemoryProductUIPreferences()
             preferences.onboardingStage = .workspaces
@@ -139,6 +150,171 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             try await quick("switch-review")
             model.workspaceObservationOverride = { original }; model.refreshWorkspaceStatus()
             try await quick("switch-return")
+        }
+    }
+
+    func testFirstConnectionKeepsSourceCardsAndDropTargetsInPlace() async throws {
+        NSApplication.shared.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"),
+            with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        for language in [AppLanguage.korean, .english] {
+            for size in [NSSize(width: 760, height: 560), NSSize(width: 1040, height: 640)] {
+                let model = try makeModel(language: language, workspaceCount: 0)
+                completeProgress(model)
+                let beforeObservation = model.workspaceObservationOverride?()
+                let host = NSHostingView(rootView: ProductSettingsView(model: model,
+                    navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
+                    actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {}))
+                    .frame(width: size.width, height: size.height))
+                let window = mount(host, size: size, dark: false)
+                defer { window.close() }
+                try await Task.sleep(for: .milliseconds(200))
+                func rectangle(_ identifier: String) throws -> NSRect {
+                    func find(_ object: NSObject) -> NSObject? {
+                        if object.responds(to: NSSelectorFromString("accessibilityIdentifier")),
+                           object.perform(NSSelectorFromString("accessibilityIdentifier"))?.takeUnretainedValue() as? String == identifier { return object }
+                        if object.responds(to: NSSelectorFromString("accessibilityChildren")),
+                           let children = object.perform(NSSelectorFromString("accessibilityChildren"))?.takeUnretainedValue() as? [NSObject] {
+                            for child in children { if let found = find(child) { return found } }
+                        }
+                        return nil
+                    }
+                    host.layoutSubtreeIfNeeded()
+                    let element = try XCTUnwrap(find(host) as? any NSAccessibilityElementProtocol, identifier)
+                    return window.convertFromScreen(element.accessibilityFrame())
+                }
+                let sourceIDs = ["connection-source-display-0-0", "connection-source-display-1-0", "current-connections-table"]
+                let sources = try sourceIDs.map(rectangle)
+                let emptyCells = try (0..<2).map { try rectangle("connection-cell-new-display-\($0)") }
+                let windowFrame = window.frame
+                XCTAssertTrue(host.bounds.contains(try rectangle("connections-start")), "The alternative start action remains reachable")
+                XCTAssertTrue(model.setCurrentConnection(displayID: "display-0", key: "sample-display-0-desktop-0", contextID: nil))
+                let id = try XCTUnwrap(model.settings.contextPlan.contexts.first?.id)
+                try await Task.sleep(for: .milliseconds(200))
+                for (identifier, before) in zip(sourceIDs, sources) {
+                    XCTAssertEqual(try rectangle(identifier), before, "First connection must not shift \(identifier), \(language), \(size)")
+                }
+                for display in 0..<2 {
+                    XCTAssertEqual(try rectangle("connection-cell-\(id)-display-\(display)"), emptyCells[display])
+                }
+                XCTAssertTrue(model.setCurrentConnection(displayID: "display-1", key: "sample-display-1-desktop-0", contextID: id))
+                try await Task.sleep(for: .milliseconds(150))
+                for (identifier, before) in zip(sourceIDs, sources) { XCTAssertEqual(try rectangle(identifier), before) }
+                XCTAssertEqual(window.frame, windowFrame)
+                XCTAssertEqual(model.workspaceObservationOverride?(), beforeObservation)
+                XCTAssertTrue(model.undoSavedWorkspaceChange())
+                XCTAssertTrue(model.undoSavedWorkspaceChange())
+                try await Task.sleep(for: .milliseconds(150))
+                XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
+                for (identifier, before) in zip(sourceIDs, sources) { XCTAssertEqual(try rectangle(identifier), before) }
+                XCTAssertNil(model.workspacePreferences)
+                XCTAssertFalse(model.isSwitching)
+            }
+        }
+    }
+
+    func testRenderFastConnectionTutorialScenes() async throws {
+        guard ProcessInfo.processInfo.environment["SIDEBY_RENDER_TUTORIAL_FAST"] == "1" else {
+            throw XCTSkip("Opt-in expanded tutorial using fictional data only")
+        }
+        NSApplication.shared.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"),
+            with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        let output = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SIDEBY_MEDIA_OUTPUT"]
+            ?? "/tmp/sideby-tutorial-fast-scenes")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        for language in [AppLanguage.korean, .english] {
+            let lang = language == .korean ? "ko" : "en"
+            func settings(_ model: SidebyAppModel, _ name: String) async throws {
+                try await render(ProductSettingsView(model: model,
+                    navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
+                    actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {})),
+                    to: output.appendingPathComponent("\(name)-\(lang).png"), width: 1040, height: 640, dark: false)
+            }
+            func quick(_ model: SidebyAppModel, _ name: String) async throws {
+                try await render(HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model), select: { _ in }, persistent: true),
+                    to: output.appendingPathComponent("\(name)-\(lang).png"), width: 760, height: 410, dark: true)
+            }
+            let setup = try makeModel(language: language, workspaceCount: 0)
+            completeProgress(setup)
+            let setupObservation = try XCTUnwrap(setup.workspaceObservationOverride?())
+            try await settings(setup, "setup-empty")
+            XCTAssertTrue(setup.setCurrentConnection(displayID: "display-0", key: "sample-display-0-desktop-0", contextID: nil))
+            let firstID = try XCTUnwrap(setup.settings.contextPlan.contexts.first?.id)
+            try await settings(setup, "setup-first")
+            XCTAssertTrue(setup.setCurrentConnection(displayID: "display-1", key: "sample-display-1-desktop-0", contextID: firstID))
+            try await settings(setup, "setup-complete")
+            XCTAssertEqual(setup.settings.contextPlan.contexts.count, 1)
+            XCTAssertEqual(setup.settings.contextPlan.contexts.first?.displayIDs.count, 2)
+            XCTAssertEqual(setup.workspaceObservationOverride?(), setupObservation)
+
+            let model = try makeModel(language: language)
+            completeProgress(model)
+            let initial = model.settings.savedWorkspaces.bookmarks
+            let original = try XCTUnwrap(model.workspaceObservationOverride?())
+            // A fictional current arrangement that differs from both columns.
+            let current = WorkspaceLayoutObservation(displays: original.displays.map {
+                .init(displayID: $0.displayID, spaceCount: $0.spaceCount, currentSpaceIndex: $0.displayID == "display-0" ? 0 : 1)
+            }, spaceIDsByDisplayID: original.spaceIDsByDisplayID, spaceKeysByDisplayID: original.spaceKeysByDisplayID)
+            model.workspaceObservationOverride = { current }; model.refreshWorkspaceStatus(); model.workspaceSaveMessage = nil
+            try await quick(model, "capture-before")
+            let captured = try XCTUnwrap(model.addCurrentConnection())
+            let target = try XCTUnwrap(model.settings.contextPlan.contexts.first { $0.id == captured })
+            XCTAssertEqual(target.name, "Checkout.swift / Checkout preview")
+            try await quick(model, "capture-after")
+            let beforeEditing = model.settings.savedWorkspaces.bookmarks
+            model.workspaceObservationOverride = { original }; model.refreshWorkspaceStatus()
+            // Explain the everyday shortcut before the editing gestures. Observations
+            // remain fictional; this render never sends a real Space switch command.
+            XCTAssertEqual(model.verifiedCurrentWorkspaceID, "checkout")
+            try await quick(model, "work-before")
+            let earlyReview = WorkspaceLayoutObservation(displays: original.displays.map {
+                .init(displayID: $0.displayID, spaceCount: $0.spaceCount, currentSpaceIndex: 1)
+            }, spaceIDsByDisplayID: original.spaceIDsByDisplayID, spaceKeysByDisplayID: original.spaceKeysByDisplayID)
+            model.workspaceObservationOverride = { earlyReview }; model.refreshWorkspaceStatus()
+            XCTAssertEqual(model.verifiedCurrentWorkspaceID, "review")
+            try await quick(model, "work-after")
+            model.workspaceObservationOverride = { original }; model.refreshWorkspaceStatus()
+            XCTAssertEqual(model.verifiedCurrentWorkspaceID, "checkout")
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, beforeEditing)
+            model.workspaceObservationOverride = { current }; model.refreshWorkspaceStatus()
+            try await settings(model, "drag-before")
+            let source = WorkspaceDesktopReference(displayID: "display-1", key: "sample-display-1-desktop-0")
+            XCTAssertTrue(model.transferCurrentConnection(source, from: "checkout", to: "review",
+                expectedDestinationKey: "sample-display-1-desktop-1", copying: false))
+            try await settings(model, "drag-after")
+            XCTAssertTrue(model.undoSavedWorkspaceChange())
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, beforeEditing)
+            try await settings(model, "undo-after")
+            XCTAssertTrue(model.transferCurrentConnection(source, from: "checkout", to: "review",
+                expectedDestinationKey: "sample-display-1-desktop-1", copying: true))
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["checkout"], initial["checkout"])
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["review"]?["display-1"], source.key)
+            try await settings(model, "copy-after")
+            XCTAssertEqual(model.workspaceObservationOverride?(), current, "Editing never switches real or fixture Spaces")
+            model.workspaceSaveMessage = nil
+            try await quick(model, "rename-matrix")
+
+            try await render(ConnectionNameEditor(model: model, target: target, close: {}),
+                to: output.appendingPathComponent("rename-before-\(lang).png"), width: 360, height: 160, dark: true)
+            let name = language == .korean ? "집중 작업" : "Focus"
+            XCTAssertTrue(model.renameCurrentConnection(captured, originalName: target.name, name: name))
+            let renamed = try XCTUnwrap(model.settings.contextPlan.contexts.first { $0.id == captured })
+            try await render(ConnectionNameEditor(model: model, target: renamed, close: {}),
+                to: output.appendingPathComponent("rename-after-\(lang).png"), width: 360, height: 160, dark: true)
+            model.workspaceSaveMessage = nil
+            try await quick(model, "renamed")
+            let review = WorkspaceLayoutObservation(displays: original.displays.map {
+                .init(displayID: $0.displayID, spaceCount: $0.spaceCount, currentSpaceIndex: $0.displayID == "display-0" ? 1 : 0)
+            }, spaceIDsByDisplayID: original.spaceIDsByDisplayID, spaceKeysByDisplayID: original.spaceKeysByDisplayID)
+            model.workspaceObservationOverride = { review }; model.refreshWorkspaceStatus()
+            XCTAssertEqual(model.verifiedCurrentWorkspaceID, "review")
+            try await quick(model, "switch-review")
+            model.workspaceObservationOverride = { current }; model.refreshWorkspaceStatus()
+            XCTAssertEqual(model.verifiedCurrentWorkspaceID, captured)
+            try await quick(model, "switch-return")
+            XCTAssertFalse(model.isSwitching)
+            XCTAssertNil(model.workspacePreferences)
+            try JSONSerialization.data(withJSONObject: ["setupID": firstID, "capturedID": captured], options: [.prettyPrinted])
+                .write(to: output.appendingPathComponent("identifiers-\(lang).json"))
         }
     }
 
@@ -373,8 +549,28 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * 2), pixelsHigh: Int(height * 2),
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
         bitmap.size = pixels
-        host.cacheDisplay(in: host.bounds, to: bitmap)
+        window.effectiveAppearance.performAsCurrentDrawingAppearance {
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+        }
         try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
+        if ProcessInfo.processInfo.environment["SIDEBY_RENDER_TUTORIAL_FAST"] == "1" {
+            var frames: [String: [String: CGFloat]] = [:]
+            func visit(_ object: NSObject) {
+                if object.responds(to: NSSelectorFromString("accessibilityIdentifier")),
+                   let id = object.perform(NSSelectorFromString("accessibilityIdentifier"))?.takeUnretainedValue() as? String,
+                   let element = object as? any NSAccessibilityElementProtocol {
+                    let local = window.convertFromScreen(element.accessibilityFrame())
+                    frames[id] = ["x": local.minX, "y": pixels.height - local.maxY, "w": local.width, "h": local.height]
+                }
+                if object.responds(to: NSSelectorFromString("accessibilityChildren")),
+                   let children = object.perform(NSSelectorFromString("accessibilityChildren"))?.takeUnretainedValue() as? [NSObject] {
+                    children.forEach(visit)
+                }
+            }
+            visit(host)
+            try JSONSerialization.data(withJSONObject: frames, options: [.prettyPrinted, .sortedKeys])
+                .write(to: url.deletingPathExtension().appendingPathExtension("json"))
+        }
         print("Rendered production view: \(url.lastPathComponent) · \(bitmap.pixelsWide)×\(bitmap.pixelsHigh)")
     }
 }

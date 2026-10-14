@@ -10,6 +10,7 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
     var isDraggable = true
     var accessibilityState: String? = nil
     var allowsMove = false
+    var usesPointingHand = false
     let click: () -> Void
     let beginDrag: () -> String
     let endDrag: () -> Void
@@ -28,6 +29,7 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
         view.isEnabled = enabled
         view.allowsMove = allowsMove
         view.isDraggable = isDraggable
+        view.usesPointingHand = usesPointingHand
         view.setAccessibilityLabel(label)
         view.setAccessibilityValue(accessibilityState)
         view.setAccessibilityIdentifier(identifier)
@@ -44,7 +46,11 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
         var endDrag: (() -> Void)?
         var allowsMove = false
         var isDraggable = true
+        var usesPointingHand = false
         private var pressOrigin: NSPoint?
+        private var restingCursor: NSCursor {
+            !isEnabled ? .arrow : isDraggable && !usesPointingHand ? .openHand : .pointingHand
+        }
 
         override init(frame: NSRect) {
             super.init(frame: frame)
@@ -68,7 +74,7 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
         }
         override func resetCursorRects() {
             super.resetCursorRects()
-            addCursorRect(bounds, cursor: !isEnabled ? .arrow : isDraggable ? .openHand : .pointingHand)
+            addCursorRect(bounds, cursor: restingCursor)
         }
         @objc private func chooseCard() { if isEnabled { click?() } }
 
@@ -110,7 +116,7 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
         func ignoreModifierKeys(for session: NSDraggingSession) -> Bool { false }
         func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
             endDrag?()
-            NSCursor.openHand.set()
+            restingCursor.set()
         }
     }
 }

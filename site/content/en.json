@@ -34,7 +34,7 @@
     ],
     [
       "Drop Spaces into the same column.",
-      "Drop the first Space into an empty cell to create a connection, then add another display’s Space to its row in that column. You can also click cells to choose, or use Connect in current order. This does not switch your screens."
+      "Drop the first Space into an empty cell to create a connection, then add another display’s Space to its row in that column. You can also click cells to choose, or use Pair by order. This does not switch your screens."
     ],
     [
       "Adjust the cells you need.",
@@ -43,7 +43,7 @@
   ],
   "matrix_label": "Quick daily adjustments",
   "matrix_title": "Keep the Spaces you see together.",
-  "matrix_text": "Hold ⌥⇧Space and choose Connect current Spaces to add the Space currently visible on each participating display as one connection. Names such as Xcode / Figma are filled in automatically. If the same connection exists, Sideby shows it. Choose Edit connections, then click a column name or pencil to rename it without leaving the window. Apply, cancel, or undo the name change. Click a column to switch its Spaces together.",
+  "matrix_text": "Hold ⌥⇧Space and choose Connect current Spaces to add the Space currently visible on each participating display as one connection. Names such as Xcode / Figma are filled in automatically. If the same connection exists, Sideby shows it. Click the pencil button to rename. Drag a name sideways to reorder columns, or drag Spaces within the same display row to move or swap. Editing keeps the window open; release the opening shortcut, then press Option again while dropping a Space to copy. Apply, cancel, or undo the name change. Click a connection name, Space cell, or arrow to switch that column’s Spaces together.",
   "matrix_alt": "Actual shortcut window with Connect current Spaces and automatic connection names.",
   "matrix_note": "Actual app views with fictional sample data.",
   "small_features": [
@@ -53,7 +53,7 @@
     ],
     [
       "Connections follow your Spaces.",
-      "If other Spaces are added and positions shift, Sideby follows the connected Space. If it disappears, Sideby asks you to choose again. Connections for unplugged displays are kept."
+      "If other Spaces are added and positions shift, Sideby follows the connected Space. If a saved Space disappears, click its cell to choose again or disconnect it. You can also Option-drag another cell in the same display row to copy it. Connections for unplugged displays are kept."
     ],
     [
       "At home on your Mac.",
@@ -94,19 +94,19 @@
   "privacy": "Privacy & permissions",
   "footer": "Made for the way you already work.",
   "nav_editor": "Connections",
-  "onboarding_alt": "The two-step guide shows Allow access and Connect desktops, with Connect in current order.",
+  "onboarding_alt": "The two-step guide shows Allow access and Connect desktops, with Pair by order.",
   "editor_label": "See and connect",
   "editor_title": "Contents and connections, together.",
-  "editor_text": "Settings and the shortcut’s connection editor show each display’s Spaces above the table, with available app/window titles and the current Space. “Space · position 3” indicates list order, not a Mission Control desktop name. Even with no connections, drop a Space into an empty cell to create your first one. Drag between cells for the same display to move or swap. Hold ⌥ Option when dropping to copy. Clear one cell or one display, or select several columns to remove together. Even after clearing all connections, you can start again immediately. Undo keeps the last 20 connection changes, including after restarting Sideby.",
+  "editor_text": "Settings and the shortcut’s connection editor show each display’s Spaces above the table, with available app/window titles and the current Space. “Space · position 3” indicates list order, not a Mission Control desktop name. Even with no connections, drop a Space into an empty cell to create your first one. Drag between cells for the same display to move or swap. Hold ⌥ Option when dropping to copy. Clear one cell or one display, or select several columns to remove together. Even after clearing all connections, you can start again immediately. Undo keeps the last 20 connection changes, including after restarting Sideby. In the quick matrix, clearing connections and creating them again keeps the Space list and drop targets in place. Space choices stay inside the screen.",
   "editor_note": "Changes are remembered immediately. Undo the last change with the Undo button or ⌘Z. No separate editor or Save changes step is needed.",
   "editor_alt": "Settings shows desktop contents and the connection table in the same window.",
   "editor_overview": "What if desktops or displays change?",
   "editor_overview_text": "Find new desktops in the upper list and connect them. If a desktop disappears, choose again in the affected cell. Sideby never replaces it with a different desktop at the same position. Disconnected displays keep their connections.",
   "editor_overview_alt": "Current desktop contents and connections.",
   "image_enlarge": "View full-size image",
-  "tutorial_title": "How to use Sideby in 16 seconds",
-  "tutorial_text": "Drop the first display’s Space into an empty cell to create a connection. Add the other display’s Space to the same column. Then adjust, use ⌥⇧Space to connect your current Spaces, switch, and return with ⌥⇧Tab.",
-  "tutorial_alt": "Sideby tutorial showing two-display connection setup, same-display dragging, Connect current Spaces, switching and returning.",
-  "tutorial_note": "16 seconds · Actual app UI and fictional data, reconstructed for explanation · Use the play button",
-  "tutorial_play": "Play 16-second tutorial"
+  "tutorial_title": "How to use Sideby in 25 seconds",
+  "tutorial_text": "Drag Spaces from two displays into one connection, or use ⌥⇧Space to connect what you are looking at now. Switch from coding to PR review with the shortcut, then see swapping, undo, Option-copying, renaming, and returning with ⌥⇧Tab.",
+  "tutorial_alt": "25-second tutorial showing two-display setup, connecting current Spaces, switching while coding, swapping, undo, Option-copying, renaming and returning.",
+  "tutorial_note": "25 seconds · Current app UI and fictional data, reconstructed for explanation · Use the play button",
+  "tutorial_play": "Play 25-second tutorial"
 }

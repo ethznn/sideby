@@ -12,6 +12,9 @@ import SwiftUI
     private var screenID: NSNumber?
     private var previousColumnID: String?
     private var persistent = false
+    private var panelIsEditing = false
+    private var measuredContentSize: CGSize?
+    private var copyModifiers = HeldMatrixCopyModifiers()
     private var outsideMonitor: Any?
     private var localOutsideMonitor: Any?
     private var observers: [NSObjectProtocol] = []
@@ -120,13 +123,20 @@ import SwiftUI
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         if outsideMonitor == nil {
-            outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-                MainActor.assumeIsolated { if self?.persistent == true { self?.dismiss() } }
+            outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .flagsChanged]) { [weak self] event in
+                MainActor.assumeIsolated {
+                    if event.type == .flagsChanged { _ = self?.copyModifiers.update(optionDown: event.modifierFlags.contains(.option)) }
+                    else if self?.persistent == true { self?.dismiss() }
+                }
             }
         }
         if localOutsideMonitor == nil {
-            localOutsideMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            localOutsideMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .flagsChanged]) { [weak self] event in
                 MainActor.assumeIsolated {
+                    if event.type == .flagsChanged {
+                        _ = self?.copyModifiers.update(optionDown: event.modifierFlags.contains(.option))
+                        return
+                    }
                     guard let self, self.persistent, let panel = self.panel,
                           let clicked = event.window, clicked !== panel,
                           clicked.parent !== panel, panel.attachedSheet == nil,
@@ -147,6 +157,7 @@ import SwiftUI
     private func show(model: SidebyAppModel, generation: Int, anchor: NSRect? = nil) {
         let pointer = anchor.map { NSPoint(x: $0.midX, y: $0.maxY - 62) } ?? NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else { dismiss(); return }
+        copyModifiers = HeldMatrixCopyModifiers(ignoresOpeningOption: source?.chordIsDown == true && NSEvent.modifierFlags.contains(.option))
         let snapshot = HeldWorkspaceSnapshot(model: model, previousColumnID: previousColumnID)
         let size = panelSize(model: model, screen: screen, editing: false)
         let panel = HeldMatrixPanel(contentRect: NSRect(origin: .zero, size: size),
@@ -165,35 +176,68 @@ import SwiftUI
         panel.hasShadow = true
         panel.title = "Sideby — " + model.connectionCopy.title
         panel.identifier = NSUserInterfaceItemIdentifier("sideby-held-workspace-matrix")
+        self.panel?.orderOut(nil)
+        self.panel = panel
+        panelIsEditing = false
+        measuredContentSize = nil
         let view = HeldWorkspaceMatrixView(model: model, snapshot: snapshot, select: { [weak self] column in
             self?.activate(column, generation: generation)
         }, rememberColumn: { [weak self] id in self?.previousColumnID = id },
             persistent: persistent, close: { [weak self] in self?.dismiss() },
             keepOpen: { [weak self] in self?.pinVisiblePanel() },
-            editingChanged: { [weak self] editing in self?.resizeForEditing(editing) })
+            editingChanged: { [weak self] editing in self?.resizeForEditing(editing) },
+            copyRequested: { [weak self] in self?.copyModifiers.update(optionDown: NSEvent.modifierFlags.contains(.option)) ?? false },
+            availableHeight: max(1, screen.visibleFrame.height - 48),
+            contentMeasured: { [weak self, weak panel] size, editing in
+                guard let self, let panel, self.panel === panel, self.panelIsEditing == editing,
+                      size.height > 0, abs(size.width - panel.frame.width) < 1 else { return }
+                self.measuredContentSize = size
+                // Avoid changing the window frame during a SwiftUI layout pass.
+                DispatchQueue.main.async { [weak self, weak panel] in
+                    guard let self, let panel, self.panel === panel, panel.isVisible else { return }
+                    self.resizeToMeasuredContent()
+                }
+            })
         panel.contentView = HeldMatrixHostingView(rootView: view)
         panel.setContentSize(size)
-        panel.setFrameOrigin(HeldMatrixPanelLayout.origin(size: size, pointer: pointer, visibleFrame: screen.visibleFrame))
-        self.panel?.orderOut(nil)
-        self.panel = panel
+        panel.contentView?.layoutSubtreeIfNeeded()
+        let measuredSize = panelSize(model: model, screen: screen, editing: false,
+                                     contentHeight: measuredContentSize?.height)
+        panel.setContentSize(measuredSize)
+        panel.setFrameOrigin(HeldMatrixPanelLayout.origin(size: measuredSize, pointer: pointer, visibleFrame: screen.visibleFrame))
         screenID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
         panel.orderFrontRegardless()
     }
 
-    private func panelSize(model: SidebyAppModel, screen: NSScreen, editing: Bool) -> NSSize {
+    private func panelSize(model: SidebyAppModel, screen: NSScreen, editing: Bool, contentHeight: CGFloat? = nil) -> NSSize {
         let snapshot = HeldWorkspaceSnapshot(model: model)
         let hasStatus = !model.isEnabled || !model.hasSwitchingAccess || model.workspaceRecoveryTargetID != nil
             || model.settingsStore.hasUnreadableSettings
         return HeldMatrixPanelLayout.size(columns: snapshot.columns.count, displays: snapshot.displayIDs.count,
-            visibleFrame: screen.visibleFrame, accessoryHeight: hasStatus ? 42 : 0, editing: editing)
+            visibleFrame: screen.visibleFrame, accessoryHeight: hasStatus ? 42 : 0, editing: editing,
+            contentHeight: contentHeight)
     }
 
     private func resizeForEditing(_ editing: Bool) {
         guard let model, let panel, let screen = panel.screen ?? NSScreen.main else { return }
+        panelIsEditing = editing
+        measuredContentSize = nil
         let top = NSPoint(x: panel.frame.midX, y: panel.frame.maxY - 62)
-        let size = panelSize(model: model, screen: screen, editing: editing)
+        // Change width first so text is measured at its final wrapping width.
+        let size = panelSize(model: model, screen: screen, editing: editing, contentHeight: panel.frame.height)
         panel.setFrame(NSRect(origin: HeldMatrixPanelLayout.origin(size: size, pointer: top, visibleFrame: screen.visibleFrame),
                              size: size), display: true)
+    }
+
+    private func resizeToMeasuredContent() {
+        guard let panel, let measuredContentSize, let screen = panel.screen ?? NSScreen.main,
+              abs(measuredContentSize.width - panel.frame.width) < 1 else { return }
+        let height = min(ceil(measuredContentSize.height), max(1, screen.visibleFrame.height - 48))
+        guard abs(panel.frame.height - height) >= 1 else { return }
+        let size = NSSize(width: panel.frame.width, height: height)
+        let top = NSPoint(x: panel.frame.midX, y: panel.frame.maxY - 62)
+        panel.setFrame(NSRect(origin: HeldMatrixPanelLayout.origin(size: size, pointer: top, visibleFrame: screen.visibleFrame),
+                              size: size), display: true)
     }
 
     private func activate(_ column: HeldWorkspaceColumn, generation: Int) {
