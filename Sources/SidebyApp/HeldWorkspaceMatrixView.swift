@@ -66,6 +66,7 @@ struct HeldWorkspaceMatrixView: View {
     @State private var hasEnteredEditing = false
     @State private var hoveredID: String?
     @State private var hoveredRenameID: String?
+    @State private var hoveredActionsID: String?
     @State private var showsFeedback = false
     @State private var revealedConnectionID: String?
     private var copy: HeldMatrixStrings { .init(language: model.settings.language) }
@@ -246,7 +247,8 @@ struct HeldWorkspaceMatrixView: View {
         let current = model.verifiedCurrentWorkspaceID == column.id && !model.isSwitching
         let enabled = model.heldMatrixCanActivate(column, displayIDs: snapshot.displayIDs)
         let actionable = enabled || repairDisplayID(column) != nil
-        let switchHovered = hoveredID == column.id && hoveredRenameID != column.id && actionable && drag == nil
+        let switchHovered = hoveredID == column.id && hoveredRenameID != column.id
+            && hoveredActionsID != column.id && actionable && drag == nil
         return VStack(spacing: 0) {
             columnHeader(column, current: current, enabled: enabled)
             ForEach(snapshot.displayIDs, id: \.self) { displayID in
@@ -307,6 +309,26 @@ struct HeldWorkspaceMatrixView: View {
                 else if model.isSwitching && model.workspaceSwitchTargetName == column.name { Text(copy.moving) }
                 else if let shortcut = model.workspaceShortcut(column.id) { Text(shortcut) }
                 Spacer(minLength: 0)
+                HeldConnectionActionsMenu(
+                    label: column.name + " · " + model.connectionCopy.text("Connection actions", "연결 관리"),
+                    removeTitle: model.connectionCopy.text("Remove connection · Keep Spaces", "연결 삭제 · Space는 유지"),
+                    identifier: "held-actions-" + column.id,
+                    enabled: model.canChangeSavedWorkspaces,
+                    willOpen: {
+                        pinForEditing(); renaming = nil; repairingCell = nil
+                    }, remove: {
+                        pinForEditing()
+                        _ = model.deleteSavedWorkspace(column.id)
+                        showsFeedback = true
+                    })
+                    .frame(width: 24, height: 22)
+                    .disabled(!model.canChangeSavedWorkspaces)
+                    .background(hoveredActionsID == column.id ? NativeSurfaceStyle.hoverBackground : .clear,
+                                in: RoundedRectangle(cornerRadius: 5))
+                    .pointingHandCursor(model.canChangeSavedWorkspaces)
+                    .onHover { hoveredActionsID = $0 && model.canChangeSavedWorkspaces ? column.id : nil }
+                    .accessibilityLabel(column.name + " · " + model.connectionCopy.text("Connection actions", "연결 관리"))
+                    .accessibilityIdentifier("held-actions-" + column.id)
                 Button { switchTo(column, enabled: enabled) } label: {
                     Image(systemName: repairable ? "exclamationmark.circle" : "arrow.right.circle")
                         .foregroundStyle(repairable ? Color.orange : current ? Color.accentColor : NativeSurfaceStyle.secondaryText)

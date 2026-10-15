@@ -16,7 +16,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 [Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](https://ethznn.github.io/sideby/#film)
 
-*Sideby 1.0.4 · [What’s new](docs/releases/1.0.4.md).*
+*Sideby 1.0.5 · [What’s new](docs/releases/1.0.5.md).*
 
 ## See and connect in one window
 
@@ -67,6 +67,8 @@ Open **⌥⇧Space → Connect current Spaces** to keep the Spaces you are curre
 
 Hold `⌥⇧Space` to open the switcher with your current connection in view. **Click a connection name, Space cell, or arrow** to move the connected Spaces in that column together. Click the pencil to rename, drag a name sideways to reorder columns, or drag between cells for the same display to move or swap. Choose **Edit connections** to pick other Spaces or create connections; the panel shows **Spaces on your displays** above the connection table. Drag a card to a cell for the same display, or click the card and then the cell. Edits are immediate, and **Back to switching** returns within the same panel. **Settings** shows the same list and connection table. The menu-bar table still allows direct cell editing.
 
+To remove a connection directly in the quick matrix, open its **⋯ → Remove connection · Keep Spaces** menu. The actual Spaces and app windows stay open. **Undo** restores the connection, its assignments, and its shortcut, even after removing the last connection. Opening the menu keeps the panel open when you release the shortcut.
+
 | Input | Action |
 | --- | --- |
 | Hold `⌥⇧Space` | Open the switcher near the pointer. Click a connection name, Space cell, or arrow to move together. |
@@ -75,7 +77,7 @@ Hold `⌥⇧Space` to open the switcher with your current connection in view. **
 | `⌥⇧<` / `⌥⇧>` | Move to the previous / next connection. |
 | Option + Shift + horizontal swipe | Move displays together with the default gesture. |
 
-Numbered, previous/next, and return shortcuts execute when Option and Shift are released. The held connection table closes on key release. Clicking the pencil, starting a drag, or choosing **Edit connections** keeps it open. Release the opening shortcut before editing; press Option again while dropping a Space to copy. Then dismiss it with Escape or the close button. Configure inputs in **Settings → Input**.
+Numbered, previous/next, and return shortcuts execute when Option and Shift are released. The held connection table closes on key release. Clicking the pencil, opening a connection’s **⋯** menu, starting a drag, or choosing **Edit connections** keeps it open. Release the opening shortcut before editing; press Option again while dropping a Space to copy. Then dismiss it with Escape or the close button. Configure inputs in **Settings → Input**.
 
 ## When your environment changes
 

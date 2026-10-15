@@ -73,6 +73,147 @@ import XCTest
         try await feed.value
     }
 
+    @MainActor private final class ConnectionActionSelection: NSObject {
+        let title: String
+        let selects: Bool
+        let whileOpen: () -> Void
+        var opened = false
+        init(title: String, selects: Bool = true, whileOpen: @escaping () -> Void = {}) {
+            self.title = title; self.selects = selects; self.whileOpen = whileOpen
+        }
+        @objc func opened(_ notification: Notification) {
+            guard let menu = notification.object as? NSMenu else { return }
+            perform(#selector(choose(_:)), with: menu, afterDelay: 0.15, inModes: [.eventTracking, .default])
+        }
+        @objc func choose(_ menu: NSMenu) {
+            defer { menu.cancelTracking() }
+            opened = true
+            whileOpen()
+            guard let index = menu.items.firstIndex(where: { $0.title == title }) else {
+                XCTFail("Missing connection action: \(menu.items.map(\.title))")
+                return
+            }
+            XCTAssertTrue(menu.items[index].isEnabled)
+            if selects { menu.performActionForItem(at: index) }
+        }
+    }
+
+    private func useConnectionMenu(_ button: NSObject, window: NSWindow, selection: ConnectionActionSelection) throws {
+        NotificationCenter.default.addObserver(selection, selector: #selector(ConnectionActionSelection.opened(_:)),
+            name: NSMenu.didBeginTrackingNotification, object: nil)
+        defer { NotificationCenter.default.removeObserver(selection) }
+        try click(button, window: window)
+        XCTAssertTrue(selection.opened, "The visible ellipsis must open the native action menu")
+    }
+
+    func testConnectionActionMenuPinsBeforeTrackingAndCancelKeepsConnections() async throws {
+        try requireNative()
+        let model = heldMatrixFixture(count: 3, displayCount: 2)
+        model.workspacePreferences = nil
+        let before = model.settings
+        let window = HeldMatrixPanel(contentRect: .init(x: 200, y: 200, width: 760, height: 400),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.level = .popUpMenu
+        defer { window.close() }
+        var pinned = false
+        var switches = 0
+        window.contentView = HeldMatrixHostingView(rootView: HeldWorkspaceMatrixView(model: model,
+            snapshot: .init(model: model), select: { _ in switches += 1 }, keepOpen: {
+                pinned = true; window.acceptsKeyboard = true
+                NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil)
+            }))
+        window.orderFrontRegardless(); NSApp.deactivate()
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertFalse(pinned)
+        let action = try XCTUnwrap(element("held-actions-work-1", in: window))
+        let selection = ConnectionActionSelection(title: "연결 삭제 · Space는 유지", selects: false) {
+            XCTAssertTrue(pinned, "Pin before menu tracking, not only after choosing Delete")
+            XCTAssertTrue(window.acceptsKeyboard)
+            XCTAssertEqual(model.settings, before)
+        }
+        try useConnectionMenu(action, window: window, selection: selection)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertTrue(window.isVisible)
+        XCTAssertEqual(model.settings, before)
+        XCTAssertEqual(switches, 0)
+        XCTAssertNil(element("current-connections-table", in: window))
+        model.isSwitching = true
+        try await Task.sleep(for: .milliseconds(100))
+        func nativeActions(in view: NSView) -> NSPopUpButton? {
+            if let button = view as? NSPopUpButton, button.accessibilityIdentifier() == "held-actions-work-1" { return button }
+            return view.subviews.lazy.compactMap(nativeActions).first
+        }
+        let disabled = try XCTUnwrap(nativeActions(in: XCTUnwrap(window.contentView)))
+        XCTAssertFalse(disabled.isEnabled, "Connection changes must stay disabled during switching")
+        model.isSwitching = false
+    }
+
+    func testQuickPanelConnectionDeleteAndUndoPreserveSpacesInBothLanguages() async throws {
+        try requireNative()
+        for english in [false, true] {
+          // A different connection, the current connection, and the last connection.
+          for (count, target) in [(3, "work-1"), (3, "work-0"), (1, "work-0")] {
+            let model = heldMatrixFixture(count: count, displayCount: 2)
+            model.workspacePreferences = nil
+            model.settings.language = english ? .english : .korean
+            if target == "work-1" {
+                model.settings.savedWorkspaces.bookmarks[target]?["mac"] = "missing-space"
+                model.refreshWorkspaceStatus()
+            }
+            let before = model.settings
+            let observedKeys = model.workspaceLastObservedSpaceKeys
+            let observedIDs = model.workspaceLastObservedSpaceIDs
+            let controller = HeldWorkspaceMatrixController(model: model)
+            controller.showPersistent()
+            let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
+            defer { controller.dismiss(); window.close() }
+            try await Task.sleep(for: .milliseconds(200))
+            func capture(_ suffix: String) throws {
+                let output = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE_OUTPUT"]
+                    ?? "/tmp/sideby-quick-delete.noindex")
+                try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+                let host = try XCTUnwrap(window.contentView)
+                let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+                host.cacheDisplay(in: host.bounds, to: bitmap)
+                try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                    .write(to: output.appendingPathComponent("delete-\(english ? "en" : "ko")-\(count)-\(target)-\(suffix).png"))
+            }
+            try capture("before")
+            let actions = try XCTUnwrap(element("held-actions-" + target, in: window))
+            XCTAssertTrue(window.frame.contains(try frame(actions)))
+            try useConnectionMenu(actions, window: window, selection: ConnectionActionSelection(
+                title: english ? "Remove connection · Keep Spaces" : "연결 삭제 · Space는 유지"))
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertEqual(model.settings.contextPlan.contexts.map(\.id), before.contextPlan.contexts.filter { $0.id != target }.map(\.id))
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks.filter { $0.key != target })
+            XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, before.savedWorkspaces.shortcutSlots.filter { $0.key != target })
+            XCTAssertEqual(model.workspaceLastObservedSpaceKeys, observedKeys)
+            XCTAssertEqual(model.workspaceLastObservedSpaceIDs, observedIDs)
+            XCTAssertFalse(model.isSwitching)
+            XCTAssertTrue(window.isVisible)
+            XCTAssertNil(element("current-connections-table", in: window))
+            XCTAssertNil(element("held-workspace-" + target, in: window))
+            XCTAssertNotNil(element("held-add-current-connection", in: window))
+            if count == 1 { XCTAssertNil(element("held-switch-table", in: window)) }
+            else { XCTAssertNotNil(element("held-switch-table", in: window)) }
+            let undo = try XCTUnwrap(element("held-undo-connection", in: window))
+            XCTAssertTrue(window.frame.contains(try frame(undo)), "Undo must remain visible even after removing the last column")
+            XCTAssertNotNil(element("held-add-feedback", in: window))
+            try capture("removed")
+            try click(undo, window: window)
+            try await Task.sleep(for: .milliseconds(150))
+            XCTAssertEqual(model.settings.contextPlan.contexts, before.contextPlan.contexts)
+            XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+            XCTAssertEqual(model.settings.savedWorkspaces.shortcutSlots, before.savedWorkspaces.shortcutSlots)
+            XCTAssertEqual(model.workspaceLastObservedSpaceKeys, observedKeys)
+            XCTAssertFalse(model.isSwitching)
+            XCTAssertTrue(window.isVisible)
+            XCTAssertNotNil(element("held-actions-" + target, in: window))
+          }
+        }
+    }
+
     func testCurrentSpacesCanBeAddedWithoutEditingAndUndoneInTheQuickPanel() async throws {
         try requireNative()
         for english in [false, true] {
