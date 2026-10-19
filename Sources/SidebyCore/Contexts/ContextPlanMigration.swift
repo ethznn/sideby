@@ -5,7 +5,9 @@ public enum ContextPlanMigration {
         let displaySets = legacyPlan.displaySpaces.sorted { lhs, rhs in
             lhs.displayID < rhs.displayID
         }
-        let maxOrder = displaySets.flatMap { $0.spaces.map(\.order) }.max() ?? 1
+        guard let maxOrder = displaySets.flatMap({ $0.spaces.map(\.order) }).max(), maxOrder > 0 else {
+            return .empty
+        }
 
         let contexts = (1...maxOrder).map { order in
             ContextDefinition(

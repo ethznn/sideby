@@ -66,19 +66,10 @@ final class ReadmeMediaRenderingTests: XCTestCase {
                 navigation: ProductUINavigation(preferences: MemoryProductUIPreferences()), canCheckForUpdates: false,
                 actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {})),
                 to: output.appendingPathComponent("sideby-connections-settings-\(suffix).png"), width: 1040, height: 640, dark: false)
-            // Match the content-fitting production panel instead of retaining
-            // the old fixed-height screenshot's unused bottom area.
-            var quickHeight: CGFloat = 0
-            let quick = HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model), select: { _ in },
-                persistent: true, contentMeasured: { size, _ in quickHeight = size.height })
-            let measurementHost = NSHostingView(rootView: quick.frame(width: 720, height: 420))
-            let measurementWindow = mount(measurementHost, size: .init(width: 720, height: 420), dark: true)
-            try await Task.sleep(for: .milliseconds(150))
-            measurementWindow.close()
-            XCTAssertGreaterThan(quickHeight, 0)
-            XCTAssertLessThan(quickHeight, 420)
-            try await render(quick, to: output.appendingPathComponent("sideby-connections-\(suffix).png"),
-                width: 720, height: ceil(quickHeight), dark: true)
+            try await render(HeldWorkspaceWheelView(model: model, select: { _ in }, persistent: true),
+                to: output.appendingPathComponent("sideby-connections-\(suffix).png"),
+                width: 472, height: 568, dark: true, transparent: true,
+                hoverPoint: HeldWorkspaceWheelLayout.labelPoint(index: 1, count: 3))
             let empty = try makeModel(language: language, workspaceCount: 0)
             let preferences = MemoryProductUIPreferences()
             preferences.onboardingStage = .workspaces
@@ -229,13 +220,18 @@ final class ReadmeMediaRenderingTests: XCTestCase {
                     actions: .init(checkForUpdates: {}, openOnboarding: {}, finishAssignmentReview: {})),
                     to: output.appendingPathComponent("\(name)-\(lang).png"), width: 1040, height: 640, dark: false)
             }
-            func quick(_ model: SidebyAppModel, _ name: String) async throws {
-                try await render(HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model), select: { _ in }, persistent: true),
-                    to: output.appendingPathComponent("\(name)-\(lang).png"), width: 760, height: 410, dark: true)
+            func quick(_ model: SidebyAppModel, _ name: String, hoverID: String? = nil) async throws {
+                let columns = model.settings.contextPlan.contexts.sorted { $0.order < $1.order }
+                let point = hoverID.flatMap { id in columns.firstIndex { $0.id == id } }
+                    .map { HeldWorkspaceWheelLayout.labelPoint(index: $0, count: columns.count) }
+                try await render(HeldWorkspaceWheelView(model: model, select: { _ in }, persistent: true),
+                    to: output.appendingPathComponent("\(name)-\(lang).png"), width: 472, height: 568, dark: true,
+                    transparent: true, hoverPoint: point)
             }
             let setup = try makeModel(language: language, workspaceCount: 0)
             completeProgress(setup)
             let setupObservation = try XCTUnwrap(setup.workspaceObservationOverride?())
+            try await quick(setup, "wheel-empty")
             try await settings(setup, "setup-empty")
             XCTAssertTrue(setup.setCurrentConnection(displayID: "display-0", key: "sample-display-0-desktop-0", contextID: nil))
             let firstID = try XCTUnwrap(setup.settings.contextPlan.contexts.first?.id)
@@ -265,7 +261,7 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             // Explain the everyday shortcut before the editing gestures. Observations
             // remain fictional; this render never sends a real Space switch command.
             XCTAssertEqual(model.verifiedCurrentWorkspaceID, "checkout")
-            try await quick(model, "work-before")
+            try await quick(model, "work-before", hoverID: "review")
             let earlyReview = WorkspaceLayoutObservation(displays: original.displays.map {
                 .init(displayID: $0.displayID, spaceCount: $0.spaceCount, currentSpaceIndex: 1)
             }, spaceIDsByDisplayID: original.spaceIDsByDisplayID, spaceKeysByDisplayID: original.spaceKeysByDisplayID)
@@ -291,7 +287,7 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             try await settings(model, "copy-after")
             XCTAssertEqual(model.workspaceObservationOverride?(), current, "Editing never switches real or fixture Spaces")
             model.workspaceSaveMessage = nil
-            try await quick(model, "rename-matrix")
+            try await quick(model, "rename-matrix", hoverID: captured)
 
             try await render(ConnectionNameEditor(model: model, target: target, close: {}),
                 to: output.appendingPathComponent("rename-before-\(lang).png"), width: 360, height: 160, dark: true)
@@ -301,7 +297,11 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             try await render(ConnectionNameEditor(model: model, target: renamed, close: {}),
                 to: output.appendingPathComponent("rename-after-\(lang).png"), width: 360, height: 160, dark: true)
             model.workspaceSaveMessage = nil
-            try await quick(model, "renamed")
+            try await quick(model, "renamed", hoverID: captured)
+            XCTAssertTrue(model.deleteSavedWorkspace(captured))
+            try await quick(model, "delete-after")
+            XCTAssertTrue(model.undoSavedWorkspaceChange())
+            try await quick(model, "delete-undo", hoverID: captured)
             let review = WorkspaceLayoutObservation(displays: original.displays.map {
                 .init(displayID: $0.displayID, spaceCount: $0.spaceCount, currentSpaceIndex: $0.displayID == "display-0" ? 1 : 0)
             }, spaceIDsByDisplayID: original.spaceIDsByDisplayID, spaceKeysByDisplayID: original.spaceKeysByDisplayID)
@@ -534,7 +534,8 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         return window
     }
 
-    private func render<V: View>(_ view: V, to url: URL, width: CGFloat, height: CGFloat, dark: Bool) async throws {
+    private func render<V: View>(_ view: V, to url: URL, width: CGFloat, height: CGFloat, dark: Bool,
+                                 transparent: Bool = false, hoverPoint: CGPoint? = nil) async throws {
         let pixels = NSSize(width: width * 2, height: height * 2)
         let host = NSHostingView(rootView: view.frame(width: width, height: height)
             .environment(\.colorScheme, dark ? .dark : .light)
@@ -543,9 +544,27 @@ final class ReadmeMediaRenderingTests: XCTestCase {
             .scaleEffect(2, anchor: .topLeading)
             .frame(width: pixels.width, height: pixels.height, alignment: .topLeading))
         let window = mount(host, size: pixels, dark: dark)
+        if transparent { window.backgroundColor = .clear; window.isOpaque = false; window.hasShadow = false }
         defer { window.close() }
-        try await Task.sleep(for: .milliseconds(180))
+        try await Task.sleep(for: .milliseconds(transparent ? 650 : 180))
         host.layoutSubtreeIfNeeded()
+        if let hoverPoint {
+            // Dispatch only to this isolated view's cursor tracker. No global
+            // input, real desktop capture, or application activation is needed.
+            func tracker(_ view: NSView) -> NSView? {
+                if String(describing: type(of: view)) == "CursorView" { return view }
+                return view.subviews.lazy.compactMap(tracker).first
+            }
+            let cursor = NSCursor.current
+            let event = try XCTUnwrap(NSEvent.mouseEvent(with: .mouseMoved,
+                location: NSPoint(x: (16 + hoverPoint.x) * 2, y: pixels.height - (8 + hoverPoint.y) * 2),
+                modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0))
+            try XCTUnwrap(tracker(host)).mouseMoved(with: event)
+            cursor.set()
+            try await Task.sleep(for: .milliseconds(100))
+            host.layoutSubtreeIfNeeded()
+        }
         let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * 2), pixelsHigh: Int(height * 2),
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
         bitmap.size = pixels

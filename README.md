@@ -16,7 +16,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 [Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](https://ethznn.github.io/sideby/#film)
 
-*Sideby 1.0.5 · [What’s new](docs/releases/1.0.5.md).*
+*Sideby 1.1.0 · [What’s new](docs/releases/1.1.0.md).*
 
 ## See and connect in one window
 
@@ -27,7 +27,7 @@ Connect the Spaces you already use across your displays. When your environment c
 *Actual app view with fictional data.*
 
 1. Open **Sideby in the menu bar → Settings**. It opens directly to **Space connections**.
-2. Review the Spaces above the table. Available app/window titles, Space positions, and **On screen** markers show what is open.
+2. Review the Spaces above the table. Available app/window titles, Space order, totals for each display, and **On screen** markers show what is open.
 3. Drag a Space into an empty cell for the same display to make your first connection. You can also click a Space, then a cell. Changes are remembered immediately. Use **Undo** or `⌘Z` to step back through the last 20 changes, including after restarting Sideby.
 
 Spaces in the same column switch together. You can also click a cell to choose directly.
@@ -39,7 +39,7 @@ Spaces in the same column switch together. You can also click a cell to choose d
 
 To clear one cell, click it and choose **Disconnect this cell**. Use **… → Clear connections for this display…** beside a display name to clear just that row. Connections for disconnected displays can also be cleared; other displays' connections are kept. Use a column heading's **…** or right-click menu to reorder or remove a column.
 
-To remove several columns together, choose **Select connections** at the table's top left. Click headings or cells to select their columns, then choose **Remove N selected…** and confirm. You can also **Select all**. **Cancel** leaves your connections unchanged and exits selection mode. One **Undo** restores the removed columns together. Clicking cells in selection mode does not edit connections or switch Spaces.
+To remove several columns together, choose **Select connections** at the table's top left. Click headings or cells to select their columns, then choose **Remove N selected…** and confirm for multiple connections. A single selected connection is removed immediately. You can also **Select all**. **Cancel** leaves your connections unchanged and exits selection mode. One **Undo** restores the removed columns together. Clicking cells in selection mode does not edit connections or switch Spaces.
 
 To start over, choose **Clear all connections…** and confirm. This also clears connections for disconnected displays. The actual Spaces and app windows stay open. Empty cells remain available so you can immediately create a new connection. If you change your mind while rebuilding, use **Undo** repeatedly to go back. Clearing all connections counts as one of the last 20 changes.
 
@@ -55,37 +55,43 @@ Existing connections, names, and numbered shortcuts are kept. No recreation or d
 
 ## Daily use
 
-Open **⌥⇧Space → Connect current Spaces** to keep the Spaces you are currently looking at as one connection. The default name joins the Space names, such as **Xcode / Figma**. No separate name or save dialog is needed. Existing identical connections are shown instead of duplicated. To rename, click the pencil button in the switcher, then **Apply**. **Cancel** keeps the old name; **Undo** restores it after applying. The same name editor is available in Settings.
+Hold **⌥⇧Space** to open a circular menu near your pointer. Click a connection to move its Spaces together. The menu stays inside the screen, with transparent gaps and no rectangular backdrop. Up to eight connections appear per page.
+
+Click **Save current Spaces** in the center to keep the Spaces you are looking at as one connection. Names such as **Xcode / Figma** are filled in automatically. An existing identical connection is shown instead of duplicated. With no connections yet, the center offers **Create first connection** and previews your current Spaces.
 
 <p align="center">
-  <img src="./docs/images/sideby-tutorial-en.gif" width="880" alt="25-second tutorial: drag to connect, connect current Spaces, switch while coding, swap, undo, Option-copy, rename and return. Actual app UI with fictional data and reconstructed actions." />
+  <img src="./docs/images/sideby-connections-en.png" width="420" alt="Circular shortcut menu with Save current Spaces in the center, hover actions, Undo, and Edit connections." />
 </p>
 
-*25-second usage guide: drag to connect, connect current Spaces, switch while coding, swap, undo, Option-copy, rename, and return. Actual app UI with fictional data; pointer motion and transitions are reconstructed.*
+<p align="center">
+  <img src="./docs/images/sideby-tutorial-en.gif" width="880" alt="28-second tutorial: drag to connect, connect current Spaces, switch while coding, swap, undo, Option-copy, rename, return, delete and undo. Actual app UI with fictional data and reconstructed actions." />
+</p>
+
+*28-second usage guide: drag to connect, connect current Spaces, switch while coding, swap, undo, Option-copy, rename, return, delete, and undo. Actual app UI with fictional data; pointer motion and transitions are reconstructed.*
 
 [Play with controls](https://ethznn.github.io/sideby/#tutorial) · [Still image](docs/images/sideby-tutorial-en.png)
 
-Hold `⌥⇧Space` to open the switcher with your current connection in view. **Click a connection name, Space cell, or arrow** to move the connected Spaces in that column together. Click the pencil to rename, drag a name sideways to reorder columns, or drag between cells for the same display to move or swap. Choose **Edit connections** to pick other Spaces or create connections; the panel shows **Spaces on your displays** above the connection table. Drag a card to a cell for the same display, or click the card and then the cell. Edits are immediate, and **Back to switching** returns within the same panel. **Settings** shows the same list and connection table. The menu-bar table still allows direct cell editing.
+Hover over a connection to reveal its **pencil** and **trash** buttons. The name and sector switch Spaces; only the pencil renames. **Apply** saves the name, **Cancel** keeps it, and **Undo** restores it after applying. Removing one connection is immediate, without a confirmation dialog. Actual Spaces and app windows stay open. **Undo** remains visible and restores the connection, assignments, and shortcut, even after deleting the last connection or reopening Sideby.
 
-To remove a connection directly in the quick matrix, open its **⋯ → Remove connection · Keep Spaces** menu. The actual Spaces and app windows stay open. **Undo** restores the connection, its assignments, and its shortcut, even after removing the last connection. Opening the menu keeps the panel open when you release the shortcut.
+Choose **Edit connections** for the Space list and connection table. Drag within the same display row to move or swap; hold Option when dropping to copy. Use **Table** for the detailed switching view. **Clear all…** asks for confirmation before clearing all connections; the center remains ready to create a new one.
 
 | Input | Action |
 | --- | --- |
-| Hold `⌥⇧Space` | Open the switcher near the pointer. Click a connection name, Space cell, or arrow to move together. |
+| Hold `⌥⇧Space` | Open the circular menu near the pointer. Click a connection to move together. |
 | `⌥⇧Tab` | Return to the last connection you visited. |
 | `⌥⇧1` … `⌥⇧9`, `⌥⇧0` | Move to the connection assigned that number. Deleting another connection keeps existing numbers. |
 | `⌥⇧<` / `⌥⇧>` | Move to the previous / next connection. |
 | Option + Shift + horizontal swipe | Move displays together with the default gesture. |
 
-Numbered, previous/next, and return shortcuts execute when Option and Shift are released. The held connection table closes on key release. Clicking the pencil, opening a connection’s **⋯** menu, starting a drag, or choosing **Edit connections** keeps it open. Release the opening shortcut before editing; press Option again while dropping a Space to copy. Then dismiss it with Escape or the close button. Configure inputs in **Settings → Input**.
+Numbered, previous/next, and return shortcuts execute when Option and Shift are released. Releasing the opening shortcut closes the circular menu without switching or saving anything by itself. Saving, renaming, removing, or choosing an editor keeps it open. Release the shortcut before editing, then press Option again while dropping a Space to copy. Use Tab to focus controls, Return/Space to activate, and Escape to close. Configure inputs in **Settings → Input**.
 
 ## When your environment changes
 
 Connections follow the same surviving desktops when their order changes. A missing desktop is marked **Choose again**; Sideby never substitutes another desktop at the same position. New desktops appear in the upper list for you to connect. Disconnected displays keep their connections; use **Show disconnected displays** to see them.
 
-**Space** refers to a macOS workspace, including regular desktops and full-screen apps. **Space · position 3** means its position in that display’s list, not a Mission Control name such as “Desktop 3.” Available app/window names are shown first.
+**Space** refers to a macOS workspace, including regular desktops and full-screen apps. **Space 3** means its position in that display’s list, not a Mission Control name such as “Desktop 3.” Available app/window names are shown first.
 
-In the quick matrix’s **Edit connections** view, clearing connections and creating them again keeps the heading, Space list, and drop targets in place. Space choices stay inside the screen. If a saved Space is missing, use **Choose Space again** to pick another or **Disconnect this cell** to remove its assignment. You can also Option-drag another cell from the same display to copy it, then undo the change if needed.
+In the quick switcher’s **Edit connections** view, clearing connections and creating them again keeps the heading, Space list, and drop targets in place. Space choices stay inside the screen. If a saved Space is missing, use **Choose Space again** to pick another or **Disconnect this cell** to remove its assignment. You can also Option-drag another cell from the same display to copy it, then undo the change if needed.
 
 While the connection editor is visible, Space lists and available app/window titles update automatically. If Spaces cannot be read, use **Read again** after checking the display connection. Custom desktop names take priority. These labels do not rename Mission Control desktops. If writing settings fails, Sideby reports the problem and keeps the existing connections.
 

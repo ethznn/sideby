@@ -165,7 +165,7 @@ import XCTest
             let observedKeys = model.workspaceLastObservedSpaceKeys
             let observedIDs = model.workspaceLastObservedSpaceIDs
             let controller = HeldWorkspaceMatrixController(model: model)
-            controller.showPersistent()
+            controller.showPersistent(presentation: .table)
             let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
             defer { controller.dismiss(); window.close() }
             try await Task.sleep(for: .milliseconds(200))
@@ -232,7 +232,7 @@ import XCTest
             model.refreshWorkspaceStatus()
             let before = model.settings
             let controller = HeldWorkspaceMatrixController(model: model)
-            controller.showPersistent()
+            controller.showPersistent(presentation: .table)
             let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
             defer { controller.dismiss(); window.close() }
             try await Task.sleep(for: .milliseconds(250))
@@ -325,7 +325,7 @@ import XCTest
             model.workspacePreferences = nil; model.workspaceNameSuggestionProvider = nil
             model.settings.language = english ? .english : .korean
             let controller = HeldWorkspaceMatrixController(model: model)
-            controller.showPersistent()
+            controller.showPersistent(presentation: .table)
             let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
             defer { controller.dismiss(); window.close() }
             try await Task.sleep(for: .milliseconds(150))
@@ -383,7 +383,7 @@ import XCTest
             model.workspacePreferences = nil; model.workspaceNameSuggestionProvider = nil
             model.settings.language = english ? .english : .korean
             let controller = HeldWorkspaceMatrixController(model: model)
-            controller.showPersistent()
+            controller.showPersistent(presentation: .table)
             let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
             defer { controller.dismiss(); window.close() }
             try await Task.sleep(for: .milliseconds(150))
@@ -473,7 +473,7 @@ import XCTest
         let before = model.settings
         let controller = HeldWorkspaceMatrixController(model: model)
         // No shortcut registration or screen-switch request. All data are fixtures.
-        controller.showPersistent()
+        controller.showPersistent(presentation: .table)
         defer { controller.dismiss() }
         try await Task.sleep(for: .milliseconds(250))
         let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
@@ -522,7 +522,7 @@ import XCTest
             }, currentContextID: "work-0")
             let before = model.settings
             let controller = HeldWorkspaceMatrixController(model: model)
-            controller.showPersistent(anchor: NSRect(x: screen.midX, y: screen.maxY - 100, width: 1, height: 1))
+            controller.showPersistent(anchor: NSRect(x: screen.midX, y: screen.maxY - 100, width: 1, height: 1), presentation: .table)
             let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
             defer { controller.dismiss(); window.close() }
             let openingHeight = window.frame.height
@@ -592,7 +592,7 @@ import XCTest
             let observation = try XCTUnwrap(model.workspaceObservationOverride?())
             let controller = HeldWorkspaceMatrixController(model: model)
             let screen = try XCTUnwrap(NSScreen.main).visibleFrame
-            controller.showPersistent(anchor: NSRect(x: screen.midX, y: screen.minY + 100, width: 1, height: 1))
+            controller.showPersistent(anchor: NSRect(x: screen.midX, y: screen.minY + 100, width: 1, height: 1), presentation: .table)
             let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
             defer { controller.dismiss(); window.close() }
             try await Task.sleep(for: .milliseconds(200))
@@ -657,7 +657,7 @@ import XCTest
         let model = heldMatrixFixture(count: 2, displayCount: 40)
         model.workspacePreferences = nil
         let controller = HeldWorkspaceMatrixController(model: model)
-        controller.showPersistent()
+        controller.showPersistent(presentation: .table)
         let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
         defer { controller.dismiss(); window.close() }
         try await Task.sleep(for: .milliseconds(250))
@@ -681,7 +681,7 @@ import XCTest
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertFalse(window.isVisible)
         XCTAssertEqual(window.frame, largeFrame)
-        controller.showPersistent()
+        controller.showPersistent(presentation: .table)
         let reopened = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
         defer { reopened.close() }
         try await Task.sleep(for: .milliseconds(200))
@@ -702,7 +702,7 @@ import XCTest
             model.refreshWorkspaceStatus()
             let before = model.settings
             let controller = HeldWorkspaceMatrixController(model: model)
-            controller.showPersistent()
+            controller.showPersistent(presentation: .table)
             let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
             defer { controller.dismiss(); window.close() }
             try await Task.sleep(for: .milliseconds(200))
@@ -774,7 +774,7 @@ import XCTest
                 model.settings.savedWorkspaces.bookmarks["work-0"]?["mac"] = "missing-space"
                 model.refreshWorkspaceStatus()
                 let controller = HeldWorkspaceMatrixController(model: model)
-                controller.showPersistent(anchor: NSRect(x: point.x, y: point.y + 62, width: 1, height: 1))
+                controller.showPersistent(anchor: NSRect(x: point.x, y: point.y + 62, width: 1, height: 1), presentation: .table)
                 let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
                 defer { controller.dismiss(); window.close() }
                 try await Task.sleep(for: .milliseconds(180))
@@ -802,7 +802,7 @@ import XCTest
         model.refreshWorkspaceStatus()
         let before = model.settings.savedWorkspaces.bookmarks
         let controller = HeldWorkspaceMatrixController(model: model)
-        controller.showPersistent(anchor: NSRect(x: visible.maxX - 2, y: visible.minY + 62, width: 1, height: 1))
+        controller.showPersistent(anchor: NSRect(x: visible.maxX - 2, y: visible.minY + 62, width: 1, height: 1), presentation: .table)
         let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
         defer { controller.dismiss(); window.close() }
         try await Task.sleep(for: .milliseconds(180))

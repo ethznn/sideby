@@ -163,7 +163,7 @@ import SidebySystem
         model.settings.language = .english
         model.selectedDisplayIDs = ["studio"]
         XCTAssertNotNil(model.addCurrentConnection())
-        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "Space · position 1")
+        XCTAssertEqual(model.settings.contextPlan.contexts.last?.name, "Space 1")
     }
 
     func testCurrentConnectionNameKeepsBothLongTitlesAndDisambiguatesOtherPairs() throws {

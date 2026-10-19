@@ -896,7 +896,7 @@ import SidebySystem
             let card = try XCTUnwrap(element("connection-source-display-0-1", in: window))
             let label = try XCTUnwrap(attribute(card, "AXTitle") as? String)
             XCTAssertTrue(label.contains("Slack"))
-            XCTAssertTrue(label.contains(english ? "Space · position 2" : "2번째 Space"))
+            XCTAssertTrue(label.contains(english ? "Space 2" : "2번째 Space"))
             XCTAssertFalse(label.contains("데스크탑 2"))
             XCTAssertNotNil(element("connection-new-hint", in: window))
             let newCell = try XCTUnwrap(element("connection-cell-new-display-0", in: window))
@@ -977,6 +977,12 @@ import SidebySystem
             let current = try XCTUnwrap(element("connection-source-display-0-0", in: window))
             XCTAssertTrue((attribute(current, "AXTitle") as? String)?.contains(english ? "On screen" : "지금 보고 있음") == true)
             try capture(window, name: "connections-settings-\(small ? "small" : english ? "en" : "ko")")
+            if small {
+                // The third card is partially hidden. Use the visible overflow
+                // control before clicking it, as a user would on a small window.
+                try click(XCTUnwrap(element("connection-more-spaces-display-0", in: window)), window: window)
+                try await Task.sleep(for: .milliseconds(300))
+            }
             try click(XCTUnwrap(element("connection-source-display-0-2", in: window)), window: window)
             try click(XCTUnwrap(element("connection-cell-setup-0-display-0", in: window)), window: window)
             XCTAssertEqual(model.settings.savedWorkspaces.bookmarks["setup-0"]?["display-0"], "display-0-space-2")
@@ -1030,7 +1036,7 @@ import SidebySystem
             try await Task.sleep(for: .milliseconds(200))
             XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty)
             XCTAssertFalse(model.isSwitching)
-            XCTAssertNil(element("connections-clear-all", in: window))
+            XCTAssertNotNil(element("connections-clear-all", in: window), "Keep cleanup discoverable even when empty")
             XCTAssertNotNil(element("connection-desktop-sources", in: window))
             try click(XCTUnwrap(element("connections-undo", in: window)), window: window)
             XCTAssertEqual(model.settings.contextPlan.contexts, before.contextPlan.contexts)
@@ -1055,6 +1061,30 @@ import SidebySystem
             .frame(width: size.width, height: size.height))
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); window.orderFrontRegardless()
         return window
+    }
+
+    func testSingleSelectedConnectionDeletesImmediatelyAndCanBeUndone() async throws {
+        try requireNative()
+        let model = fixture(contexts: 3)
+        let original = model.settings
+        let window = currentSettingsWindow(model)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(250))
+        try click(XCTUnwrap(element("connections-select", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(150))
+        try click(XCTUnwrap(element("connection-select-setup-0", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(attribute(try XCTUnwrap(element("connections-remove-selected", in: window)), "AXTitle") as? String,
+            model.connectionCopy.removeSelected(1))
+        try click(XCTUnwrap(element("connections-remove-selected", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertNil(window.attachedSheet)
+        XCTAssertEqual(model.settings.contextPlan.contexts.map(\.id), ["setup-1", "setup-2"])
+        XCTAssertFalse(model.isSwitching)
+        try click(XCTUnwrap(element("connections-undo", in: window)), window: window)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(model.settings.contextPlan.contexts, original.contextPlan.contexts)
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, original.savedWorkspaces.bookmarks)
     }
 
     func testConnectionMultiSelectionCancelRemoveAndUndoInBothLanguages() async throws {

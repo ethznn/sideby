@@ -33,7 +33,7 @@ struct HeldMatrixStrings {
     var failed: String { text("Switch incomplete. Click the column to retry.", "일부 모니터가 이동하지 못했습니다. 열을 눌러 다시 시도하세요.") }
     var previous: String { text("Show earlier setups", "앞쪽 구성 보기") }
     var next: String { text("Show later setups", "뒤쪽 구성 보기") }
-    var setting: String { text("Show the quick matrix while holding a shortcut", "단축키를 누르는 동안 Space 연결표 보기") }
+    var setting: String { text("Show the Space switcher while holding a shortcut", "단축키를 누르는 동안 Space 빠른 이동 보기") }
     var record: String { text("Change shortcut…", "단축키 변경…") }
     var recording: String { text("Press a shortcut · Esc to cancel", "단축키를 누르세요 · Esc로 취소") }
     var invalidShortcut: String { text("Use Option, Control or Command with a key. Avoid Sideby shortcuts, reserved system shortcuts and Esc.", "Option·Control·Command 중 하나와 키를 조합해 주세요. 기존 Sideby·시스템 단축키 및 Esc는 사용할 수 없습니다.") }
@@ -54,6 +54,10 @@ struct HeldWorkspaceMatrixView: View {
     var copyRequested: () -> Bool = { NSEvent.modifierFlags.contains(.option) }
     var availableHeight: CGFloat = 900
     var contentMeasured: (CGSize, Bool) -> Void = { _, _ in }
+    var usesRadial = false
+    var wheelDiameter: CGFloat = 440
+    var presentationChanged: (HeldSwitcherPresentation) -> Void = { _ in }
+    @State private var showsTable = false
     @State private var renaming: ContextDefinition?
     @State private var repairingCell: String?
     @State private var dragSession = UUID()
@@ -73,6 +77,18 @@ struct HeldWorkspaceMatrixView: View {
     private var live: HeldWorkspaceSnapshot { .init(model: model, previousColumnID: snapshot.initialColumnID) }
 
     var body: some View {
+        Group {
+            if usesRadial && !isEditing && !showsTable {
+                HeldWorkspaceWheelView(model: model, select: { column in
+                    rememberColumn(column.id); select(column)
+                }, keepOpen: keepOpen, close: close, edit: { setEditing(true) },
+                    showTable: { showsTable = true; presentationChanged(.table) },
+                    persistent: persistent || hasEnteredEditing, diameter: wheelDiameter)
+            } else { matrixBody }
+        }
+    }
+
+    private var matrixBody: some View {
         ScrollViewReader { scroll in
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -92,6 +108,11 @@ struct HeldWorkspaceMatrixView: View {
                         HStack {
                             Text(copy.title).font(.system(size: 17, weight: .semibold))
                             Spacer()
+                            if usesRadial {
+                                Button(model.connectionCopy.text("Circle", "원형으로 보기")) {
+                                    showsTable = false; presentationChanged(.wheel)
+                                }.pointingHandCursor().accessibilityIdentifier("held-show-wheel")
+                            }
                             Button(copy.editConnections) { setEditing(true) }
                                 .pointingHandCursor().disabled(model.isSwitching)
                                 .accessibilityIdentifier("held-edit-connections")
@@ -177,6 +198,7 @@ struct HeldWorkspaceMatrixView: View {
         if editing { keepOpen(); hasEnteredEditing = true }
         isEditing = editing
         editingChanged(editing)
+        presentationChanged(editing ? .editor : usesRadial && !showsTable ? .wheel : .table)
     }
 
     private func quickTable(_ snapshot: HeldWorkspaceSnapshot) -> some View {

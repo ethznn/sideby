@@ -306,6 +306,6 @@ struct CurrentConnectionStrings {
     var readAgain: String { text("Read again", "다시 읽기") }
     var readUnavailable: String { text("Couldn't read Spaces. Check your display connections.", "Space를 읽지 못했어요. 모니터 연결을 확인해 주세요.") }
     /// Position in this display's Space list, not a Mission Control desktop name.
-    func spacePosition(_ index: Int) -> String { text("Space · position \(index + 1)", "\(index + 1)번째 Space") }
+    func spacePosition(_ index: Int) -> String { text("Space \(index + 1)", "\(index + 1)번째 Space") }
     func connection(_ index: Int) -> String { text("Connection \(index)", "연결 \(index)") }
 }

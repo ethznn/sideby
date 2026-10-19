@@ -12,6 +12,8 @@ import SwiftUI
     private var screenID: NSNumber?
     private var previousColumnID: String?
     private var persistent = false
+    private var presentation: HeldSwitcherPresentation = .wheel
+    private var openingPointer: NSPoint = .zero
     private var panelIsEditing = false
     private var measuredContentSize: CGSize?
     private var copyModifiers = HeldMatrixCopyModifiers()
@@ -95,7 +97,11 @@ import SwiftUI
             session.release()
             model?.setHeldMatrixInputActive(false)
             if !persistent { hide() }
-        case .cancelled: dismiss()
+        case .cancelled:
+            // A pinned editor owns Escape (cancel its dialog before closing).
+            // The key window receives it normally; the held-key poll must not
+            // also dismiss the entire panel underneath that dialog.
+            if !persistent { dismiss() }
         }
     }
 
@@ -107,11 +113,11 @@ import SwiftUI
         if let localOutsideMonitor { NSEvent.removeMonitor(localOutsideMonitor); self.localOutsideMonitor = nil }
     }
 
-    func showPersistent(anchor: NSRect? = nil) {
+    func showPersistent(anchor: NSRect? = nil, presentation: HeldSwitcherPresentation = .wheel) {
         guard let model, model.workspaceSaveDraft == nil else { return }
         persistent = true
         model.refreshWorkspaceStatus()
-        show(model: model, generation: session.generation, anchor: anchor)
+        show(model: model, generation: session.generation, anchor: anchor, presentation: presentation)
         pinVisiblePanel()
     }
 
@@ -149,20 +155,33 @@ import SwiftUI
     }
 
     private func hide() {
-        panel?.orderOut(nil)
+        guard let panel else { return }
+        if presentation == .wheel && panel.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            panel.ignoresMouseEvents = true
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18
+                panel.animator().alphaValue = 0
+            } completionHandler: {
+                // This captured window can no longer receive actions; a new press
+                // creates a new panel and must never be hidden by this completion.
+                MainActor.assumeIsolated { panel.orderOut(nil) }
+            }
+        } else { panel.orderOut(nil) }
         // Retain the hidden window until a pending mouse-up is delivered to its
         // original recipient. Every action also validates the press generation.
     }
 
-    private func show(model: SidebyAppModel, generation: Int, anchor: NSRect? = nil) {
+    private func show(model: SidebyAppModel, generation: Int, anchor: NSRect? = nil, presentation: HeldSwitcherPresentation = .wheel) {
         let pointer = anchor.map { NSPoint(x: $0.midX, y: $0.maxY - 62) } ?? NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else { dismiss(); return }
+        self.presentation = presentation == .wheel && !HeldWorkspaceWheelLayout.fits(in: screen.visibleFrame) ? .table : presentation
+        openingPointer = pointer
         copyModifiers = HeldMatrixCopyModifiers(ignoresOpeningOption: source?.chordIsDown == true && NSEvent.modifierFlags.contains(.option))
         let snapshot = HeldWorkspaceSnapshot(model: model, previousColumnID: previousColumnID)
         let size = panelSize(model: model, screen: screen, editing: false)
         let panel = HeldMatrixPanel(contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.acceptsKeyboard = persistent
+        panel.acceptsKeyboard = persistent || self.presentation == .wheel
         panel.onCancel = { [weak self] in self?.dismiss() }
         panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
@@ -173,7 +192,7 @@ import SwiftUI
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = true
+        panel.hasShadow = self.presentation != .wheel
         panel.title = "Sideby — " + model.connectionCopy.title
         panel.identifier = NSUserInterfaceItemIdentifier("sideby-held-workspace-matrix")
         self.panel?.orderOut(nil)
@@ -185,11 +204,11 @@ import SwiftUI
         }, rememberColumn: { [weak self] id in self?.previousColumnID = id },
             persistent: persistent, close: { [weak self] in self?.dismiss() },
             keepOpen: { [weak self] in self?.pinVisiblePanel() },
-            editingChanged: { [weak self] editing in self?.resizeForEditing(editing) },
+
             copyRequested: { [weak self] in self?.copyModifiers.update(optionDown: NSEvent.modifierFlags.contains(.option)) ?? false },
             availableHeight: max(1, screen.visibleFrame.height - 48),
             contentMeasured: { [weak self, weak panel] size, editing in
-                guard let self, let panel, self.panel === panel, self.panelIsEditing == editing,
+                guard let self, let panel, self.panel === panel, self.panelIsEditing == editing, self.presentation != .wheel,
                       size.height > 0, abs(size.width - panel.frame.width) < 1 else { return }
                 self.measuredContentSize = size
                 // Avoid changing the window frame during a SwiftUI layout pass.
@@ -197,19 +216,36 @@ import SwiftUI
                     guard let self, let panel, self.panel === panel, panel.isVisible else { return }
                     self.resizeToMeasuredContent()
                 }
-            })
+            }, usesRadial: self.presentation == .wheel,
+            wheelDiameter: HeldWorkspaceWheelLayout.size(in: screen.visibleFrame).width - 32,
+            presentationChanged: { [weak self] in self?.changePresentation($0) })
         panel.contentView = HeldMatrixHostingView(rootView: view)
         panel.setContentSize(size)
         panel.contentView?.layoutSubtreeIfNeeded()
         let measuredSize = panelSize(model: model, screen: screen, editing: false,
                                      contentHeight: measuredContentSize?.height)
         panel.setContentSize(measuredSize)
-        panel.setFrameOrigin(HeldMatrixPanelLayout.origin(size: measuredSize, pointer: pointer, visibleFrame: screen.visibleFrame))
+        panel.setFrameOrigin(panelOrigin(size: measuredSize, screen: screen))
         screenID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
-        panel.orderFrontRegardless()
+        if self.presentation == .wheel { panel.makeKeyAndOrderFront(nil) }
+        else { panel.orderFrontRegardless() }
+    }
+
+    private func panelOrigin(size: NSSize, screen: NSScreen) -> NSPoint {
+        if presentation == .wheel {
+            return HeldWorkspaceWheelLayout.origin(size: size, pointer: openingPointer, visibleFrame: screen.visibleFrame)
+        }
+        return HeldMatrixPanelLayout.origin(size: size, pointer: openingPointer, visibleFrame: screen.visibleFrame)
+    }
+
+    private func changePresentation(_ presentation: HeldSwitcherPresentation) {
+        self.presentation = presentation
+        panel?.hasShadow = presentation != .wheel
+        resizeForEditing(presentation == .editor)
     }
 
     private func panelSize(model: SidebyAppModel, screen: NSScreen, editing: Bool, contentHeight: CGFloat? = nil) -> NSSize {
+        if presentation == .wheel { return HeldWorkspaceWheelLayout.size(in: screen.visibleFrame) }
         let snapshot = HeldWorkspaceSnapshot(model: model)
         let hasStatus = !model.isEnabled || !model.hasSwitchingAccess || model.workspaceRecoveryTargetID != nil
             || model.settingsStore.hasUnreadableSettings
@@ -222,15 +258,14 @@ import SwiftUI
         guard let model, let panel, let screen = panel.screen ?? NSScreen.main else { return }
         panelIsEditing = editing
         measuredContentSize = nil
-        let top = NSPoint(x: panel.frame.midX, y: panel.frame.maxY - 62)
         // Change width first so text is measured at its final wrapping width.
         let size = panelSize(model: model, screen: screen, editing: editing, contentHeight: panel.frame.height)
-        panel.setFrame(NSRect(origin: HeldMatrixPanelLayout.origin(size: size, pointer: top, visibleFrame: screen.visibleFrame),
+        panel.setFrame(NSRect(origin: panelOrigin(size: size, screen: screen),
                              size: size), display: true)
     }
 
     private func resizeToMeasuredContent() {
-        guard let panel, let measuredContentSize, let screen = panel.screen ?? NSScreen.main,
+        guard presentation != .wheel, let panel, let measuredContentSize, let screen = panel.screen ?? NSScreen.main,
               abs(measuredContentSize.width - panel.frame.width) < 1 else { return }
         let height = min(ceil(measuredContentSize.height), max(1, screen.visibleFrame.height - 48))
         guard abs(panel.frame.height - height) >= 1 else { return }
@@ -265,8 +300,16 @@ import SwiftUI
 final class HeldMatrixPanel: NSPanel {
     var acceptsKeyboard = false
     var onCancel: (() -> Void)?
+    var cancelContent: (() -> Bool)?
+    weak var cancelContentOwner: NSView?
     override var canBecomeKey: Bool { acceptsKeyboard }
-    override func cancelOperation(_ sender: Any?) { onCancel?() }
+    override func cancelOperation(_ sender: Any?) {
+        if cancelContent?() != true { onCancel?() }
+    }
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, event.keyCode == 53, cancelContent?() == true { return }
+        super.sendEvent(event)
+    }
     override var canBecomeMain: Bool { false }
 
     /// On macOS 27 a nonactivating panel can remain visible after a Space

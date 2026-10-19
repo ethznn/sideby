@@ -107,14 +107,11 @@ final class ContextPlanMigrationTests: XCTestCase {
         XCTAssertEqual(plan.contexts.map(\.name), ["Context 1"])
     }
 
-    func testMigrationOfEmptyLegacyPlanKeepsOneDefaultContext() {
+    func testMigrationOfEmptyLegacyPlanDoesNotInventAConnection() {
         let legacy = DisplaySpacePlan(displaySpaces: [], defaultCaptureCount: 4)
 
         let plan = ContextPlanMigration.migrate(from: legacy)
 
-        XCTAssertEqual(plan.contexts.map(\.name), ["Context 1"])
-        XCTAssertEqual(plan.contexts.map(\.id), ["context-1"])
-        XCTAssertEqual(plan.contexts.map(\.order), [1])
-        XCTAssertEqual(plan.contexts.map(\.displayIDs), [[]])
+        XCTAssertEqual(plan, .empty)
     }
 }

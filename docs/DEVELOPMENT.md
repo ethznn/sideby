@@ -80,8 +80,10 @@ both values, verifies that the built app's `CFBundleShortVersionString` and
 available.
 
 Release notarization is maintainer-local: submit the generated DMG to Apple's
-notary service using credentials stored in your local Keychain, then staple the
-accepted ticket to the DMG. Do not commit Apple ID credentials, App Store
+notary service using the existing App Store Connect API connection or a working
+Keychain profile, then staple the accepted ticket to the DMG. Screen unlock is
+not a prerequisite for API-file authentication; check the existing connection
+before asking to recreate credentials. Do not commit Apple ID credentials, App Store
 Connect keys, certificates, provisioning profiles, keychain profile names, or
 notarization output logs.
 

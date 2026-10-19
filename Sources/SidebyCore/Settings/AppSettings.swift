@@ -129,7 +129,9 @@ public struct AppSettings: Equatable, Codable, Sendable {
         ) ?? .modifierRelease
         self.horizontalThreshold = try container.decode(Double.self, forKey: .horizontalThreshold)
         self.launchAtLogin = try container.decode(Bool.self, forKey: .launchAtLogin)
-        self.contextPlan = try container.decodeIfPresent(ContextPlan.self, forKey: .contextPlan) ?? .default
+        // Missing saved connections are an empty library, not sample connections.
+        // Older display-space data is imported separately by the settings store.
+        self.contextPlan = try container.decodeIfPresent(ContextPlan.self, forKey: .contextPlan) ?? .empty
         self.displaySpacePlan = try container.decodeIfPresent(DisplaySpacePlan.self, forKey: .displaySpacePlan) ?? .default
         self.displayRowOrder = try container.decodeIfPresent([String].self, forKey: .displayRowOrder) ?? []
         self.displaySelection = try container.decodeIfPresent(DisplaySelection.self, forKey: .displaySelection) ?? DisplaySelection()

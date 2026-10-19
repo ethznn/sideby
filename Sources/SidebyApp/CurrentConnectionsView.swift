@@ -14,6 +14,7 @@ struct CurrentConnectionsView: View {
     var keepOpen: () -> Void = {}
     var close: (() -> Void)?
     var copyRequested: () -> Bool = { NSEvent.modifierFlags.contains(.option) }
+    @State private var sourceOffsets: [String: CGFloat] = [:]
     @State private var observation: WorkspaceLayoutObservation?
     @State private var picker: String?
     @State private var showsDisplays = false
@@ -67,13 +68,11 @@ struct CurrentConnectionsView: View {
                         .controlSize(.small).pointingHandCursor().help(copy.add).accessibilityLabel(copy.add)
                         .disabled(!model.canChangeSavedWorkspaces).accessibilityIdentifier("connections-add")
                 }
-                if !contexts.isEmpty {
                     Button(copy.clearAll) {
                         confirmRemoval(.all)
                     }.controlSize(.small).pointingHandCursor()
                         .disabled(!model.canDeleteAllSavedWorkspaces)
                         .accessibilityIdentifier("connections-clear-all")
-                }
                 Button(copy.displays) { keepOpen(); showsDisplays = true }.pointingHandCursor()
                     .accessibilityIdentifier("connections-displays")
                     .popover(isPresented: $showsDisplays) {
@@ -136,7 +135,7 @@ struct CurrentConnectionsView: View {
                     }
                 }.fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
-                if !isQuickEditor && canUndo && model.workspaceSaveMessage == nil { undoButton }
+                if !isQuickEditor && model.workspaceSaveMessage == nil { undoButton }
             }
             if isQuickEditor { quickEditorStatus }
 
@@ -217,6 +216,11 @@ struct CurrentConnectionsView: View {
     private func confirmRemoval(_ scope: ConnectionRemovalScope) {
         guard let proposal = model.prepareConnectionRemoval(scope) else { return }
         keepOpen(); selectedDesktop = nil; picker = nil
+        if case .connections(let ids) = scope, ids.count == 1 {
+            if model.removeConnections(proposal) { finishSelectingConnections() }
+            readObservation()
+            return
+        }
         deletionProposal = proposal; confirmsClearAll = true
     }
 
@@ -243,7 +247,7 @@ struct CurrentConnectionsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                         .accessibilityIdentifier("connections-scope")
-                    if canUndo { undoButton }
+                    undoButton
                 }.foregroundStyle(NativeSurfaceStyle.secondaryText).padding(9)
             }
         }
@@ -260,7 +264,7 @@ struct CurrentConnectionsView: View {
                 if failed { Text(copy.notApplied).fontWeight(.semibold) }
                 Text(message).fixedSize(horizontal: false, vertical: true)
             }.font(.system(size: 12)).frame(maxWidth: .infinity, minHeight: minimumTextHeight, alignment: .leading)
-            if canUndo { undoButton }
+            undoButton
             Button { model.workspaceSaveMessage = nil } label: { Image(systemName: "xmark").frame(width: 24, height: 24) }
                 .buttonStyle(.plain).pointingHandCursor().accessibilityLabel(model.saveCopy.close)
                 .accessibilityIdentifier("connections-dismiss-feedback")
@@ -306,17 +310,54 @@ struct CurrentConnectionsView: View {
                         HStack(spacing: 0) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(model.displayName(for: id)).font(.system(size: 12, weight: .medium)).lineLimit(2)
+                                if let count = keys(id)?.count {
+                                    Text(copy.text("\(count) Spaces", "Space \(count)개"))
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(NativeSurfaceStyle.accent)
+                                        .accessibilityIdentifier("connection-space-count-" + id)
+                                }
                                 displayBadge(id)
                             }.padding(.horizontal, 10).frame(width: 132, height: 76, alignment: .leading)
                                 .background(activeDisplayID == id ? NativeSurfaceStyle.selectionBackground : .clear)
                             if let keys = keys(id) {
-                                ScrollView(.horizontal) {
-                                    HStack(spacing: 6) {
-                                        ForEach(Array(keys.enumerated()), id: \.element) { index, key in
-                                            desktopSource(displayID: id, key: key, index: index)
-                                        }
-                                    }.padding(.vertical, 3)
-                                }.scrollIndicators(.visible)
+                                GeometryReader { viewport in
+                                    ScrollViewReader { scroll in
+                                        ScrollView(.horizontal) {
+                                            HStack(spacing: 6) {
+                                                ForEach(Array(keys.enumerated()), id: \.element) { index, key in
+                                                    desktopSource(displayID: id, key: key, index: index).id(key)
+                                                }
+                                            }.padding(.vertical, 3)
+                                                .background(GeometryReader { content in
+                                                    Color.clear.preference(key: ConnectionSourceOffset.self,
+                                                        value: [id: content.frame(in: .named("sources-" + id)).minX])
+                                                })
+                                        }.coordinateSpace(name: "sources-" + id).scrollIndicators(.visible)
+                                            .onPreferenceChange(ConnectionSourceOffset.self) { values in
+                                                if let offset = values[id] { sourceOffsets[id] = offset }
+                                            }
+                                            .overlay(alignment: .trailing) {
+                                                let total = CGFloat(keys.count) * 180 - 6
+                                                if total + (sourceOffsets[id] ?? 0) > viewport.size.width + 2,
+                                                   !keys.isEmpty {
+                                                    Button {
+                                                        let first = max(0, Int(-(sourceOffsets[id] ?? 0) / 180))
+                                                        let next = min(keys.count - 1, first + max(1, Int(viewport.size.width / 180)))
+                                                        withAnimation { scroll.scrollTo(keys[next], anchor: .leading) }
+                                                    } label: {
+                                                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                                                            .frame(width: 26, height: 48)
+                                                            .background(NativeSurfaceStyle.controlBackground, in: Capsule())
+                                                            .overlay(Capsule().strokeBorder(NativeSurfaceStyle.itemBorder))
+                                                    }.buttonStyle(.plain).pointingHandCursor()
+                                                        .help(copy.text("More Spaces to the right", "오른쪽에 Space 더 보기"))
+                                                        .accessibilityLabel(copy.text("More Spaces to the right", "오른쪽에 Space 더 보기"))
+                                                        .accessibilityIdentifier("connection-more-spaces-" + id)
+                                                        .padding(.trailing, 4)
+                                                }
+                                            }
+                                    }
+                                }
                             } else {
                                 Text(copy.readUnavailable).font(.system(size: 11)).foregroundStyle(.orange)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -347,19 +388,26 @@ struct CurrentConnectionsView: View {
                 drag = payload
                 return payload.rawValue
             }, endDrag: { drag = nil; dropCell = nil }) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 3) {
+                        ForEach(0..<3, id: \.self) { _ in Circle().fill(NativeSurfaceStyle.secondaryText.opacity(0.45)).frame(width: 4, height: 4) }
+                        Spacer()
+                        Text(copy.spacePosition(index)).font(.system(size: 9)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    }.padding(.horizontal, 7).frame(height: 17)
+                        .background(NativeSurfaceStyle.headerBackground)
                     HStack(alignment: .top, spacing: 4) {
-                        Text(title).font(.system(size: 13, weight: .medium)).lineLimit(2)
+                        Text(title).font(.system(size: 12, weight: .medium)).lineLimit(1)
                         if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(NativeSurfaceStyle.accent) }
-                    }
+                    }.padding(.horizontal, 7).padding(.top, 5).padding(.bottom, 3)
                     HStack(spacing: 5) {
-                        if title != copy.spacePosition(index) { Text(copy.text("Position \(index + 1)", "\(index + 1)번째 Space")) }
                         if current { Text(copy.text("On screen", "현재")).fontWeight(.medium).foregroundStyle(NativeSurfaceStyle.accent) }
-                    }.font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                }.padding(8).frame(width: 174, height: 70, alignment: .leading)
+                    }.font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText).padding(.horizontal, 7)
+                    Spacer(minLength: 2)
+                }.frame(width: 174, height: 70, alignment: .leading)
                     .background(selected ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.inputBackground,
                                 in: RoundedRectangle(cornerRadius: 7))
-                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(selected ? Color.accentColor : NativeSurfaceStyle.controlBorder))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(selected ? Color.accentColor : NativeSurfaceStyle.itemBorder, lineWidth: selected ? 2 : 1))
             }.frame(width: 174, height: 70).help(title)
     }
 
@@ -626,6 +674,9 @@ struct CurrentConnectionsView: View {
             }, endDrag: { drag = nil; dropCell = nil }) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 4) {
+                        if assigned && !missing && !unreadable && !isSelectingConnections {
+                            Image(systemName: "link").font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.accent)
+                        }
                         if !assigned && !isSelectingConnections { Image(systemName: "plus").font(.system(size: 13, weight: .medium)).foregroundStyle(NativeSurfaceStyle.secondaryText) }
                         Text(title).font(.system(size: 13, weight: .medium)).lineLimit(2)
                         Spacer(minLength: 0)
@@ -634,16 +685,16 @@ struct CurrentConnectionsView: View {
                     if hovering {
                         Text(preview).font(.system(size: 11, weight: .medium)).foregroundStyle(NativeSurfaceStyle.accent)
                     } else if let index, title != copy.spacePosition(index) {
-                        Text(copy.text("Position \(index + 1)", "\(index + 1)번째 Space")).font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                        Text(copy.spacePosition(index)).font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     } else if !assigned && !isSelectingConnections {
                         Text(showsDesktopSources ? copy.orChoose : copy.text("Click to connect", "눌러서 연결하기"))
                             .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     }
                 }.padding(9).frame(maxWidth: .infinity, alignment: .leading).frame(height: rowHeight - 8)
-                    .background(hovering || (isSelectingConnections && isSelected) ? NativeSurfaceStyle.selectionBackground : assigned ? NativeSurfaceStyle.inputBackground : NativeSurfaceStyle.tableBackground,
+                    .background(hovering || (isSelectingConnections && isSelected) ? NativeSurfaceStyle.selectionBackground : assigned ? NativeSurfaceStyle.selectionBackground.opacity(0.65) : NativeSurfaceStyle.windowBackground,
                                 in: RoundedRectangle(cornerRadius: 7))
-                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(missing || unreadable ? Color.orange : hovering || selectedDesktop?.displayID == displayID ? Color.accentColor : NativeSurfaceStyle.controlBorder,
-                        style: StrokeStyle(lineWidth: hovering ? 2 : 1, dash: assigned ? [] : [4, 3])))
+                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(missing || unreadable ? Color.orange : hovering || selectedDesktop?.displayID == displayID ? Color.accentColor : NativeSurfaceStyle.itemBorder,
+                        style: StrokeStyle(lineWidth: hovering ? 2 : 1, dash: assigned ? [] : [4, 4])))
             }
             .padding(.horizontal, 5).frame(height: rowHeight).help(title)
             .screenBoundedPopover(isPresented: Binding(get: { picker == cellID }, set: { if !$0 { picker = nil } }), width: 290) {
@@ -830,5 +881,12 @@ private struct CurrentConnectionsKeyboardCommands: NSViewRepresentable {
                   model.canChangeSavedWorkspaces, model.settings.savedWorkspaces.undo != nil else { return false }
             return model.undoSavedWorkspaceChange()
         }
+    }
+}
+
+private struct ConnectionSourceOffset: PreferenceKey {
+    static let defaultValue: [String: CGFloat] = [:]
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }

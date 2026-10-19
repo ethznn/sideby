@@ -9,6 +9,26 @@ final class SettingsStoreTests: XCTestCase {
         let store = UserDefaultsSettingsStore(userDefaults: defaults, key: "settings")
 
         XCTAssertEqual(store.load(), .default)
+        XCTAssertTrue(store.load().contextPlan.contexts.isEmpty)
+    }
+
+    func testMissingSavedConnectionsStayEmptyAcrossLegacyMigrationAndReload() throws {
+        for version in [12, 14, AppSettings.currentVersion] {
+            for useNull in [false, true] {
+                let defaults = makeDefaults()
+                var object = try jsonObject(from: AppSettings.default)
+                object["version"] = version
+                if useNull { object["contextPlan"] = NSNull() }
+                else { object.removeValue(forKey: "contextPlan") }
+                defaults.set(try JSONSerialization.data(withJSONObject: object), forKey: "settings")
+                let store = UserDefaultsSettingsStore(userDefaults: defaults, key: "settings")
+
+                let loaded = store.load()
+                XCTAssertEqual(loaded.contextPlan, .empty, "version \(version), null: \(useNull)")
+                XCTAssertEqual(loaded.version, AppSettings.currentVersion)
+                XCTAssertEqual(store.load().contextPlan, .empty)
+            }
+        }
     }
 
     func testCorruptSettingsAreNotOverwrittenBySaveOrMigration() {
@@ -277,7 +297,7 @@ final class SettingsStoreTests: XCTestCase {
         let migratedSettings = store.load()
 
         XCTAssertEqual(migratedSettings.version, AppSettings.currentVersion)
-        XCTAssertEqual(migratedSettings.contextPlan.contexts.map(\.name), ["Context 1"])
+        XCTAssertEqual(migratedSettings.contextPlan, .empty)
     }
 
     func testMigratesLegacySettingsWithoutDisplaySpacePlan() throws {

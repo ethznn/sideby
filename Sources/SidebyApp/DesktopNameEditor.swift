@@ -111,7 +111,7 @@ struct DesktopNameTextField: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> NSTextField {
-        let field = NSTextField(string: text)
+        let field = NameInputField(string: text)
         field.delegate = context.coordinator
         field.isEditable = true
         field.isSelectable = true
@@ -121,12 +121,21 @@ struct DesktopNameTextField: NSViewRepresentable {
         field.setAccessibilityLabel(label)
         field.setAccessibilityIdentifier("desktop-name-field")
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        DispatchQueue.main.async { [weak field] in
-            guard let field, let window = field.window else { return }
-            window.makeFirstResponder(field)
-            field.selectText(nil)
-        }
         return field
+    }
+
+    /// Inline overlays can attach after the first update pass. Focus once the
+    /// field actually has a window, rather than losing the request before it does.
+    final class NameInputField: NSTextField {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard window != nil else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let window = self.window else { return }
+                window.makeFirstResponder(self)
+                self.selectText(nil)
+            }
+        }
     }
 
     func updateNSView(_ field: NSTextField, context: Context) {
