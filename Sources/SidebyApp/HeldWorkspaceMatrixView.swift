@@ -55,7 +55,7 @@ struct HeldWorkspaceMatrixView: View {
     var availableHeight: CGFloat = 900
     var contentMeasured: (CGSize, Bool) -> Void = { _, _ in }
     var usesRadial = false
-    var wheelDiameter: CGFloat = 440
+    var wheelDiameter: CGFloat?
     var presentationChanged: (HeldSwitcherPresentation) -> Void = { _ in }
     @State private var showsTable = false
     @State private var renaming: ContextDefinition?
@@ -83,7 +83,7 @@ struct HeldWorkspaceMatrixView: View {
                     rememberColumn(column.id); select(column)
                 }, keepOpen: keepOpen, close: close, edit: { setEditing(true) },
                     showTable: { showsTable = true; presentationChanged(.table) },
-                    persistent: persistent || hasEnteredEditing, diameter: wheelDiameter)
+                    persistent: persistent || hasEnteredEditing, diameter: wheelDiameter, displayCount: snapshot.displayIDs.count)
             } else { matrixBody }
         }
     }

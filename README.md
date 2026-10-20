@@ -16,7 +16,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 [Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](https://ethznn.github.io/sideby/#film)
 
-*Sideby 1.1.0 · [What’s new](docs/releases/1.1.0.md).*
+*Sideby 1.1.1 · [What’s new](docs/releases/1.1.1.md).*
 
 ## See and connect in one window
 
@@ -57,7 +57,9 @@ Existing connections, names, and numbered shortcuts are kept. No recreation or d
 
 Hold **⌥⇧Space** to open a circular menu near your pointer. Click a connection to move its Spaces together. The menu stays inside the screen, with transparent gaps and no rectangular backdrop. Up to eight connections appear per page.
 
-Click **Save current Spaces** in the center to keep the Spaces you are looking at as one connection. Names such as **Xcode / Figma** are filled in automatically. An existing identical connection is shown instead of duplicated. With no connections yet, the center offers **Create first connection** and previews your current Spaces.
+Hover over a connection to preview its Spaces in the center. Hover over the center to reveal **Add current setup**, then click to keep the Spaces you are looking at as one connection. Names such as **Xcode / Figma** are filled in automatically. An existing identical connection is shown instead of duplicated. With no connections yet, the center offers the same action with guidance for creating your first connection.
+
+For three or more displays, the center grows to show each connected display's contents. The menu keeps its size while you hover between connections. If the available screen area is too small, Sideby opens the table view. Very short switches skip the connection-name HUD; longer switches use a gentle fade.
 
 <p align="center">
   <img src="./docs/images/sideby-connections-en.png" width="420" alt="Circular shortcut menu with Save current Spaces in the center, hover actions, Undo, and Edit connections." />
@@ -67,7 +69,7 @@ Click **Save current Spaces** in the center to keep the Spaces you are looking a
   <img src="./docs/images/sideby-tutorial-en.gif" width="880" alt="28-second tutorial: drag to connect, connect current Spaces, switch while coding, swap, undo, Option-copy, rename, return, delete and undo. Actual app UI with fictional data and reconstructed actions." />
 </p>
 
-*28-second usage guide: drag to connect, connect current Spaces, switch while coding, swap, undo, Option-copy, rename, return, delete, and undo. Actual app UI with fictional data; pointer motion and transitions are reconstructed.*
+*28-second usage guide: drag to connect, connect current Spaces, switch while coding, swap, undo, Option-copy, rename, return, delete, and undo. Sideby 1.1.0 UI with fictional data and reconstructed actions; 1.1.1 adds the hover previews and center label described above.*
 
 [Play with controls](https://ethznn.github.io/sideby/#tutorial) · [Still image](docs/images/sideby-tutorial-en.png)
 

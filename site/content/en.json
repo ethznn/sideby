@@ -16,7 +16,7 @@
   "film_alt": "A circular shortcut menu switches three displays together, followed by dragging to connect, swap, and Option-copy Spaces.",
   "play": "Play the 22.5-second film",
   "pause": "Stop the film",
-  "film_note": "Sideby 1.1.0 · 22.5-second motion graphic with fictional data, not a switching benchmark.",
+  "film_note": "Sideby 1.1.0 illustration · 22.5-second motion graphic with fictional data, not a switching benchmark.",
   "benefit_label": "Spend less time switching each display",
   "benefit_title": "Keep the Spaces you already use.",
   "benefit_text": "An editor on your MacBook, a browser on your external display. Pair their desktops and move your displays together with your usual gesture.",
@@ -43,9 +43,9 @@
   ],
   "matrix_label": "Quick daily adjustments",
   "matrix_title": "Your next connection, beside your pointer.",
-  "matrix_text": "Hold ⌥⇧Space to open the circular menu, then click a connection to switch its Spaces together. Save current Spaces in the center adds the combination you are looking at, named automatically. Hover to reveal pencil and trash buttons. One connection is removed immediately; Undo stays visible and can restore even the last connection. Clear all asks for confirmation. Edit connections opens the Space list and table for dragging, swapping, and Option-copying. Releasing the opening shortcut alone simply closes the menu.",
-  "matrix_alt": "Actual circular shortcut menu with transparent gaps, Save current Spaces in the center, hover actions, and Undo.",
-  "matrix_note": "Actual app views with fictional sample data.",
+  "matrix_text": "Hold ⌥⇧Space to open the circular menu. Hover over a connection to preview its Spaces in the center, then click the sector to switch. Hover over the center for Add current setup. With three or more displays, the preview grows to show each display while keeping the menu size stable as you hover. Pencil and trash buttons appear on hover; Undo can restore even the last connection. Edit connections opens the drag editor. Releasing the opening shortcut alone simply closes the menu.",
+  "matrix_alt": "Sideby 1.1.0 circular shortcut menu with transparent gaps, a center save action, hover controls, and Undo.",
+  "matrix_note": "Screenshot from Sideby 1.1.0 with fictional data. Version 1.1.1 adds the center hover previews described above.",
   "small_features": [
     [
       "One display works, too.",
@@ -90,7 +90,7 @@
   "end_title": "Keep changes simple.",
   "end_text": "See what is open. Adjust only the connections you need.",
   "docs": "Read the full guide",
-  "release": "Release notes",
+  "release": "What’s new in 1.1.1",
   "privacy": "Privacy & permissions",
   "footer": "Made for the way you already work.",
   "nav_editor": "Connections",
@@ -107,6 +107,6 @@
   "tutorial_title": "How to use Sideby in 28 seconds",
   "tutorial_text": "Drag Spaces from two displays into a connection, or save the current screens from the center of ⌥⇧Space. Switch from coding to review with the circular menu, then swap, undo, Option-copy, rename, return, and recover a deleted connection.",
   "tutorial_alt": "28-second guide to connecting Spaces, saving current screens, circular switching, swapping, copying, renaming, returning, deletion, and Undo.",
-  "tutorial_note": "28 seconds · Current app UI and fictional data, reconstructed for explanation · Use the play button",
+  "tutorial_note": "28 seconds · Sideby 1.1.0 UI and fictional data, reconstructed for explanation · Use the play button",
   "tutorial_play": "Play 28-second tutorial"
 }

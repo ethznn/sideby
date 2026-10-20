@@ -32,8 +32,9 @@ final class HeldWorkspaceWheelTests: XCTestCase {
             for index in 0..<count {
                 let point = HeldWorkspaceWheelLayout.labelPoint(index: index, count: count)
                 XCTAssertEqual(HeldWorkspaceWheelLayout.sector(at: point, count: count), index)
+                let toolsOffset = HeldWorkspaceWheelLayout.toolsOffset(count: count)
                 for dx in [-31.0, -3, 3, 31] {
-                    for dy in [19.0, 45] {
+                    for dy in [toolsOffset - 13, toolsOffset + 13] {
                         XCTAssertEqual(HeldWorkspaceWheelLayout.sector(at: CGPoint(x: point.x + dx, y: point.y + dy), count: count), index,
                                        "Tools must not cross another sector, count=\(count), index=\(index)")
                     }
@@ -44,11 +45,72 @@ final class HeldWorkspaceWheelTests: XCTestCase {
         }
     }
 
+    func testEnlargedNameAndToolsStayInsideTheirOwnSectorWithoutOverlapping() {
+        let ring = CGRect(x: 0, y: 0, width: 440, height: 440)
+        for count in 1...8 {
+            for index in 0..<count {
+                let frame = HeldWorkspaceWheelLayout.labelFrame(index: index, count: count)
+                let path = ConnectionSector(index: index, count: count).path(in: ring)
+                for x in stride(from: frame.minX, through: frame.maxX, by: 2) {
+                    for y in stride(from: frame.minY, through: frame.maxY, by: 2) {
+                        XCTAssertTrue(path.contains(CGPoint(x: x, y: y)),
+                            "Names must not cross the transparent gaps or adjacent sectors: \(count)/\(index)")
+                    }
+                }
+                let point = HeldWorkspaceWheelLayout.labelPoint(index: index, count: count)
+                let tools = CGRect(x: point.x - 31,
+                    y: point.y + HeldWorkspaceWheelLayout.toolsOffset(count: count) - 13, width: 62, height: 26)
+                XCTAssertFalse(frame.intersects(tools), "Two-line names/status must leave room for rename/delete")
+            }
+        }
+    }
+
     func testPagingKeepsEveryConnectionExactlyOnceInManualOrder() {
         for count in [0, 1, 2, 3, 8, 9, 17, 40] {
             let indexes = (0..<HeldWorkspaceWheelLayout.pageCount(count)).flatMap { HeldWorkspaceWheelLayout.pageRange($0, count: count) }
             XCTAssertEqual(indexes, Array(0..<count))
             XCTAssertEqual(HeldWorkspaceWheelLayout.pageRange(99, count: count), HeldWorkspaceWheelLayout.pageRange(HeldWorkspaceWheelLayout.pageCount(count) - 1, count: count))
+        }
+    }
+
+    func testExpandedCentersPreserveNamesControlsGapsAndScreenBounds() {
+        for displays in [3, 4, 6, 12] {
+            let geometry = HeldWorkspaceWheelGeometry(displayCount: displays)
+            let bounds = CGRect(x: 0, y: 0, width: geometry.diameter, height: geometry.diameter)
+            XCTAssertEqual(geometry.innerRadius - geometry.centerRadius, 10)
+            XCTAssertEqual(geometry.outerRadius - geometry.innerRadius, 124, "Display rows must not consume the connection controls")
+            for count in 1...8 {
+                for index in 0..<count {
+                    let path = ConnectionSector(index: index, count: count, geometry: geometry).path(in: bounds)
+                    let label = HeldWorkspaceWheelLayout.labelFrame(index: index, count: count, geometry: geometry)
+                    for x in stride(from: label.minX, through: label.maxX, by: 3) {
+                        for y in stride(from: label.minY, through: label.maxY, by: 3) {
+                            XCTAssertTrue(path.contains(CGPoint(x: x, y: y)))
+                        }
+                    }
+                    let point = HeldWorkspaceWheelLayout.labelPoint(index: index, count: count, geometry: geometry)
+                    for dx in [-31.0, 31] {
+                        for dy in [-13.0, 13] {
+                            let hit = CGPoint(x: point.x + dx,
+                                y: point.y + HeldWorkspaceWheelLayout.toolsOffset(count: count) + dy)
+                            XCTAssertEqual(HeldWorkspaceWheelLayout.sector(at: hit, count: count, geometry: geometry), index)
+                            XCTAssertTrue(path.contains(hit))
+                        }
+                    }
+                    let gap = CGPoint(x: geometry.midpoint, y: geometry.midpoint - geometry.centerRadius - 5)
+                    XCTAssertNil(HeldWorkspaceWheelLayout.sector(at: gap, count: count, geometry: geometry))
+                }
+            }
+            for screen in [NSRect(x: -1920, y: -300, width: 1920, height: 1055),
+                           NSRect(x: 300, y: 1000, width: 800, height: 560)] {
+                let size = HeldWorkspaceWheelLayout.size(in: screen, geometry: geometry)
+                for pointer in [screen.origin, NSPoint(x: screen.maxX, y: screen.maxY)] {
+                    XCTAssertTrue(screen.contains(NSRect(origin: HeldWorkspaceWheelLayout.origin(
+                        size: size, pointer: pointer, visibleFrame: screen), size: size)))
+                }
+            }
+            XCTAssertFalse(HeldWorkspaceWheelLayout.fits(in: NSRect(x: 0, y: 0, width: 384, height: 480), geometry: geometry),
+                "Use the existing table instead of shrinking a many-display wheel below the readable scale")
         }
     }
 

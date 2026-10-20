@@ -14,6 +14,7 @@ import SwiftUI
     private var persistent = false
     private var presentation: HeldSwitcherPresentation = .wheel
     private var openingPointer: NSPoint = .zero
+    private var wheelGeometry = HeldWorkspaceWheelGeometry()
     private var panelIsEditing = false
     private var measuredContentSize: CGSize?
     private var copyModifiers = HeldMatrixCopyModifiers()
@@ -174,10 +175,11 @@ import SwiftUI
     private func show(model: SidebyAppModel, generation: Int, anchor: NSRect? = nil, presentation: HeldSwitcherPresentation = .wheel) {
         let pointer = anchor.map { NSPoint(x: $0.midX, y: $0.maxY - 62) } ?? NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else { dismiss(); return }
-        self.presentation = presentation == .wheel && !HeldWorkspaceWheelLayout.fits(in: screen.visibleFrame) ? .table : presentation
+        let snapshot = HeldWorkspaceSnapshot(model: model, previousColumnID: previousColumnID)
+        wheelGeometry = .init(displayCount: snapshot.displayIDs.count)
+        self.presentation = presentation == .wheel && !HeldWorkspaceWheelLayout.fits(in: screen.visibleFrame, geometry: wheelGeometry) ? .table : presentation
         openingPointer = pointer
         copyModifiers = HeldMatrixCopyModifiers(ignoresOpeningOption: source?.chordIsDown == true && NSEvent.modifierFlags.contains(.option))
-        let snapshot = HeldWorkspaceSnapshot(model: model, previousColumnID: previousColumnID)
         let size = panelSize(model: model, screen: screen, editing: false)
         let panel = HeldMatrixPanel(contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -217,7 +219,7 @@ import SwiftUI
                     self.resizeToMeasuredContent()
                 }
             }, usesRadial: self.presentation == .wheel,
-            wheelDiameter: HeldWorkspaceWheelLayout.size(in: screen.visibleFrame).width - 32,
+            wheelDiameter: HeldWorkspaceWheelLayout.size(in: screen.visibleFrame, geometry: wheelGeometry).width - 32,
             presentationChanged: { [weak self] in self?.changePresentation($0) })
         panel.contentView = HeldMatrixHostingView(rootView: view)
         panel.setContentSize(size)
@@ -245,7 +247,7 @@ import SwiftUI
     }
 
     private func panelSize(model: SidebyAppModel, screen: NSScreen, editing: Bool, contentHeight: CGFloat? = nil) -> NSSize {
-        if presentation == .wheel { return HeldWorkspaceWheelLayout.size(in: screen.visibleFrame) }
+        if presentation == .wheel { return HeldWorkspaceWheelLayout.size(in: screen.visibleFrame, geometry: wheelGeometry) }
         let snapshot = HeldWorkspaceSnapshot(model: model)
         let hasStatus = !model.isEnabled || !model.hasSwitchingAccess || model.workspaceRecoveryTargetID != nil
             || model.settingsStore.hasUnreadableSettings
@@ -297,7 +299,7 @@ import SwiftUI
     }
 }
 
-final class HeldMatrixPanel: NSPanel {
+class HeldMatrixPanel: NSPanel {
     var acceptsKeyboard = false
     var onCancel: (() -> Void)?
     var cancelContent: (() -> Bool)?
@@ -318,8 +320,14 @@ final class HeldMatrixPanel: NSPanel {
     /// A completion or Space notification must never resurrect a hidden panel.
     @discardableResult func refreshOrderIfVisible(session: HeldMatrixSession, chordIsDown: Bool) -> Bool {
         guard isVisible, session.isHeld, session.isVisible, chordIsDown else { return false }
-        orderOut(nil)
-        orderFrontRegardless()
+        // Keep the input-recovery ordering pair, but commit it as one visual
+        // update. Do not use deprecated screen-update suppression APIs.
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            context.allowsImplicitAnimation = false
+            orderOut(nil)
+            orderFrontRegardless()
+        }
         return true
     }
 }

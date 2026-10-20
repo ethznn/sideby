@@ -6,13 +6,14 @@ import SwiftUI
 struct ConnectionSector: Shape {
     let index: Int
     let count: Int
+    var geometry = HeldWorkspaceWheelGeometry()
     func path(in rect: CGRect) -> Path {
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let step = 360.0 / Double(max(1, count))
         let start = -90 - step / 2 + Double(index) * step
         let end = start + step
-        let outer = HeldWorkspaceWheelLayout.outerRadius
-        let inner = HeldWorkspaceWheelLayout.innerRadius
+        let outer = geometry.outerRadius
+        let inner = geometry.innerRadius
         // Offset both straight edges by half the same point distance. Angular
         // spacing would taper toward the center; these edges stay parallel.
         let halfGap = count == 1 ? 0 : HeldWorkspaceWheelLayout.gap / 2
@@ -35,12 +36,20 @@ struct HeldWorkspaceWheelView: View {
     var edit: () -> Void = {}
     var showTable: () -> Void = {}
     var persistent = false
-    var diameter: CGFloat = HeldWorkspaceWheelLayout.diameter
+    var diameter: CGFloat?
+    var displayCount: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
     @State private var pinned = false
     @State private var page = 0
-    @State private var hoveredID: String?
+    @State private var openingDisplayCount: Int?
+    private enum InteractionTarget: Equatable {
+        case connection(String)
+        case center
+    }
+    // One target owns the highlight and center contents. Pointer exit must clear
+    // it, rather than falling back to a previously focused/clicked connection.
+    @State private var interactionTarget: InteractionTarget?
     @State private var renaming: ContextDefinition?
     @State private var clearing: WorkspaceDeleteAllProposal?
     @State private var showsFeedback = false
@@ -48,11 +57,24 @@ struct HeldWorkspaceWheelView: View {
     @FocusState private var cancelFocused: Bool
     private var copy: HeldMatrixStrings { .init(language: model.settings.language) }
     private var live: HeldWorkspaceSnapshot { .init(model: model) }
+    private var geometry: HeldWorkspaceWheelGeometry {
+        .init(displayCount: openingDisplayCount ?? displayCount ?? live.displayIDs.count)
+    }
+    private var renderedDiameter: CGFloat { diameter ?? geometry.diameter }
     private var columns: [HeldWorkspaceColumn] { Array(live.columns[HeldWorkspaceWheelLayout.pageRange(page, count: live.columns.count)]) }
     private func text(_ en: String, _ ko: String) -> String { model.connectionCopy.text(en, ko) }
     private var activeID: String? {
-        if let hoveredID { return hoveredID }
-        return columns.first { focused == $0.id || focused == "rename-" + $0.id || focused == "delete-" + $0.id }?.id
+        if case let .connection(id) = interactionTarget { return id }
+        return nil
+    }
+    private var previewColumn: HeldWorkspaceColumn? {
+        columns.first { $0.id == activeID }
+    }
+    private var centerHighlighted: Bool {
+        model.canChangeSavedWorkspaces && interactionTarget == .center
+    }
+    private var centerActionTitle: String {
+        text("Add current setup", "현재 상태 추가하기")
     }
 
     var body: some View {
@@ -86,18 +108,28 @@ struct HeldWorkspaceWheelView: View {
         .opacity(appeared ? 1 : 0)
         .onAppear {
             model.refreshWorkspaceStatus(); model.refreshCurrentDesktopContents()
+            if openingDisplayCount == nil { openingDisplayCount = displayCount ?? live.displayIDs.count }
             if let id = model.verifiedCurrentWorkspaceID, let index = live.columns.firstIndex(where: { $0.id == id }) {
                 page = index / HeldWorkspaceWheelLayout.pageSize
             }
             withAnimation(reduceMotion ? .linear(duration: 0.1) : .spring(response: 0.4, dampingFraction: 0.8)) { appeared = true }
         }
         .onChange(of: clearing != nil) { _, presented in cancelFocused = presented }
+        .onChange(of: focused) { _, value in
+            if value == "save" { interactionTarget = .center }
+            else {
+                interactionTarget = columns.first {
+                    value == $0.id || value == "rename-" + $0.id || value == "delete-" + $0.id
+                }.map { .connection($0.id) }
+            }
+        }
         .onChange(of: model.settings.savedWorkspaces.undo) { _, _ in
             if pinned { showsFeedback = true }
         }
         .onChange(of: live.columns.map(\.id)) { _, ids in
             page = min(page, HeldWorkspaceWheelLayout.pageCount(ids.count) - 1)
             if let renaming, !ids.contains(renaming.id) { self.renaming = nil }
+            if let activeID, !ids.contains(activeID) { interactionTarget = nil }
         }
         .onExitCommand {
             if clearing != nil { clearing = nil }
@@ -110,11 +142,11 @@ struct HeldWorkspaceWheelView: View {
 
     private var content: some View {
         VStack(spacing: 0) {
-            ring.frame(width: 440, height: 440)
-                .scaleEffect(diameter / 440)
-                .frame(width: diameter, height: diameter).padding(.top, 8)
+            ring.frame(width: geometry.diameter, height: geometry.diameter)
+                .scaleEffect(renderedDiameter / geometry.diameter)
+                .frame(width: renderedDiameter, height: renderedDiameter).padding(.top, 8)
             footer.frame(height: 120).padding(.horizontal, 12)
-        }.frame(width: diameter + 32, height: diameter + HeldWorkspaceWheelLayout.chromeHeight)
+        }.frame(width: renderedDiameter + 32, height: renderedDiameter + HeldWorkspaceWheelLayout.chromeHeight)
     }
 
     private var ring: some View {
@@ -132,46 +164,115 @@ struct HeldWorkspaceWheelView: View {
                 }
                 showsFeedback = true
             } label: {
-                VStack(spacing: 7) {
+              Group {
+                if let column = previewColumn {
+                    connectionPreview(column)
+                } else if interactionTarget == .center || columns.isEmpty {
+                  VStack(spacing: 7) {
                     Image(systemName: "plus.circle.fill").font(.system(size: 23)).foregroundStyle(NativeSurfaceStyle.accent)
-                    Text(columns.isEmpty ? text("Create first connection", "첫 연결 만들기") : text("Save current Spaces", "현재 화면 저장"))
+                    Text(centerActionTitle)
                         .font(.system(size: 14, weight: .semibold)).multilineTextAlignment(.center)
-                    Text(columns.isEmpty ? text("Save current Spaces", "현재 화면 저장") : text("Add a connection", "새 연결로 추가"))
-                        .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-                }.frame(width: 168, height: 168)
-                    .background(NativeSurfaceStyle.controlBackground, in: Circle())
-                    .overlay(Circle().strokeBorder(NativeSurfaceStyle.itemBorder))
+                    Text(text("Save the Spaces\non your displays", "지금 보고 있는 Space를\n새 연결로 저장합니다"))
+                        .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText).multilineTextAlignment(.center)
+                  }
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: "cursorarrow").font(.system(size: 20))
+                        Text(text("Choose a connection", "연결을 골라 주세요"))
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(text("Hover a sector\nto see its Spaces", "칸에 마우스를 올려\n화면 내용을 확인하세요"))
+                            .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    }.multilineTextAlignment(.center)
+                }
+              }.frame(width: max(140, geometry.previewWidth))
+                    .frame(width: geometry.centerRadius * 2, height: geometry.centerRadius * 2)
+                    .background(centerHighlighted ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.tableBackground, in: Circle())
+                    .overlay(Circle().strokeBorder(centerHighlighted ? NativeSurfaceStyle.accent : NativeSurfaceStyle.itemBorder,
+                        lineWidth: centerHighlighted ? 2.5 : 1))
                     .contentShape(Circle())
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: centerHighlighted)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.plain).focusEffectDisabled()
             .disabled(!model.canChangeSavedWorkspaces).focused($focused, equals: "save")
+            // This remains a save action even while displaying a sector preview.
+            .accessibilityLabel(centerActionTitle)
+            .accessibilityValue(previewColumn.map(connectionPreviewDescription)
+                ?? (centerHighlighted ? text("Save the Spaces currently on your displays", "지금 보고 있는 Space를 저장합니다") : ""))
             .help(model.connectionCopy.addCurrentHint).accessibilityIdentifier("held-add-current-connection")
         }
         .overlay {
-            WheelCursorRegion(count: columns.count,
+            WheelCursorRegion(count: columns.count, geometry: geometry,
                 enabled: Set(columns.enumerated().compactMap { index, column in
                     canChoose(column) ? index : nil
                 }), centerEnabled: model.canChangeSavedWorkspaces,
-                hovered: { index in hoveredID = index.flatMap { columns.indices.contains($0) ? columns[$0].id : nil } })
+                hovered: { index, isCenter in
+                    interactionTarget = isCenter ? .center
+                        : index.flatMap { columns.indices.contains($0) ? .connection(columns[$0].id) : nil }
+                })
         }
 
     }
 
+    private func connectionPreview(_ column: HeldWorkspaceColumn) -> some View {
+        let displays = live.displayIDs.filter { column.cells[$0] != nil }
+        return VStack(spacing: 7) {
+            if displays.isEmpty {
+                Text(text("No Spaces connected", "연결된 Space가 없어요"))
+                    .font(.system(size: 13)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+            } else {
+                ForEach(displays, id: \.self) { id in
+                    VStack(spacing: 2) {
+                        Text((live.displayNames[id] ?? id) + " · " + (column.desktopLabels[id] ?? ""))
+                            .font(.system(size: 10))
+                            .foregroundStyle(NativeSurfaceStyle.secondaryText)
+                            .lineLimit(1).truncationMode(.middle)
+                            .frame(width: geometry.previewWidth - 12)
+                        Text(previewSpaceTitle(column, displayID: id))
+                            .font(.system(size: 14, weight: .semibold))
+                            .lineLimit(displays.count > 2 ? 1 : displays.count == 1 ? 3 : 2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }.multilineTextAlignment(.center)
+                }
+            }
+            Text(needsSpaceSelection(column) ? text("Choose Spaces in this sector", "칸을 눌러 Space 확인")
+                : model.verifiedCurrentWorkspaceID == column.id ? copy.current
+                : text("Click the sector to switch", "칸을 눌러 이동"))
+                .font(.system(size: 10)).foregroundStyle(needsSpaceSelection(column) ? Color.orange : NativeSurfaceStyle.secondaryText)
+                .lineLimit(1)
+        }.frame(width: geometry.previewWidth).accessibilityHidden(true)
+    }
+
+    private func previewSpaceTitle(_ column: HeldWorkspaceColumn, displayID: String) -> String {
+        if let context = model.settings.contextPlan.contexts.first(where: { $0.id == column.id }),
+           model.unresolvedWorkspaceMembers(context).contains(displayID) {
+            return text("Space not found", "Space를 찾을 수 없어요")
+        }
+        return column.cells[displayID] ?? ""
+    }
+
+    private func connectionPreviewDescription(_ column: HeldWorkspaceColumn) -> String {
+        let spaces = live.displayIDs.filter { column.cells[$0] != nil }.map {
+            (live.displayNames[$0] ?? $0) + " · " + (column.desktopLabels[$0] ?? "")
+                + ": " + previewSpaceTitle(column, displayID: $0)
+        }
+        return ([column.name] + spaces + [connectionSummary(column)]).joined(separator: "\n")
+    }
+
     private var emptyRing: some View {
         ZStack {
-            let shape = ConnectionSector(index: 0, count: 1)
+            let shape = ConnectionSector(index: 0, count: 1, geometry: geometry)
             shape.fill(NativeSurfaceStyle.tableBackground)
                 .overlay {
                     Circle().stroke(NativeSurfaceStyle.itemBorder, lineWidth: 2).padding(2)
                     Circle().stroke(NativeSurfaceStyle.itemBorder, lineWidth: 2)
-                        .frame(width: HeldWorkspaceWheelLayout.innerRadius * 2, height: HeldWorkspaceWheelLayout.innerRadius * 2)
+                        .frame(width: geometry.innerRadius * 2, height: geometry.innerRadius * 2)
                 }.clipShape(shape)
             VStack(spacing: 6) {
                 Text(text("No saved connections yet", "아직 저장된 연결이 없어요"))
                     .font(.system(size: 14, weight: .semibold))
                 Text(text("Save the Spaces you are using\nto return to them together.", "지금 쓰는 Space를 저장해 두면\n한 번에 돌아올 수 있어요."))
                     .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
-            }.multilineTextAlignment(.center).frame(width: 250).position(x: 220, y: 74)
+            }.multilineTextAlignment(.center).frame(width: 250).position(x: geometry.midpoint, y: 74)
                 .accessibilityIdentifier("wheel-empty-guidance")
             VStack(spacing: 7) {
                 if live.displayIDs.isEmpty {
@@ -190,7 +291,7 @@ struct HeldWorkspaceWheelView: View {
                             .font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     }
                 }
-            }.frame(width: 220).position(x: 220, y: 354)
+            }.frame(width: 220).position(x: geometry.midpoint, y: 354 + geometry.expansion * 2)
         }.allowsHitTesting(false)
     }
 
@@ -202,19 +303,19 @@ struct HeldWorkspaceWheelView: View {
     }
 
     private func sector(_ column: HeldWorkspaceColumn, index: Int) -> some View {
-        let shape = ConnectionSector(index: index, count: columns.count)
+        let shape = ConnectionSector(index: index, count: columns.count, geometry: geometry)
         let active = activeID == column.id
         let current = model.verifiedCurrentWorkspaceID == column.id && !model.isSwitching
         let enabled = canChoose(column)
         let missing = needsSpaceSelection(column)
         let aligned = spacesAlreadyVisible(column)
-        let position = HeldWorkspaceWheelLayout.labelPoint(index: index, count: columns.count)
-        let labelWidth: CGFloat = columns.count > 6 ? 96 : 120
+        let position = HeldWorkspaceWheelLayout.labelPoint(index: index, count: columns.count, geometry: geometry)
+        let labelFrame = HeldWorkspaceWheelLayout.labelFrame(index: index, count: columns.count, geometry: geometry)
         let label = sectorLabel(column, current: current, aligned: aligned, missing: missing)
-            .frame(width: labelWidth, height: 52)
-            .position(x: position.x, y: position.y - 10)
+            .frame(width: labelFrame.width, height: labelFrame.height)
+            .position(x: labelFrame.midX, y: labelFrame.midY)
             .allowsHitTesting(false)
-        let surface = sectorSurface(shape, active: active, current: current).overlay(label).contentShape(shape)
+        let surface = sectorSurface(shape, active: active).overlay(label).contentShape(shape)
         let button = Button {
             if current { close() }
             else if missing { pin(); edit() }
@@ -222,7 +323,7 @@ struct HeldWorkspaceWheelView: View {
         } label: { surface }
         let accessibilityName = column.name + " · " + connectionSummary(column)
         return ZStack {
-            button.buttonStyle(.plain).disabled(!enabled)
+            button.buttonStyle(.plain).focusEffectDisabled().disabled(!enabled)
                 .focused($focused, equals: column.id)
                 .help(column.name + "\n" + connectionSummary(column))
                 .accessibilityLabel(accessibilityName)
@@ -235,19 +336,21 @@ struct HeldWorkspaceWheelView: View {
                 tool("trash", label: text("Delete connection", "연결 삭제"), id: "delete-" + column.id) {
                     pin(); focused = nil
                     _ = model.deleteSavedWorkspace(column.id)
-                    hoveredID = nil; showsFeedback = true
+                    interactionTarget = nil; showsFeedback = true
                 }
-            }.position(x: position.x, y: position.y + 32)
+            }.position(x: position.x, y: position.y + HeldWorkspaceWheelLayout.toolsOffset(count: columns.count))
                 .opacity(active ? 1 : 0).allowsHitTesting(active)
                 // Keep tools in the keyboard/VoiceOver order even when visually hidden.
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: active)
     }
 
-    private func sectorSurface(_ shape: ConnectionSector, active: Bool, current: Bool) -> some View {
-        let fill = active ? NativeSurfaceStyle.hoverBackground : current ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.tableBackground
-        let border = active || current ? NativeSurfaceStyle.accent : NativeSurfaceStyle.itemBorder
-        let width: CGFloat = active ? 2.5 : current ? 2 : 1
+    private func sectorSurface(_ shape: ConnectionSector, active: Bool) -> some View {
+        // Current location is a label, not a second selection. Only the pointer
+        // or keyboard target receives the same fill and outline as the center.
+        let fill = active ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.tableBackground
+        let border = active ? NativeSurfaceStyle.accent : NativeSurfaceStyle.itemBorder
+        let width: CGFloat = active ? 2.5 : 1
         return shape.fill(fill).overlay(shape.stroke(border, lineWidth: width * 2).clipShape(shape))
     }
 
@@ -256,9 +359,14 @@ struct HeldWorkspaceWheelView: View {
         let coverage = text("\(count) display\(count == 1 ? "" : "s")", "모니터 \(count)대")
         let partial = count < live.displayIDs.count
         return VStack(spacing: 4) {
+            Text(column.name)
+                .font(.system(size: HeldWorkspaceWheelLayout.nameFontSize(count: columns.count), weight: .semibold))
+                .foregroundStyle(NativeSurfaceStyle.primaryText)
+                .lineLimit(2).multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             if current {
                 Label(copy.current + (partial ? " · \(count)/\(live.displayIDs.count)" : ""), systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(NativeSurfaceStyle.accent)
+                    .foregroundStyle(NativeSurfaceStyle.secondaryText)
             } else if aligned {
                 Text(text("Already here", "이미 현재 Space") + (partial ? text(" · \(count)", " · \(count)대") : ""))
                     .foregroundStyle(NativeSurfaceStyle.secondaryText)
@@ -268,8 +376,7 @@ struct HeldWorkspaceWheelView: View {
             } else {
                 Text(partial ? coverage : model.workspaceShortcut(column.id) ?? " ").foregroundStyle(NativeSurfaceStyle.secondaryText)
             }
-            Text(column.name).font(.system(size: 13, weight: .semibold)).lineLimit(2).multilineTextAlignment(.center)
-        }.font(.system(size: 10))
+        }.font(.system(size: 11)).lineLimit(1)
     }
 
     private func needsSpaceSelection(_ column: HeldWorkspaceColumn) -> Bool {
@@ -310,7 +417,7 @@ struct HeldWorkspaceWheelView: View {
         Button(action: action) { Image(systemName: image).font(.system(size: 12))
             .frame(width: 28, height: 26).background(NativeSurfaceStyle.controlBackground, in: RoundedRectangle(cornerRadius: 6))
             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(NativeSurfaceStyle.itemBorder))
-        }.buttonStyle(.plain).pointingHandCursor().disabled(!model.canChangeSavedWorkspaces)
+        }.buttonStyle(.plain).focusEffectDisabled().pointingHandCursor().disabled(!model.canChangeSavedWorkspaces)
             .focused($focused, equals: id).help(label).accessibilityLabel(label)
             .accessibilityIdentifier("wheel-" + id)
     }
@@ -396,7 +503,7 @@ struct HeldWorkspaceWheelView: View {
 
     private func pin() { pinned = true; keepOpen() }
     private func changePage(_ offset: Int) {
-        pin(); hoveredID = nil; showsFeedback = false
+        pin(); interactionTarget = nil; showsFeedback = false
         page = max(0, min(page + offset, HeldWorkspaceWheelLayout.pageCount(live.columns.count) - 1))
     }
 
@@ -433,18 +540,21 @@ struct HeldWorkspaceWheelView: View {
 /// the entire ring. Use the same geometry for hover cursors and sector hit tests.
 private struct WheelCursorRegion: NSViewRepresentable {
     let count: Int
+    let geometry: HeldWorkspaceWheelGeometry
     let enabled: Set<Int>
     let centerEnabled: Bool
-    let hovered: (Int?) -> Void
+    let hovered: (Int?, Bool) -> Void
     func makeNSView(context: Context) -> CursorView { CursorView() }
     func updateNSView(_ view: CursorView, context: Context) {
         view.count = count; view.enabled = enabled; view.centerEnabled = centerEnabled; view.hovered = hovered
+        view.geometry = geometry
     }
     final class CursorView: NSView {
         var count = 0
+        var geometry = HeldWorkspaceWheelGeometry()
         var enabled: Set<Int> = []
         var centerEnabled = false
-        var hovered: ((Int?) -> Void)?
+        var hovered: ((Int?, Bool) -> Void)?
         override var isFlipped: Bool { true }
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
         override func updateTrackingAreas() {
@@ -457,13 +567,19 @@ private struct WheelCursorRegion: NSViewRepresentable {
         override func mouseMoved(with event: NSEvent) { updateCursor(event) }
         override func mouseEntered(with event: NSEvent) { updateCursor(event) }
         override func cursorUpdate(with event: NSEvent) { updateCursor(event) }
-        override func mouseExited(with event: NSEvent) { hovered?(nil); NSCursor.arrow.set() }
+        override func mouseExited(with event: NSEvent) {
+            hovered?(nil, false)
+            if window?.isVisible == true { NSCursor.arrow.set() }
+        }
         private func updateCursor(_ event: NSEvent) {
             let raw = convert(event.locationInWindow, from: nil)
-            let point = CGPoint(x: raw.x * 440 / max(1, bounds.width), y: raw.y * 440 / max(1, bounds.height))
-            let isCenter = hypot(point.x - 220, point.y - 220) <= HeldWorkspaceWheelLayout.centerRadius
-            let index = HeldWorkspaceWheelLayout.sector(at: point, count: count)
-            hovered?(index)
+            let point = CGPoint(x: raw.x * geometry.diameter / max(1, bounds.width), y: raw.y * geometry.diameter / max(1, bounds.height))
+            let isCenter = hypot(point.x - geometry.midpoint, point.y - geometry.midpoint) <= geometry.centerRadius
+            let index = HeldWorkspaceWheelLayout.sector(at: point, count: count, geometry: geometry)
+            hovered?(index, isCenter)
+            // Hidden/offscreen views can be rendered and exercised without
+            // taking over the user's system cursor.
+            guard window?.isVisible == true else { return }
             let actionable = (isCenter && centerEnabled) || index.map { enabled.contains($0) } == true
             (actionable ? NSCursor.pointingHand : NSCursor.arrow).set()
         }

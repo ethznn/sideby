@@ -15,12 +15,25 @@ Run tests:
 swift test
 ```
 
-Native workspace interaction and appearance checks are opt-in. They mount the
-production views with isolated workspace data; they do not switch the user's
-real desktops or modify saved workspaces:
+For wheel appearance, hover previews, and geometry, prefer offscreen checks.
+They render hidden production views with isolated data and send events only to
+test objects. They do not activate windows, move the system pointer, or restart
+the user's app:
 
 ```bash
-SIDEBY_NATIVE_EVIDENCE=1 SIDEBY_NATIVE_EVIDENCE_OUTPUT=/tmp/sideby-native-evidence swift test
+SIDEBY_OFFSCREEN_EVIDENCE=1 SIDEBY_NATIVE_EVIDENCE_OUTPUT=/tmp/sideby-wheel-offscreen.noindex \
+  swift test --filter 'HeldWorkspaceWheelNativeTests|HeldWorkspaceWheelTests'
+```
+
+Visible native workspace checks are also opt-in and use isolated workspace data.
+Although they do not change real Spaces or saved workspaces, they **activate
+windows and can move the real pointer**. Do not run them while the user is using
+the Mac; use a separately agreed test session or a dedicated test Mac. Wheel
+tests require the additional `SIDEBY_INTERACTIVE_UI_TESTS=1` flag for this mode:
+
+```bash
+SIDEBY_NATIVE_EVIDENCE=1 SIDEBY_INTERACTIVE_UI_TESTS=1 \
+  SIDEBY_NATIVE_EVIDENCE_OUTPUT=/tmp/sideby-native-evidence swift test
 SIDEBY_NATIVE_WINDOW_FOCUS=1 swift test --filter ProductWindowCoordinatorTests/testSettingsOpensInFrontWhileAccessoryApplicationActivationIsPending
 ```
 
@@ -186,8 +199,8 @@ files not staged yet. Keep internal plans, real display identifiers, personal
 paths, and probe logs outside the public tree. Inspect newly added media as well;
 a text scan cannot establish whether an image or video contains personal data.
 
-In a graphical macOS session, run the opt-in native window checks with
-`SIDEBY_NATIVE_EVIDENCE=1 swift test`. Use `SIDEBY_NATIVE_EVIDENCE_OUTPUT` to send
+In a dedicated graphical test session, run the opt-in native window checks with
+`SIDEBY_NATIVE_EVIDENCE=1 SIDEBY_INTERACTIVE_UI_TESTS=1 swift test`. Use `SIDEBY_NATIVE_EVIDENCE_OUTPUT` to send
 their screenshots to a local `.noindex` directory. These tests use sample data;
 before publishing, also verify real desktop switching, shortcut release, and
 menu interaction on the supported macOS versions and display setups available

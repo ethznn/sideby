@@ -13,6 +13,9 @@ public struct HUDPresentationState: Equatable, Sendable {
     public let visualScale: Double
     public let backgroundOpacity: Double
     public let dismissalMode: HUDDismissalMode
+    public let appearanceDelay: Double
+    public let fadeInDuration: Double
+    public let minimumVisibleDuration: Double
 
     public init(
         text: String,
@@ -21,7 +24,10 @@ public struct HUDPresentationState: Equatable, Sendable {
         fadeOutDuration: Double = 0.24,
         visualScale: Double = 1.0,
         backgroundOpacity: Double = 0.0,
-        dismissalMode: HUDDismissalMode = .automatic
+        dismissalMode: HUDDismissalMode = .automatic,
+        appearanceDelay: Double = 0,
+        fadeInDuration: Double = 0,
+        minimumVisibleDuration: Double = 0
     ) {
         self.text = text
         self.isCompact = isCompact
@@ -30,6 +36,9 @@ public struct HUDPresentationState: Equatable, Sendable {
         self.visualScale = visualScale
         self.backgroundOpacity = backgroundOpacity
         self.dismissalMode = dismissalMode
+        self.appearanceDelay = appearanceDelay
+        self.fadeInDuration = fadeInDuration
+        self.minimumVisibleDuration = minimumVisibleDuration
     }
 }
 
@@ -58,10 +67,13 @@ public struct HUDPresenter: Sendable {
         HUDPresentationState(
             text: contextName,
             duration: 0,
-            fadeOutDuration: 0,
+            fadeOutDuration: 0.16,
             visualScale: 4.0,
             backgroundOpacity: 0.66,
-            dismissalMode: .manual
+            dismissalMode: .manual,
+            appearanceDelay: 0.15,
+            fadeInDuration: 0.12,
+            minimumVisibleDuration: 0.2
         )
     }
 
