@@ -16,7 +16,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 [Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](https://ethznn.github.io/sideby/#film)
 
-*Sideby 1.1.1 · [What’s new](docs/releases/1.1.1.md).*
+*Sideby 1.1.2 · [What’s new](docs/releases/1.1.2.md).*
 
 ## See and connect in one window
 
@@ -55,7 +55,9 @@ Existing connections, names, and numbered shortcuts are kept. No recreation or d
 
 ## Daily use
 
-Hold **⌥⇧Space** to open a circular menu near your pointer. Click a connection to move its Spaces together. The menu stays inside the screen, with transparent gaps and no rectangular backdrop. Up to eight connections appear per page.
+Hold **⌥⇧Space** to open the quick switcher near your pointer. Use **Circle** or **Table** above it to choose your view; the control stays in the same position, and Sideby remembers your choice. Click a connection to move its Spaces together. The circular menu stays inside the screen, with transparent gaps and no rectangular backdrop. Up to eight connections appear per page.
+
+Drag a connection in the circular menu to change its order. This keeps its Space assignments and numbered shortcut, and does not switch screens. **Undo** restores the previous order.
 
 Hover over a connection to preview its Spaces in the center. Hover over the center to reveal **Add current setup**, then click to keep the Spaces you are looking at as one connection. Names such as **Xcode / Figma** are filled in automatically. An existing identical connection is shown instead of duplicated. With no connections yet, the center offers the same action with guidance for creating your first connection.
 
@@ -69,23 +71,23 @@ For three or more displays, the center grows to show each connected display's co
   <img src="./docs/images/sideby-tutorial-en.gif" width="880" alt="28-second tutorial: drag to connect, connect current Spaces, switch while coding, swap, undo, Option-copy, rename, return, delete and undo. Actual app UI with fictional data and reconstructed actions." />
 </p>
 
-*28-second usage guide: drag to connect, connect current Spaces, switch while coding, swap, undo, Option-copy, rename, return, delete, and undo. Sideby 1.1.0 UI with fictional data and reconstructed actions; 1.1.1 adds the hover previews and center label described above.*
+*28-second usage guide: drag to connect, connect current Spaces, switch while coding, swap, undo, Option-copy, rename, return, delete, and undo. Sideby 1.1.0 UI with fictional data and reconstructed actions. The current app also includes the center hover previews, Circle/Table control, and circular-menu reordering described above.*
 
 [Play with controls](https://ethznn.github.io/sideby/#tutorial) · [Still image](docs/images/sideby-tutorial-en.png)
 
 Hover over a connection to reveal its **pencil** and **trash** buttons. The name and sector switch Spaces; only the pencil renames. **Apply** saves the name, **Cancel** keeps it, and **Undo** restores it after applying. Removing one connection is immediate, without a confirmation dialog. Actual Spaces and app windows stay open. **Undo** remains visible and restores the connection, assignments, and shortcut, even after deleting the last connection or reopening Sideby.
 
-Choose **Edit connections** for the Space list and connection table. Drag within the same display row to move or swap; hold Option when dropping to copy. Use **Table** for the detailed switching view. **Clear all…** asks for confirmation before clearing all connections; the center remains ready to create a new one.
+Choose **Edit connections** for the Space list and connection table. Drag within the same display row to move or swap; hold Option when dropping to copy. The Circle/Table control is hidden while editing; **Back to switching** returns to your previous view. **Clear all…** asks for confirmation before clearing all connections; the center remains ready to create a new one.
 
 | Input | Action |
 | --- | --- |
-| Hold `⌥⇧Space` | Open the circular menu near the pointer. Click a connection to move together. |
+| Hold `⌥⇧Space` | Open the last-used Circle or Table view near the pointer. Click a connection to move together. |
 | `⌥⇧Tab` | Return to the last connection you visited. |
 | `⌥⇧1` … `⌥⇧9`, `⌥⇧0` | Move to the connection assigned that number. Deleting another connection keeps existing numbers. |
 | `⌥⇧<` / `⌥⇧>` | Move to the previous / next connection. |
 | Option + Shift + horizontal swipe | Move displays together with the default gesture. |
 
-Numbered, previous/next, and return shortcuts execute when Option and Shift are released. Releasing the opening shortcut closes the circular menu without switching or saving anything by itself. Saving, renaming, removing, or choosing an editor keeps it open. Release the shortcut before editing, then press Option again while dropping a Space to copy. Use Tab to focus controls, Return/Space to activate, and Escape to close. Configure inputs in **Settings → Input**.
+Numbered, previous/next, and return shortcuts execute when Option and Shift are released. Releasing the opening shortcut closes the quick switcher without switching or saving anything by itself. Changing views, reordering, saving, renaming, removing, or choosing an editor keeps it open. Release the shortcut before editing, then press Option again while dropping a Space to copy. Use Tab to focus controls, Return/Space to activate, and Escape to close. Configure inputs in **Settings → Input**.
 
 ## When your environment changes
 

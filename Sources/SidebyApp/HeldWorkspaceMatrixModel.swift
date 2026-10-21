@@ -38,8 +38,11 @@ struct HeldWorkspaceColumn: Identifiable {
         guard let current = model.settings.contextPlan.contexts.first(where: { $0.id == id }) else { return false }
         let active = Set(model.displayLayout.displays.map(\.id)).intersection(model.selectedDisplayIDs)
         guard active == Set(displayIDs) else { return false }
-        let latest = HeldWorkspaceColumn(context: current, displayIDs: displayIDs, model: model)
-        return !bookmarks.isEmpty && !bookmarks.values.contains(.unavailable) && bookmarks == latest.bookmarks
+        let latest = Dictionary(uniqueKeysWithValues: displayIDs.compactMap { id -> (String, Bookmark)? in
+            guard let index = current.spaceIndex(for: id) else { return nil }
+            return (id, Self.bookmark(displayID: id, index: index, model: model))
+        })
+        return !bookmarks.isEmpty && !bookmarks.values.contains(.unavailable) && bookmarks == latest
     }
 }
 

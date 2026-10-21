@@ -26,20 +26,20 @@ enum HeldWorkspaceWheelLayout {
     static let ringTop: CGFloat = 8
     static let chromeHeight: CGFloat = 128
 
-    static func size(in visibleFrame: NSRect, geometry: HeldWorkspaceWheelGeometry = .init()) -> NSSize {
-        let ring = max(1, min(geometry.diameter, visibleFrame.width - 64, visibleFrame.height - chromeHeight - 32))
-        return NSSize(width: ring + 32, height: ring + chromeHeight)
+    static func size(in visibleFrame: NSRect, geometry: HeldWorkspaceWheelGeometry = .init(), toolbarHeight: CGFloat = 0) -> NSSize {
+        let ring = max(1, min(geometry.diameter, visibleFrame.width - 64, visibleFrame.height - chromeHeight - toolbarHeight - 32))
+        return NSSize(width: ring + 32, height: ring + chromeHeight + toolbarHeight)
     }
 
-    static func fits(in visibleFrame: NSRect, geometry: HeldWorkspaceWheelGeometry = .init()) -> Bool {
-        (size(in: visibleFrame, geometry: geometry).width - 32) / geometry.diameter >= 320 / 440
+    static func fits(in visibleFrame: NSRect, geometry: HeldWorkspaceWheelGeometry = .init(), toolbarHeight: CGFloat = 0) -> Bool {
+        (size(in: visibleFrame, geometry: geometry, toolbarHeight: toolbarHeight).width - 32) / geometry.diameter >= 320 / 440
     }
 
-    static func origin(size: NSSize, pointer: NSPoint, visibleFrame: NSRect) -> NSPoint {
+    static func origin(size: NSSize, pointer: NSPoint, visibleFrame: NSRect, toolbarHeight: CGFloat = 0) -> NSPoint {
         let bounds = visibleFrame.insetBy(dx: 16, dy: 16)
         let ring = size.width - 32
         return NSPoint(x: max(bounds.minX, min(pointer.x - size.width / 2, bounds.maxX - size.width)),
-            y: max(bounds.minY, min(pointer.y - (size.height - ringTop - ring / 2), bounds.maxY - size.height)))
+            y: max(bounds.minY, min(pointer.y - (size.height - toolbarHeight - ringTop - ring / 2), bounds.maxY - size.height)))
     }
 
     static func pageCount(_ count: Int) -> Int { max(1, (count + pageSize - 1) / pageSize) }

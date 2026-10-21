@@ -333,7 +333,7 @@ import XCTest
                 let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
                 host.cacheDisplay(in: host.bounds, to: bitmap)
                 let request = VNRecognizeTextRequest()
-                request.recognitionLevel = .fast; request.recognitionLanguages = ["en-US"]
+                request.recognitionLevel = .accurate; request.recognitionLanguages = ["en-US"]
                 request.usesLanguageCorrection = false
                 try VNImageRequestHandler(cgImage: XCTUnwrap(bitmap.cgImage), options: [:]).perform([request])
                 let rendered = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
@@ -655,7 +655,7 @@ import XCTest
                     size: NSSize(width: 352, height: 448))
                 defer { window.close() }
                 try await Task.sleep(for: .milliseconds(500))
-                for id in ["held-edit-connections", "wheel-show-table", "wheel-clear-all", "held-undo-connection", "held-add-current-connection"] {
+                for id in ["held-edit-connections", "wheel-clear-all", "held-undo-connection", "held-add-current-connection"] {
                     let control = try XCTUnwrap(element(id, in: window) as? any NSAccessibilityElementProtocol)
                     XCTAssertTrue(window.frame.contains(control.accessibilityFrame()), "\(language), \(count), \(id) must fit")
                 }
@@ -668,7 +668,7 @@ import XCTest
         try requireNative()
         let model = heldMatrixFixture(count: 4, displayCount: 2)
         model.workspacePreferences = nil
-        let controller = HeldWorkspaceMatrixController(model: model)
+        let controller = HeldWorkspaceMatrixController(model: model, preferences: MemoryProductUIPreferences())
         controller.showPersistent()
         let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.identifier?.rawValue == "sideby-held-workspace-matrix" })
         defer { controller.dismiss(); window.close() }
@@ -694,4 +694,134 @@ import XCTest
         try await Task.sleep(for: .milliseconds(500))
         XCTAssertEqual(window.frame, original)
     }
+    private func pressOffscreen(_ id: String, in window: NSWindow) throws {
+        let object = try XCTUnwrap(element(id, in: window), id)
+        let action = NSSelectorFromString("accessibilityPerformPress")
+        XCTAssertTrue(object.responds(to: action))
+        let implementation = try XCTUnwrap(object.method(for: action))
+        let press = unsafeBitCast(implementation, to: (@convention(c) (AnyObject, Selector) -> Bool).self)
+        XCTAssertTrue(press(object, action))
+    }
+
+    func testViewToggleStaysAtTopAndReturnsToCircleFromInitialTableOffscreen() async throws {
+        try requireOffscreenRendering()
+        for startsWithCircle in [true, false] {
+            let model = heldMatrixFixture(count: 3, displayCount: 2)
+            model.workspacePreferences = nil
+            let before = model.settings
+            var changes: [HeldSwitcherPresentation] = [], pins = 0
+            let root = HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model),
+                select: { _ in XCTFail("Changing the view never switches Spaces") },
+                keepOpen: { pins += 1 }, usesRadial: startsWithCircle,
+                wheelDiameter: 440, presentationChanged: { changes.append($0) })
+            let window = window(root, size: NSSize(width: 472, height: 608), visible: false)
+            window.appearance = NSAppearance(named: .darkAqua)
+            defer { window.close() }
+            try await Task.sleep(for: .milliseconds(400))
+            let control = try XCTUnwrap(element("wheel-show-table", in: window) as? any NSAccessibilityElementProtocol)
+            let frame = control.accessibilityFrame()
+            try pressOffscreen("held-edit-connections", in: window)
+            try await Task.sleep(for: .milliseconds(350))
+            XCTAssertNotNil(element("current-connections-table", in: window))
+            for id in ["held-view-control", "wheel-show-table", "held-show-wheel"] {
+                XCTAssertNil(element(id, in: window), "View choices belong to the switcher, not its editor")
+            }
+            let finish = try XCTUnwrap(element("held-finish-editing", in: window) as? any NSAccessibilityElementProtocol)
+            XCTAssertLessThan(window.frame.maxY - finish.accessibilityFrame().maxY, HeldSwitcherViewControl.height,
+                              "The hidden toolbar must not leave a blank strip above the editor")
+            try capture("switcher-editor-no-tabs-\(startsWithCircle)", window: window)
+            try pressOffscreen("held-finish-editing", in: window)
+            try await Task.sleep(for: .milliseconds(350))
+            XCTAssertNotNil(element(startsWithCircle ? "held-workspace-wheel" : "held-switch-table", in: window))
+            for (id, content) in [("wheel-show-table", "held-switch-table"), ("held-show-wheel", "held-workspace-wheel")] {
+                try pressOffscreen(id, in: window)
+                try await Task.sleep(for: .milliseconds(350))
+                window.contentView?.layoutSubtreeIfNeeded()
+                XCTAssertNotNil(element(content, in: window))
+                let button = try XCTUnwrap(element("wheel-show-table", in: window) as? any NSAccessibilityElementProtocol)
+                XCTAssertEqual(button.accessibilityFrame().midX, frame.midX, accuracy: 1)
+                XCTAssertEqual(button.accessibilityFrame().midY, frame.midY, accuracy: 1)
+                try capture("switcher-toggle-\(startsWithCircle)-\(id)", window: window)
+            }
+            XCTAssertEqual(changes, startsWithCircle ? [.editor, .wheel, .table, .wheel] : [.editor, .table, .wheel])
+            // The wheel pins its action before handing off to the shared editor.
+            XCTAssertEqual(pins, startsWithCircle ? 4 : 2)
+            XCTAssertEqual(model.settings, before); XCTAssertFalse(window.isVisible)
+        }
+    }
+
+    func testWheelNativeDragWiringReordersAndUndoRestoresWithoutSwitchingOffscreen() async throws {
+        try requireOffscreenRendering()
+        let model = heldMatrixFixture(count: 4, displayCount: 2)
+        model.workspacePreferences = nil
+        let before = model.settings
+        var pins = 0
+        let window = window(HeldWorkspaceWheelView(model: model, select: { _ in XCTFail("Reordering never switches Spaces") },
+            keepOpen: { pins += 1 }), visible: false)
+        window.appearance = NSAppearance(named: .darkAqua)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(400))
+        func find(_ view: NSView) -> WheelInteractionSurface.CursorView? {
+            if let tracker = view as? WheelInteractionSurface.CursorView { return tracker }
+            return view.subviews.lazy.compactMap(find).first
+        }
+        let tracker = try XCTUnwrap(window.contentView.flatMap(find))
+        let payload = try XCTUnwrap(tracker.beginDrag?(0))
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(pins, 1); XCTAssertEqual(model.settings, before)
+        let point = HeldWorkspaceWheelLayout.labelPoint(index: 2, count: 4)
+        let destination = tracker.convert(point, to: nil)
+        let target = try XCTUnwrap(tracker.dropTarget(raw: payload.rawValue, at: destination))
+        tracker.dropHovered?(2)
+        try await Task.sleep(for: .milliseconds(150))
+        try capture("wheel-drag-valid-target", window: window)
+        XCTAssertTrue(tracker.receive?(target.sourceID, target.targetID, target.after) == true)
+        tracker.endDrag?()
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(model.settings.contextPlan.contexts.sorted { $0.order < $1.order }.map(\.id), ["work-1", "work-2", "work-0", "work-3"])
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        XCTAssertFalse(model.isSwitching)
+        try pressOffscreen("held-undo-connection", in: window)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(model.settings.contextPlan, before.contextPlan)
+        // A second drag cancelled over the center changes nothing.
+        _ = tracker.beginDrag?(1)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertNil(tracker.dropTarget(raw: tracker.activeDrag?.rawValue, at: tracker.convert(NSPoint(x: 220, y: 220), to: nil)))
+        tracker.endDrag?()
+        XCTAssertEqual(model.settings.contextPlan, before.contextPlan)
+        XCTAssertFalse(window.isVisible)
+    }
+
+    func testWheelDragKeepsSourceAcrossPagesOffscreen() async throws {
+        try requireOffscreenRendering()
+        let model = heldMatrixFixture(count: 10, displayCount: 2)
+        model.workspacePreferences = nil
+        let before = model.settings
+        let window = window(HeldWorkspaceWheelView(model: model,
+            select: { _ in XCTFail("Page navigation and drag never switch Spaces") }), visible: false)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(400))
+        func find(_ view: NSView) -> WheelInteractionSurface.CursorView? {
+            if let tracker = view as? WheelInteractionSurface.CursorView { return tracker }
+            return view.subviews.lazy.compactMap(find).first
+        }
+        let tracker = try XCTUnwrap(window.contentView.flatMap(find))
+        let payload = try XCTUnwrap(tracker.beginDrag?(0))
+        try await Task.sleep(for: .milliseconds(100))
+        try pressOffscreen("wheel-next-page", in: window)
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(tracker.columnIDs, ["work-8", "work-9"])
+        XCTAssertEqual(tracker.activeDrag, payload)
+        let point = tracker.convert(HeldWorkspaceWheelLayout.labelPoint(index: 1, count: 2), to: nil)
+        let target = try XCTUnwrap(tracker.dropTarget(raw: payload.rawValue, at: point))
+        XCTAssertTrue(tracker.receive?(target.sourceID, target.targetID, target.after) == true)
+        tracker.endDrag?()
+        XCTAssertEqual(model.settings.contextPlan.contexts.sorted { $0.order < $1.order }.last?.id, "work-0")
+        XCTAssertEqual(model.settings.savedWorkspaces.bookmarks, before.savedWorkspaces.bookmarks)
+        XCTAssertTrue(model.undoSavedWorkspaceChange())
+        XCTAssertEqual(model.settings.contextPlan, before.contextPlan)
+        XCTAssertFalse(window.isVisible)
+    }
+
 }

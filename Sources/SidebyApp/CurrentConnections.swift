@@ -20,7 +20,7 @@ extension SidebyAppModel {
               let observation = workspaceObservation(includingUnselectedDisplays: true) else { return }
         let names = provider.names(for: displayLayout, spaceIDsByDisplayID: observation.spaceIDsByDisplayID)
         guard workspaceObservation(includingUnselectedDisplays: true)?.spaceIDsByDisplayID == observation.spaceIDsByDisplayID else { return }
-        workspaceDesktopNames = names
+        if workspaceDesktopNames != names { workspaceDesktopNames = names }
         workspaceDesktopNameSpaceIDs = observation.spaceIDsByDisplayID
     }
 

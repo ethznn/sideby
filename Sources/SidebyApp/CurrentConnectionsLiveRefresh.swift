@@ -4,15 +4,16 @@ import SwiftUI
 extension SidebyAppModel {
     /// Only presentation data is read in the background; apply it on the main actor
     /// after checking that the same Spaces and displays still exist.
-    func refreshVisibleConnections(force: Bool = false) async {
+    @discardableResult
+    func refreshVisibleConnections(force: Bool = false) async -> WorkspaceLayoutObservation? {
         guard !connectionContentRefreshInFlight, !isSwitching, contextCaptureSession == nil,
-              pendingContextCaptureAlignment == nil else { return }
+              pendingContextCaptureAlignment == nil else { return nil }
         let now = ProcessInfo.processInfo.systemUptime
-        if !force, let last = connectionContentRefreshTime, now - last < 1.5 { return }
+        if !force, let last = connectionContentRefreshTime, now - last < 1.5 { return nil }
         connectionContentRefreshTime = now
         refreshWorkspaceStatus()
-        guard let provider = workspaceNameSuggestionProvider,
-              let observation = workspaceObservation(includingUnselectedDisplays: true) else { return }
+        let observation = workspaceObservation(includingUnselectedDisplays: true)
+        guard let observation, let provider = workspaceNameSuggestionProvider else { return observation }
         let layout = displayLayout
         connectionContentRefreshInFlight = true
         defer { connectionContentRefreshInFlight = false }
@@ -21,9 +22,15 @@ extension SidebyAppModel {
         }.value
         guard !Task.isCancelled, !isSwitching, contextCaptureSession == nil,
               pendingContextCaptureAlignment == nil, displayLayout == layout,
-              workspaceObservation(includingUnselectedDisplays: true)?.spaceIDsByDisplayID == observation.spaceIDsByDisplayID else { return }
+              let current = workspaceObservation(includingUnselectedDisplays: true),
+              current.spaceIDsByDisplayID == observation.spaceIDsByDisplayID,
+              current.spaceKeysByDisplayID == observation.spaceKeysByDisplayID else {
+            connectionContentRefreshTime = nil
+            return nil
+        }
         if workspaceDesktopNames != names { workspaceDesktopNames = names }
         workspaceDesktopNameSpaceIDs = observation.spaceIDsByDisplayID
+        return current
     }
 }
 
@@ -31,7 +38,7 @@ extension SidebyAppModel {
 struct CurrentConnectionsLiveRefresh: NSViewRepresentable {
     let model: SidebyAppModel
     var paused: Bool
-    var didRefresh: () -> Void
+    var didRefresh: (WorkspaceLayoutObservation?) -> Void
 
     func makeNSView(context: Context) -> RefreshView { RefreshView() }
     func updateNSView(_ view: RefreshView, context: Context) {
@@ -41,7 +48,7 @@ struct CurrentConnectionsLiveRefresh: NSViewRepresentable {
     final class RefreshView: NSView {
         weak var model: SidebyAppModel?
         var paused = false
-        var didRefresh: (() -> Void)?
+        var didRefresh: ((WorkspaceLayoutObservation?) -> Void)?
         private var loop: Task<Void, Never>?
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
         override func viewDidMoveToWindow() {
@@ -58,8 +65,8 @@ struct CurrentConnectionsLiveRefresh: NSViewRepresentable {
         func refreshIfVisible() async {
             guard !paused, let window, window.isVisible, window.occlusionState.contains(.visible),
                   !NSApp.isHidden, let model else { return }
-            await model.refreshVisibleConnections()
-            if !Task.isCancelled { didRefresh?() }
+            let observation = await model.refreshVisibleConnections()
+            if !Task.isCancelled { didRefresh?(observation) }
         }
         deinit { loop?.cancel() }
     }

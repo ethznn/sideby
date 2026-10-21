@@ -366,7 +366,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published private(set) var contextDeletionMinimumCount: Int? = nil
     @Published var workspaceConnectionStatus: WorkspaceConnectionStatus = .unconfirmed
     @Published var workspaceObservedDisplays: [InstantCaptureDisplay]?
-    var workspaceLatestObservation: WorkspaceLayoutObservation?
+    @Published var workspaceLatestObservation: WorkspaceLayoutObservation?
     @Published var verifiedCurrentWorkspaceID: String?
     @Published var workspaceRecoveryTargetID: String?
     var openWorkspaceEditor: ((String) -> Void)?
@@ -377,7 +377,17 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var lastWorkspaceSwitchSucceeded = false
     var workspaceConnectionSession = WorkspaceConnectionSession()
     var workspaceLastObservedSpaceIDs: [String: [UInt64]] = [:]
-    var workspaceLastObservedSpaceKeys: [String: [String]] = [:]
+    var workspaceLastObservedSpaceKeys: [String: [String]] = [:] {
+        didSet {
+            // Validate identity uniqueness once per changed layout, not for every cell title.
+            workspaceUniqueSpaceKeyDisplays.formIntersection(workspaceLastObservedSpaceKeys.keys)
+            for (id, keys) in workspaceLastObservedSpaceKeys where oldValue[id] != keys {
+                if Set(keys).count == keys.count { workspaceUniqueSpaceKeyDisplays.insert(id) }
+                else { workspaceUniqueSpaceKeyDisplays.remove(id) }
+            }
+        }
+    }
+    private(set) var workspaceUniqueSpaceKeyDisplays: Set<String> = []
     var workspaceIdentityNeedsReview = false
     var workspaceIsReconciling = false
     @Published var workspaceIdentityBlockedDisplayIDs: Set<String> = []

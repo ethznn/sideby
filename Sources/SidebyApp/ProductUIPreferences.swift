@@ -2,6 +2,7 @@ import Foundation
 
 @MainActor
 protocol ProductUIPreferences: AnyObject {
+    var quickSwitcherView: HeldSwitcherViewMode { get set }
     var lastSettingsPane: ProductSettingsPane { get set }
     var onboardingStage: ProductOnboardingStage { get set }
     var didCompletePermissionSetup: Bool { get set }
@@ -14,6 +15,11 @@ final class UserDefaultsProductUIPreferences: ProductUIPreferences {
 
     init(defaults: UserDefaults) {
         self.defaults = defaults
+    }
+
+    var quickSwitcherView: HeldSwitcherViewMode {
+        get { defaults.string(forKey: "sideby.ui.quick-switcher-view").flatMap(HeldSwitcherViewMode.init(rawValue:)) ?? .wheel }
+        set { defaults.set(newValue.rawValue, forKey: "sideby.ui.quick-switcher-view") }
     }
 
     var lastSettingsPane: ProductSettingsPane {
@@ -47,6 +53,7 @@ final class UserDefaultsProductUIPreferences: ProductUIPreferences {
 
 @MainActor
 final class MemoryProductUIPreferences: ProductUIPreferences {
+    var quickSwitcherView: HeldSwitcherViewMode = .wheel
     var lastSettingsPane: ProductSettingsPane = .workspaces
     var onboardingStage: ProductOnboardingStage = .preparation
     var didCompletePermissionSetup = false

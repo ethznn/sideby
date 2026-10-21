@@ -32,7 +32,7 @@ extension SidebyAppModel {
 
     func desktopAliasIdentity(displayID: String, spaceIndex: Int) -> DesktopNameIdentity? {
         guard let keys = workspaceLastObservedSpaceKeys[displayID], keys.indices.contains(spaceIndex),
-              Set(keys).count == keys.count else { return nil }
+              workspaceUniqueSpaceKeyDisplays.contains(displayID) else { return nil }
         return DesktopNameIdentity(spaceKey: keys[spaceIndex], displayID: displayID)
     }
 

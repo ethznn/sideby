@@ -144,7 +144,7 @@ struct CurrentConnectionsView: View {
         .background(CurrentConnectionsKeyboardCommands(model: model))
         .background(CurrentConnectionsLiveRefresh(model: model,
             paused: drag != nil || selectedDesktop != nil || picker != nil || showsDisplays || confirmsClearAll || isSelectingConnections || renaming != nil,
-            didRefresh: { readObservation() }))
+            didRefresh: { if let value = $0, observation != value { observation = value } }))
         .background(WorkspaceDragCompletion(dragID: drag?.id) { drag = nil; dropCell = nil; dropColumn = nil })
         .onAppear { model.refreshWorkspaceStatus(); readObservation() }
         .alert(removalTitle, isPresented: $confirmsClearAll) {
@@ -161,7 +161,7 @@ struct CurrentConnectionsView: View {
             try? await Task.sleep(for: .seconds(2))
             if !Task.isCancelled { highlightsNewColumn = false }
         }
-        .onReceive(model.$workspaceObservedDisplays) { _ in readObservation() }
+        .onChange(of: model.workspaceLatestObservation) { _, _ in readObservation() }
         .onChange(of: model.displayLayout) { _, _ in readObservation(); picker = nil; drag = nil; selectedDesktop = nil }
         .onChange(of: model.settings.contextPlan.contexts) { _, _ in
             readObservation()
@@ -323,7 +323,7 @@ struct CurrentConnectionsView: View {
                                 GeometryReader { viewport in
                                     ScrollViewReader { scroll in
                                         ScrollView(.horizontal) {
-                                            HStack(spacing: 6) {
+                                            LazyHStack(spacing: 6) {
                                                 ForEach(Array(keys.enumerated()), id: \.element) { index, key in
                                                     desktopSource(displayID: id, key: key, index: index).id(key)
                                                 }
@@ -381,6 +381,7 @@ struct CurrentConnectionsView: View {
                 + (current ? copy.text(" · On screen", " · 지금 보고 있음") : ""),
             identifier: "connection-source-" + displayID + "-\(index)",
             accessibilityState: selected ? copy.text("Selected. Click a cell for this display.", "선택됨. 같은 모니터의 칸을 누르세요.") : nil,
+            contentKey: .init(text: [title, copy.spacePosition(index), copy.text("On screen", "현재")], flags: [current, selected]),
             click: { keepOpen(); selectedDesktop = selected ? nil : desktop; picker = nil }, beginDrag: {
                 keepOpen()
                 selectedDesktop = desktop
@@ -480,7 +481,7 @@ struct CurrentConnectionsView: View {
                 }.padding(.horizontal, 10).frame(width: 132).background(NativeSurfaceStyle.headerBackground)
                 ScrollViewReader { scroll in
                 ScrollView(.horizontal) {
-                    HStack(alignment: .top, spacing: 0) {
+                    LazyHStack(alignment: .top, spacing: 0) {
                         ForEach(Array(contexts.enumerated()), id: \.element.id) { index, context in
                             VStack(spacing: 0) {
                                 header(context, position: index + 1)
@@ -547,6 +548,7 @@ struct CurrentConnectionsView: View {
                 WorkspaceDesktopDragSource(enabled: model.canChangeSavedWorkspaces,
                     label: context.name + " · " + copy.rename,
                     identifier: "connection-rename-" + context.id, allowsMove: true,
+                    contentKey: .init(text: [context.name]),
                     click: { beginRenaming(context) }, beginDrag: {
                         keepOpen(); renaming = nil; picker = nil; selectedDesktop = nil
                         let payload = WorkspaceComposerDrag(session: session, contextID: context.id)
@@ -650,6 +652,9 @@ struct CurrentConnectionsView: View {
             isDraggable: !isSelectingConnections && connected.contains(displayID) && assigned && !missing && !unreadable && key != nil,
             accessibilityState: isSelectingConnections ? copy.selectedState(isSelected) : hovering ? preview : assigned ? copy.text("Connected", "연결됨") : copy.text("Empty. Click to connect a Space.", "빈 칸. 눌러서 Space를 연결하세요."),
             allowsMove: true,
+            contentKey: .init(text: [title, preview, index.map { copy.spacePosition($0) } ?? "",
+                showsDesktopSources ? copy.orChoose : copy.text("Click to connect", "눌러서 연결하기")],
+                flags: [assigned, missing, unreadable, isSelectingConnections, isSelected, hovering, selectedDesktop?.displayID == displayID]),
             click: {
                 keepOpen()
                 if isSelectingConnections {
@@ -735,9 +740,17 @@ struct CurrentConnectionsView: View {
     }
 
     private func keys(_ id: String) -> [String]? { model.composerKeys(id, observation: observation) }
-    private func readObservation() { observation = model.workspaceObservation(includingUnselectedDisplays: true) }
+    private func readObservation() {
+        // A status read already contains everything when all connected displays
+        // participate. Reuse it instead of immediately repeating the OS query.
+        let value: WorkspaceLayoutObservation?
+        if let latest = model.workspaceLatestObservation,
+           connected.isSubset(of: Set(latest.displays.map(\.displayID))) { value = latest }
+        else { value = model.workspaceObservation(includingUnselectedDisplays: true) }
+        if observation != value { observation = value }
+    }
     private func refresh() {
-        Task { await model.refreshVisibleConnections(force: true); readObservation() }
+        Task { observation = await model.refreshVisibleConnections(force: true) }
     }
 }
 
@@ -838,9 +851,16 @@ struct ConnectionSpacePicker: View {
     }
 
     private func keys(_ id: String) -> [String]? { model.composerKeys(id, observation: observation) }
-    private func readObservation() { observation = model.workspaceObservation(includingUnselectedDisplays: true) }
+    private func readObservation() {
+        // A picker can open between status refreshes. Its choices must reflect
+        // Spaces that were added, removed or reordered since the previous read.
+        observation = model.workspaceObservation(includingUnselectedDisplays: true)
+    }
     private func refresh() {
-        Task { await model.refreshVisibleConnections(force: true); readObservation() }
+        Task {
+            _ = await model.refreshVisibleConnections(force: true)
+            readObservation()
+        }
     }
 }
 

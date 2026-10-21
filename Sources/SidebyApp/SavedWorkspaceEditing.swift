@@ -77,7 +77,7 @@ extension SidebyAppModel {
     }
 
     func reconcileSavedWorkspaceLayout(_ observation: WorkspaceLayoutObservation?) -> Bool {
-        workspaceLatestObservation = observation
+        if workspaceLatestObservation != observation { workspaceLatestObservation = observation }
         guard canAddContext, pendingContextCaptureAlignment == nil, let observation,
               initializeSavedWorkspaceLibrary(observation) else { return false }
         var next = settings

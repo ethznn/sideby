@@ -7,6 +7,7 @@ import SwiftUI
 private struct HeldMatrixContentSize: Equatable {
     var size: CGSize = .zero
     var editing = false
+    var visible = true
 }
 
 struct HeldMatrixStrings {
@@ -56,8 +57,43 @@ struct HeldWorkspaceMatrixView: View {
     var contentMeasured: (CGSize, Bool) -> Void = { _, _ in }
     var usesRadial = false
     var wheelDiameter: CGFloat?
+    var wheelAvailable = true
+    var placement = HeldSwitcherPlacement()
     var presentationChanged: (HeldSwitcherPresentation) -> Void = { _ in }
-    @State private var showsTable = false
+    var body: some View {
+        HeldWorkspaceMatrixContent(model: model, snapshot: snapshot, select: select,
+            rememberColumn: rememberColumn, persistent: persistent, close: close, keepOpen: keepOpen,
+            editingChanged: editingChanged, copyRequested: copyRequested, availableHeight: availableHeight,
+            contentMeasured: contentMeasured, usesRadial: usesRadial, wheelDiameter: wheelDiameter,
+            wheelAvailable: wheelAvailable, placement: placement, presentationChanged: presentationChanged,
+            live: HeldWorkspaceSnapshot(model: model, previousColumnID: snapshot.initialColumnID))
+            .task { await model.refreshVisibleConnections() }
+    }
+}
+
+private struct HeldWorkspaceMatrixContent: View {
+    @ObservedObject var model: SidebyAppModel
+    let snapshot: HeldWorkspaceSnapshot
+    let select: (HeldWorkspaceColumn) -> Void
+    var rememberColumn: (String?) -> Void = { _ in }
+    var persistent = false
+    var close: () -> Void = {}
+    var keepOpen: () -> Void = {}
+    var editingChanged: (Bool) -> Void = { _ in }
+    var copyRequested: () -> Bool = { NSEvent.modifierFlags.contains(.option) }
+    var availableHeight: CGFloat = 900
+    var contentMeasured: (CGSize, Bool) -> Void = { _, _ in }
+    var usesRadial = false
+    var wheelDiameter: CGFloat?
+    var wheelAvailable = true
+    @ObservedObject var placement = HeldSwitcherPlacement()
+    var presentationChanged: (HeldSwitcherPresentation) -> Void = { _ in }
+    let live: HeldWorkspaceSnapshot
+    @State private var chosenView: HeldSwitcherViewMode?
+    @State private var loadedWheel = false
+    @State private var loadedTable = false
+    private var showingWheel: Bool { viewMode == .wheel && !isEditing }
+    private var viewMode: HeldSwitcherViewMode { chosenView ?? (usesRadial ? .wheel : .table) }
     @State private var renaming: ContextDefinition?
     @State private var repairingCell: String?
     @State private var dragSession = UUID()
@@ -74,17 +110,34 @@ struct HeldWorkspaceMatrixView: View {
     @State private var showsFeedback = false
     @State private var revealedConnectionID: String?
     private var copy: HeldMatrixStrings { .init(language: model.settings.language) }
-    private var live: HeldWorkspaceSnapshot { .init(model: model, previousColumnID: snapshot.initialColumnID) }
 
     var body: some View {
-        Group {
-            if usesRadial && !isEditing && !showsTable {
-                HeldWorkspaceWheelView(model: model, select: { column in
-                    rememberColumn(column.id); select(column)
-                }, keepOpen: keepOpen, close: close, edit: { setEditing(true) },
-                    showTable: { showsTable = true; presentationChanged(.table) },
-                    persistent: persistent || hasEnteredEditing, diameter: wheelDiameter, displayCount: snapshot.displayIDs.count)
-            } else { matrixBody }
+        VStack(spacing: 0) {
+            if !isEditing {
+                HeldSwitcherViewControl(mode: viewMode, language: model.settings.language,
+                    wheelAvailable: wheelAvailable, select: changeView)
+                    .offset(x: placement.toolbarOffsetX)
+                    .disabled(model.isSwitching)
+            }
+            // Keep visited views alive. Re-entering a view must not rebuild
+            // every native cell or replay the wheel's opening animation.
+            GeometryReader { viewport in
+              ZStack(alignment: .top) {
+                if usesRadial || loadedWheel {
+                    HeldWorkspaceWheelView(model: model, select: { column in
+                        rememberColumn(column.id); select(column)
+                    }, keepOpen: keepOpen, close: close, edit: { setEditing(true) },
+                        persistent: persistent || hasEnteredEditing, diameter: wheelDiameter, displayCount: snapshot.displayIDs.count,
+                        snapshot: live, animateEntrance: !hasEnteredEditing, isActive: showingWheel)
+                        .opacity(showingWheel ? 1 : 0).allowsHitTesting(showingWheel)
+                        .accessibilityHidden(!showingWheel).disabled(!showingWheel)
+                }
+                if !usesRadial || loadedTable || isEditing {
+                    matrixBody.opacity(showingWheel ? 0 : 1).allowsHitTesting(!showingWheel)
+                        .accessibilityHidden(showingWheel).disabled(showingWheel)
+                }
+              }.frame(width: viewport.size.width, height: viewport.size.height, alignment: .top)
+            }
         }
     }
 
@@ -108,11 +161,6 @@ struct HeldWorkspaceMatrixView: View {
                         HStack {
                             Text(copy.title).font(.system(size: 17, weight: .semibold))
                             Spacer()
-                            if usesRadial {
-                                Button(model.connectionCopy.text("Circle", "원형으로 보기")) {
-                                    showsTable = false; presentationChanged(.wheel)
-                                }.pointingHandCursor().accessibilityIdentifier("held-show-wheel")
-                            }
                             Button(copy.editConnections) { setEditing(true) }
                                 .pointingHandCursor().disabled(model.isSwitching)
                                 .accessibilityIdentifier("held-edit-connections")
@@ -166,8 +214,11 @@ struct HeldWorkspaceMatrixView: View {
                 }
                 .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
                 .background(GeometryReader { geometry in
-                    Color.clear.onChange(of: HeldMatrixContentSize(size: geometry.size, editing: isEditing), initial: true) { _, measurement in
-                        contentMeasured(measurement.size, measurement.editing)
+                    Color.clear.onChange(of: HeldMatrixContentSize(size: geometry.size, editing: isEditing, visible: !showingWheel), initial: true) { _, measurement in
+                        if !showingWheel {
+                            let toolbarHeight = measurement.editing ? 0 : HeldSwitcherViewControl.height
+                            contentMeasured(CGSize(width: measurement.size.width, height: measurement.size.height + toolbarHeight), measurement.editing)
+                        }
                     }
                 })
             }
@@ -187,18 +238,27 @@ struct HeldWorkspaceMatrixView: View {
         .overlay(RoundedRectangle(cornerRadius: 17).strokeBorder(NativeSurfaceStyle.frameBorder))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("held-workspace-matrix")
-        .onAppear { model.refreshWorkspaceStatus(); model.refreshCurrentDesktopContents() }
         .background(WorkspaceDragCompletion(dragID: drag?.id, finished: finishDrag))
         .onChange(of: model.settings.savedWorkspaces.undo) { _, _ in
             if hasEnteredEditing { showsFeedback = true }
         }
     }
 
+    private func changeView(_ mode: HeldSwitcherViewMode) {
+        guard (mode != viewMode || isEditing), mode != .wheel || wheelAvailable else { return }
+        keepOpen(); hasEnteredEditing = true
+        renaming = nil; repairingCell = nil; finishDrag()
+        if mode == .wheel { loadedWheel = true } else { loadedTable = true }
+        chosenView = mode; isEditing = false
+        editingChanged(false)
+        presentationChanged(mode.presentation)
+    }
+
     private func setEditing(_ editing: Bool) {
         if editing { keepOpen(); hasEnteredEditing = true }
         isEditing = editing
         editingChanged(editing)
-        presentationChanged(editing ? .editor : usesRadial && !showsTable ? .wheel : .table)
+        presentationChanged(editing ? .editor : viewMode.presentation)
     }
 
     private func quickTable(_ snapshot: HeldWorkspaceSnapshot) -> some View {
@@ -216,7 +276,7 @@ struct HeldWorkspaceMatrixView: View {
             }.padding(.horizontal, 10).frame(width: HeldMatrixPanelLayout.labelWidth)
             ScrollViewReader { scroll in
                 ScrollView(.horizontal) {
-                    HStack(spacing: 6) {
+                    LazyHStack(alignment: .top, spacing: 6) {
                         ForEach(snapshot.columns) { column in
                             columnButton(column, snapshot: snapshot).id(column.id)
                         }
@@ -229,6 +289,11 @@ struct HeldWorkspaceMatrixView: View {
                     }
                     .onChange(of: model.verifiedCurrentWorkspaceID) { _, id in
                         if let id { scroll.scrollTo(id, anchor: .center) }
+                    }
+                    .onChange(of: showingWheel) { _, hidden in
+                        if !hidden, let id = model.verifiedCurrentWorkspaceID ?? snapshot.initialColumnID {
+                            scroll.scrollTo(id, anchor: .center)
+                        }
                     }
                     .task(id: revealedConnectionID) {
                         guard let id = revealedConnectionID else { return }
@@ -295,6 +360,7 @@ struct HeldWorkspaceMatrixView: View {
                 WorkspaceDesktopDragSource(enabled: enabled || model.canChangeSavedWorkspaces,
                     label: actionLabel, identifier: "held-title-" + column.id,
                     isDraggable: model.canChangeSavedWorkspaces, allowsMove: true, usesPointingHand: true,
+                    contentKey: .init(text: [column.name]),
                     click: { switchTo(column, enabled: enabled) }, beginDrag: {
                         pinForEditing(); renaming = nil
                         let payload = WorkspaceComposerDrag(session: dragSession, contextID: column.id)
@@ -409,6 +475,8 @@ struct HeldWorkspaceMatrixView: View {
             label: model.displayName(for: displayID) + " · " + title,
             identifier: "held-cell-" + cellID, isDraggable: canDrag,
             accessibilityState: hovering ? hint : title, allowsMove: true, usesPointingHand: true,
+            contentKey: .init(text: [title, column.desktopLabels[displayID] ?? "", column.cells[displayID] ?? "", copy.missingHint, hint],
+                flags: [missing, hovering]),
             click: {
                 if missing { repair(column, displayID: displayID) }
                 else { switchTo(column, enabled: canSwitch) }

@@ -93,37 +93,39 @@ extension SidebyAppModel {
     }
 
     func applyWorkspaceObservation(_ observation: WorkspaceLayoutObservation?) {
-        workspaceLatestObservation = observation
-        workspaceObservedDisplays = observation?.displays
+        if workspaceLatestObservation != observation { workspaceLatestObservation = observation }
+        if workspaceObservedDisplays != observation?.displays { workspaceObservedDisplays = observation?.displays }
         reconcileWorkspaceDesktopNames(observation)
         let required = selectedDisplayIDs.intersection(Set(settings.contextPlan.contexts.flatMap(\.displayIDs)))
-        workspaceIdentityBlockedDisplayIDs = workspaceIdentityUnavailable(in: observation)
-        if !required.isDisjoint(with: workspaceIdentityBlockedDisplayIDs) {
-            workspaceConnectionStatus = .changed(required.intersection(workspaceIdentityBlockedDisplayIDs))
-            verifiedCurrentWorkspaceID = nil
+        let blocked = workspaceIdentityUnavailable(in: observation)
+        if workspaceIdentityBlockedDisplayIDs != blocked { workspaceIdentityBlockedDisplayIDs = blocked }
+        var status: WorkspaceConnectionStatus = .unavailable(required)
+        var verifiedID: String?
+        // Publish final values only. A routine refresh must not transiently clear
+        // the current connection or invalidate every view when nothing changed.
+        defer {
+            if workspaceConnectionStatus != status { workspaceConnectionStatus = status }
+            if verifiedCurrentWorkspaceID != verifiedID { verifiedCurrentWorkspaceID = verifiedID }
+        }
+        if !required.isDisjoint(with: blocked) {
+            status = .changed(required.intersection(blocked))
             updateContextPlan { $0.markNeedsSync() }
             return
         }
-        // Restore the released behavior: read current desktops on launch/reconnection.
-        // A saved workspace does not require a separate confirmation on every app run.
         if let observation, workspaceConnectionSession.confirm(spaceIDsByDisplayID: observation.spaceIDsByDisplayID) {
             if !isSwitching, contextCaptureSession == nil, pendingContextCaptureAlignment == nil {
                 let alreadyAligned = observation.spaceIDsByDisplayID.allSatisfy { id, ids in
                     workspaceLastObservedSpaceIDs[id] == nil || workspaceLastObservedSpaceIDs[id] == ids
                 }
                 if alreadyAligned { rememberWorkspaceObservation(observation) }
-                var counts = workspacePreferences?.dictionary(forKey: "sideby.workspace-desktop-counts") as? [String: Int] ?? [:]
+                let previousCounts = workspacePreferences?.dictionary(forKey: "sideby.workspace-desktop-counts") as? [String: Int] ?? [:]
+                var counts = previousCounts
                 for display in observation.displays { counts[display.displayID] = display.spaceCount }
-                workspacePreferences?.set(counts, forKey: "sideby.workspace-desktop-counts")
+                if counts != previousCounts { workspacePreferences?.set(counts, forKey: "sideby.workspace-desktop-counts") }
             }
-            workspaceConnectionStatus = workspaceConnectionSession.status(for: required,
-                spaceIDsByDisplayID: observation.spaceIDsByDisplayID)
-        } else {
-            workspaceConnectionSession.reset()
-            workspaceConnectionStatus = .unavailable(required)
-        }
-        verifiedCurrentWorkspaceID = nil
-        guard workspaceConnectionStatus == .ready, let displays = observation?.displays else {
+            status = workspaceConnectionSession.status(for: required, spaceIDsByDisplayID: observation.spaceIDsByDisplayID)
+        } else { workspaceConnectionSession.reset() }
+        guard status == .ready, let displays = observation?.displays else {
             updateContextPlan { $0.markNeedsSync() }
             return
         }
@@ -137,7 +139,7 @@ extension SidebyAppModel {
             updateContextPlan { $0.markNeedsSync() }
             return
         }
-        verifiedCurrentWorkspaceID = match.id
+        verifiedID = match.id
         if settings.contextPlan.currentContextID != match.id || settings.contextPlan.syncState != .synchronized {
             updateContextPlan { _ = $0.setCurrentContext(id: match.id) }
         }

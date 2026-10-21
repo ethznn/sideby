@@ -401,7 +401,7 @@ import SidebySystem
         XCTAssertEqual(provider.readCount, 1)
         model.workspaceObservationOverride = { self.observation(keys: ["mac-c", "mac-a", "mac-b"]) }
         provider.resume.signal()
-        await refresh.value
+        _ = await refresh.value
         XCTAssertEqual(model.workspaceDesktopNames["mac"]?[0], "Previous document")
         XCTAssertFalse(model.connectionContentRefreshInFlight)
     }

@@ -5,6 +5,9 @@ import SwiftUI
 
 @MainActor final class HeldWorkspaceMatrixController {
     private weak var model: SidebyAppModel?
+    private let preferences: any ProductUIPreferences
+    private var toolbarAnchor: NSPoint?
+    private let placement = HeldSwitcherPlacement()
     private var source: HeldMatrixShortcutInputSource?
     private var configuration: HeldMatrixConfiguration?
     private var panel: HeldMatrixPanel?
@@ -17,13 +20,17 @@ import SwiftUI
     private var wheelGeometry = HeldWorkspaceWheelGeometry()
     private var panelIsEditing = false
     private var measuredContentSize: CGSize?
+    private var measuredSizes: [HeldSwitcherPresentation: CGSize] = [:]
+    private var pendingMeasurement: DispatchWorkItem?
+    private var measurementGeneration = 0
     private var copyModifiers = HeldMatrixCopyModifiers()
     private var outsideMonitor: Any?
     private var localOutsideMonitor: Any?
     private var observers: [NSObjectProtocol] = []
 
-    init(model: SidebyAppModel) {
+    init(model: SidebyAppModel, preferences: any ProductUIPreferences = UserDefaultsProductUIPreferences(defaults: .standard)) {
         self.model = model
+        self.preferences = preferences
         let workspace = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.willSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
             observers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
@@ -50,6 +57,7 @@ import SwiftUI
 
     isolated deinit {
         source?.stop()
+        pendingMeasurement?.cancel()
         panel?.orderOut(nil)
         if let outsideMonitor { NSEvent.removeMonitor(outsideMonitor) }
         if let localOutsideMonitor { NSEvent.removeMonitor(localOutsideMonitor) }
@@ -114,7 +122,7 @@ import SwiftUI
         if let localOutsideMonitor { NSEvent.removeMonitor(localOutsideMonitor); self.localOutsideMonitor = nil }
     }
 
-    func showPersistent(anchor: NSRect? = nil, presentation: HeldSwitcherPresentation = .wheel) {
+    func showPersistent(anchor: NSRect? = nil, presentation: HeldSwitcherPresentation? = nil) {
         guard let model, model.workspaceSaveDraft == nil else { return }
         persistent = true
         model.refreshWorkspaceStatus()
@@ -127,8 +135,8 @@ import SwiftUI
         guard let panel, panel.isVisible else { return }
         persistent = true
         panel.acceptsKeyboard = true
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
+        if !NSApp.isActive { NSApp.activate(ignoringOtherApps: true) }
+        if !panel.isKeyWindow { panel.makeKeyAndOrderFront(nil) }
         if outsideMonitor == nil {
             outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .flagsChanged]) { [weak self] event in
                 MainActor.assumeIsolated {
@@ -172,12 +180,19 @@ import SwiftUI
         // original recipient. Every action also validates the press generation.
     }
 
-    private func show(model: SidebyAppModel, generation: Int, anchor: NSRect? = nil, presentation: HeldSwitcherPresentation = .wheel) {
+    private func show(model: SidebyAppModel, generation: Int, anchor: NSRect? = nil, presentation: HeldSwitcherPresentation? = nil) {
         let pointer = anchor.map { NSPoint(x: $0.midX, y: $0.maxY - 62) } ?? NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else { dismiss(); return }
         let snapshot = HeldWorkspaceSnapshot(model: model, previousColumnID: previousColumnID)
         wheelGeometry = .init(displayCount: snapshot.displayIDs.count)
-        self.presentation = presentation == .wheel && !HeldWorkspaceWheelLayout.fits(in: screen.visibleFrame, geometry: wheelGeometry) ? .table : presentation
+        let requested = presentation ?? preferences.quickSwitcherView.presentation
+        let wheelAvailable = HeldWorkspaceWheelLayout.fits(in: screen.visibleFrame, geometry: wheelGeometry, toolbarHeight: HeldSwitcherViewControl.height)
+        self.presentation = requested == .wheel && !wheelAvailable ? .table : requested
+        toolbarAnchor = nil
+        if placement.toolbarOffsetX != 0 { placement.toolbarOffsetX = 0 }
+        measuredSizes.removeAll()
+        measurementGeneration += 1
+        pendingMeasurement?.cancel(); pendingMeasurement = nil
         openingPointer = pointer
         copyModifiers = HeldMatrixCopyModifiers(ignoresOpeningOption: source?.chordIsDown == true && NSEvent.modifierFlags.contains(.option))
         let size = panelSize(model: model, screen: screen, editing: false)
@@ -213,13 +228,22 @@ import SwiftUI
                 guard let self, let panel, self.panel === panel, self.panelIsEditing == editing, self.presentation != .wheel,
                       size.height > 0, abs(size.width - panel.frame.width) < 1 else { return }
                 self.measuredContentSize = size
-                // Avoid changing the window frame during a SwiftUI layout pass.
-                DispatchQueue.main.async { [weak self, weak panel] in
-                    guard let self, let panel, self.panel === panel, panel.isVisible else { return }
+                self.measuredSizes[self.presentation] = size
+                // One latest measurement per run-loop pass; a callback from a
+                // previous presentation must not resize the current one.
+                self.pendingMeasurement?.cancel()
+                let generation = self.measurementGeneration
+                let work = DispatchWorkItem { [weak self, weak panel] in
+                    guard let self, let panel, self.panel === panel, panel.isVisible,
+                          self.measurementGeneration == generation else { return }
+                    self.pendingMeasurement = nil
                     self.resizeToMeasuredContent()
                 }
+                self.pendingMeasurement = work
+                DispatchQueue.main.async(execute: work)
             }, usesRadial: self.presentation == .wheel,
-            wheelDiameter: HeldWorkspaceWheelLayout.size(in: screen.visibleFrame, geometry: wheelGeometry).width - 32,
+            wheelDiameter: HeldWorkspaceWheelLayout.size(in: screen.visibleFrame, geometry: wheelGeometry, toolbarHeight: HeldSwitcherViewControl.height).width - 32,
+            wheelAvailable: wheelAvailable, placement: placement,
             presentationChanged: { [weak self] in self?.changePresentation($0) })
         panel.contentView = HeldMatrixHostingView(rootView: view)
         panel.setContentSize(size)
@@ -228,53 +252,84 @@ import SwiftUI
                                      contentHeight: measuredContentSize?.height)
         panel.setContentSize(measuredSize)
         panel.setFrameOrigin(panelOrigin(size: measuredSize, screen: screen))
+        // Reserve enough vertical room for either view before the first reveal.
+        // A taller editor scrolls below this anchor instead of moving the toggle.
+        let circleHeight = wheelAvailable ? HeldWorkspaceWheelLayout.size(in: screen.visibleFrame,
+            geometry: wheelGeometry, toolbarHeight: HeldSwitcherViewControl.height).height : 0
+        toolbarAnchor = NSPoint(x: panel.frame.midX,
+            y: max(panel.frame.maxY, screen.visibleFrame.minY + 16 + circleHeight))
+        panel.setFrameOrigin(panelOrigin(size: measuredSize, screen: screen))
+        updateToolbarPosition()
         screenID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
         if self.presentation == .wheel { panel.makeKeyAndOrderFront(nil) }
         else { panel.orderFrontRegardless() }
     }
 
     private func panelOrigin(size: NSSize, screen: NSScreen) -> NSPoint {
+        if let toolbarAnchor {
+            return HeldSwitcherPanelAnchor.origin(size: size, topCenter: toolbarAnchor, visibleFrame: screen.visibleFrame)
+        }
         if presentation == .wheel {
-            return HeldWorkspaceWheelLayout.origin(size: size, pointer: openingPointer, visibleFrame: screen.visibleFrame)
+            return HeldWorkspaceWheelLayout.origin(size: size, pointer: openingPointer, visibleFrame: screen.visibleFrame, toolbarHeight: HeldSwitcherViewControl.height)
         }
         return HeldMatrixPanelLayout.origin(size: size, pointer: openingPointer, visibleFrame: screen.visibleFrame)
     }
 
     private func changePresentation(_ presentation: HeldSwitcherPresentation) {
+        guard self.presentation != presentation else { return }
+        measurementGeneration += 1
+        pendingMeasurement?.cancel(); pendingMeasurement = nil
         self.presentation = presentation
+        if presentation == .wheel, preferences.quickSwitcherView != .wheel { preferences.quickSwitcherView = .wheel }
+        if presentation == .table, preferences.quickSwitcherView != .table { preferences.quickSwitcherView = .table }
         panel?.hasShadow = presentation != .wheel
         resizeForEditing(presentation == .editor)
     }
 
     private func panelSize(model: SidebyAppModel, screen: NSScreen, editing: Bool, contentHeight: CGFloat? = nil) -> NSSize {
-        if presentation == .wheel { return HeldWorkspaceWheelLayout.size(in: screen.visibleFrame, geometry: wheelGeometry) }
-        let snapshot = HeldWorkspaceSnapshot(model: model)
+        if presentation == .wheel { return HeldWorkspaceWheelLayout.size(in: screen.visibleFrame, geometry: wheelGeometry, toolbarHeight: HeldSwitcherViewControl.height) }
+        let displayCount = Set(model.displayLayout.displays.map(\.id)).intersection(model.selectedDisplayIDs).count
         let hasStatus = !model.isEnabled || !model.hasSwitchingAccess || model.workspaceRecoveryTargetID != nil
             || model.settingsStore.hasUnreadableSettings
-        return HeldMatrixPanelLayout.size(columns: snapshot.columns.count, displays: snapshot.displayIDs.count,
-            visibleFrame: screen.visibleFrame, accessoryHeight: hasStatus ? 42 : 0, editing: editing,
+        var size = HeldMatrixPanelLayout.size(columns: model.settings.contextPlan.contexts.count, displays: displayCount,
+            visibleFrame: screen.visibleFrame, accessoryHeight: (hasStatus ? 42 : 0) + (editing ? 0 : HeldSwitcherViewControl.height), editing: editing,
             contentHeight: contentHeight)
+        if let toolbarAnchor { size.height = min(size.height, max(1, toolbarAnchor.y - screen.visibleFrame.minY - 16)) }
+        return size
+    }
+
+    private func updateToolbarPosition() {
+        guard let toolbarAnchor, let panel else { return }
+        let offset = toolbarAnchor.x - panel.frame.midX
+        if abs(placement.toolbarOffsetX - offset) >= 0.5 { placement.toolbarOffsetX = offset }
     }
 
     private func resizeForEditing(_ editing: Bool) {
         guard let model, let panel, let screen = panel.screen ?? NSScreen.main else { return }
         panelIsEditing = editing
         measuredContentSize = nil
-        // Change width first so text is measured at its final wrapping width.
-        let size = panelSize(model: model, screen: screen, editing: editing, contentHeight: panel.frame.height)
-        panel.setFrame(NSRect(origin: panelOrigin(size: size, screen: screen),
-                             size: size), display: true)
+        // Returning to a measured view applies width and height together. A new
+        // width uses an estimate until its first actual content measurement.
+        var size = panelSize(model: model, screen: screen, editing: editing)
+        if presentation != .wheel, let measured = measuredSizes[presentation], abs(measured.width - size.width) < 1 {
+            size = panelSize(model: model, screen: screen, editing: editing, contentHeight: measured.height)
+        }
+        let frame = NSRect(origin: panelOrigin(size: size, screen: screen), size: size)
+        if panel.frame != frame { panel.setFrame(frame, display: true) }
+        updateToolbarPosition()
     }
 
     private func resizeToMeasuredContent() {
         guard presentation != .wheel, let panel, let measuredContentSize, let screen = panel.screen ?? NSScreen.main,
               abs(measuredContentSize.width - panel.frame.width) < 1 else { return }
-        let height = min(ceil(measuredContentSize.height), max(1, screen.visibleFrame.height - 48))
+        let availableHeight = min(screen.visibleFrame.height - 48,
+            toolbarAnchor.map { $0.y - screen.visibleFrame.minY - 16 } ?? screen.visibleFrame.height)
+        let height = min(ceil(measuredContentSize.height), max(1, availableHeight))
         guard abs(panel.frame.height - height) >= 1 else { return }
         let size = NSSize(width: panel.frame.width, height: height)
-        let top = NSPoint(x: panel.frame.midX, y: panel.frame.maxY - 62)
-        panel.setFrame(NSRect(origin: HeldMatrixPanelLayout.origin(size: size, pointer: top, visibleFrame: screen.visibleFrame),
+        panel.setFrame(NSRect(origin: panelOrigin(size: size, screen: screen),
                               size: size), display: true)
+        updateToolbarPosition()
     }
 
     private func activate(_ column: HeldWorkspaceColumn, generation: Int) {

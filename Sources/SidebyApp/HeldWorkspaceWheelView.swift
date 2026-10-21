@@ -2,6 +2,7 @@ import AppKit
 import SidebyCore
 import SidebyUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ConnectionSector: Shape {
     let index: Int
@@ -27,17 +28,39 @@ struct ConnectionSector: Shape {
     }
 }
 
-/// A quick destination chooser. Detailed drag/link editing stays in the shared table.
+/// A quick destination chooser with connection reordering. Space assignments use the shared table.
 struct HeldWorkspaceWheelView: View {
     @ObservedObject var model: SidebyAppModel
     let select: (HeldWorkspaceColumn) -> Void
     var keepOpen: () -> Void = {}
     var close: () -> Void = {}
     var edit: () -> Void = {}
-    var showTable: () -> Void = {}
     var persistent = false
     var diameter: CGFloat?
     var displayCount: Int?
+    var snapshot: HeldWorkspaceSnapshot?
+    var animateEntrance = true
+    var isActive = true
+    var body: some View {
+        HeldWorkspaceWheelContent(model: model, select: select, keepOpen: keepOpen, close: close,
+            edit: edit, persistent: persistent, diameter: diameter, displayCount: displayCount,
+            live: snapshot ?? HeldWorkspaceSnapshot(model: model), animateEntrance: animateEntrance, isActive: isActive)
+            .task { if snapshot == nil { await model.refreshVisibleConnections() } }
+    }
+}
+
+private struct HeldWorkspaceWheelContent: View {
+    @ObservedObject var model: SidebyAppModel
+    let select: (HeldWorkspaceColumn) -> Void
+    var keepOpen: () -> Void = {}
+    var close: () -> Void = {}
+    var edit: () -> Void = {}
+    var persistent = false
+    var diameter: CGFloat?
+    var displayCount: Int?
+    let live: HeldWorkspaceSnapshot
+    var animateEntrance = true
+    var isActive = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
     @State private var pinned = false
@@ -53,10 +76,13 @@ struct HeldWorkspaceWheelView: View {
     @State private var renaming: ContextDefinition?
     @State private var clearing: WorkspaceDeleteAllProposal?
     @State private var showsFeedback = false
+    @State private var dragSession = UUID()
+    @State private var draggedConnection: WorkspaceComposerDrag?
+    @State private var dropIndex: Int?
+    @State private var pageHoverTask: Task<Void, Never>?
     @FocusState private var focused: String?
     @FocusState private var cancelFocused: Bool
     private var copy: HeldMatrixStrings { .init(language: model.settings.language) }
-    private var live: HeldWorkspaceSnapshot { .init(model: model) }
     private var geometry: HeldWorkspaceWheelGeometry {
         .init(displayCount: openingDisplayCount ?? displayCount ?? live.displayIDs.count)
     }
@@ -95,7 +121,8 @@ struct HeldWorkspaceWheelView: View {
                     .shadow(radius: 16, y: 6)
             }
         }
-        .background(WheelEscapeHandler {
+        .background(WheelEscapeHandler(isEnabled: isActive) {
+            if draggedConnection != nil { finishDrag(); return true }
             if clearing != nil { clearing = nil; return true }
             if renaming != nil {
                 if let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.hasMarkedText() { return false }
@@ -104,15 +131,16 @@ struct HeldWorkspaceWheelView: View {
             return false
         })
         .foregroundStyle(NativeSurfaceStyle.primaryText).tint(NativeSurfaceStyle.accent)
-        .scaleEffect(appeared || reduceMotion ? 1 : 0.86)
-        .opacity(appeared ? 1 : 0)
+        .scaleEffect(appeared || reduceMotion || !animateEntrance ? 1 : 0.86)
+        .opacity(appeared || !animateEntrance ? 1 : 0)
         .onAppear {
-            model.refreshWorkspaceStatus(); model.refreshCurrentDesktopContents()
             if openingDisplayCount == nil { openingDisplayCount = displayCount ?? live.displayIDs.count }
             if let id = model.verifiedCurrentWorkspaceID, let index = live.columns.firstIndex(where: { $0.id == id }) {
                 page = index / HeldWorkspaceWheelLayout.pageSize
             }
-            withAnimation(reduceMotion ? .linear(duration: 0.1) : .spring(response: 0.4, dampingFraction: 0.8)) { appeared = true }
+            if animateEntrance {
+                withAnimation(reduceMotion ? .linear(duration: 0.1) : .spring(response: 0.4, dampingFraction: 0.8)) { appeared = true }
+            } else { appeared = true }
         }
         .onChange(of: clearing != nil) { _, presented in cancelFocused = presented }
         .onChange(of: focused) { _, value in
@@ -128,6 +156,8 @@ struct HeldWorkspaceWheelView: View {
         }
         .onChange(of: live.columns.map(\.id)) { _, ids in
             page = min(page, HeldWorkspaceWheelLayout.pageCount(ids.count) - 1)
+            dropIndex = nil
+            if let source = draggedConnection?.contextID, !ids.contains(source) { finishDrag() }
             if let renaming, !ids.contains(renaming.id) { self.renaming = nil }
             if let activeID, !ids.contains(activeID) { interactionTarget = nil }
         }
@@ -138,6 +168,14 @@ struct HeldWorkspaceWheelView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("held-workspace-wheel")
+        .onDisappear { pageHoverTask?.cancel() }
+        .onChange(of: isActive) { _, active in
+            if active {
+                if let id = model.verifiedCurrentWorkspaceID, let index = live.columns.firstIndex(where: { $0.id == id }) {
+                    page = index / HeldWorkspaceWheelLayout.pageSize
+                }
+            } else { renaming = nil; clearing = nil; focused = nil; finishDrag() }
+        }
     }
 
     private var content: some View {
@@ -150,7 +188,8 @@ struct HeldWorkspaceWheelView: View {
     }
 
     private var ring: some View {
-        ZStack {
+        let columns = columns
+        return ZStack {
             if columns.isEmpty {
                 emptyRing
             }
@@ -159,7 +198,7 @@ struct HeldWorkspaceWheelView: View {
             }
             Button {
                 pin()
-                if let id = model.addCurrentConnection(), let index = live.columns.firstIndex(where: { $0.id == id }) {
+                if let id = model.addCurrentConnection(), let index = model.settings.contextPlan.contexts.sorted(by: { $0.order < $1.order }).firstIndex(where: { $0.id == id }) {
                     page = index / HeldWorkspaceWheelLayout.pageSize
                 }
                 showsFeedback = true
@@ -201,13 +240,33 @@ struct HeldWorkspaceWheelView: View {
             .help(model.connectionCopy.addCurrentHint).accessibilityIdentifier("held-add-current-connection")
         }
         .overlay {
-            WheelCursorRegion(count: columns.count, geometry: geometry,
+            WheelInteractionSurface(count: columns.count, geometry: geometry,
                 enabled: Set(columns.enumerated().compactMap { index, column in
                     canChoose(column) ? index : nil
                 }), centerEnabled: model.canChangeSavedWorkspaces,
+                toolsIndex: columns.firstIndex { $0.id == activeID },
+                canReorder: model.canChangeSavedWorkspaces && live.columns.count > 1,
+                activeDrag: draggedConnection, session: dragSession,
+                columnIDs: columns.map(\.id), orderedIDs: live.columns.map(\.id), names: columns.map(\.name),
                 hovered: { index, isCenter in
-                    interactionTarget = isCenter ? .center
+                    let target: InteractionTarget? = isCenter ? .center
                         : index.flatMap { columns.indices.contains($0) ? .connection(columns[$0].id) : nil }
+                    if interactionTarget != target { interactionTarget = target }
+                }, click: { index in
+                    guard columns.indices.contains(index) else { return }
+                    choose(columns[index])
+                }, beginDrag: { index in
+                    guard columns.indices.contains(index), model.canChangeSavedWorkspaces else { return nil }
+                    pin(); focused = nil; interactionTarget = nil; showsFeedback = false
+                    let payload = WorkspaceComposerDrag(session: dragSession, contextID: columns[index].id)
+                    draggedConnection = payload
+                    return payload
+                }, endDrag: finishDrag,
+                dropHovered: { dropIndex = $0 },
+                receive: { source, target, after in
+                    let changed = model.reorderSavedWorkspace(source, relativeTo: target, after: after)
+                    showsFeedback = true
+                    return changed
                 })
         }
 
@@ -316,11 +375,7 @@ struct HeldWorkspaceWheelView: View {
             .position(x: labelFrame.midX, y: labelFrame.midY)
             .allowsHitTesting(false)
         let surface = sectorSurface(shape, active: active).overlay(label).contentShape(shape)
-        let button = Button {
-            if current { close() }
-            else if missing { pin(); edit() }
-            else { select(column) }
-        } label: { surface }
+        let button = Button { choose(column) } label: { surface }
         let accessibilityName = column.name + " · " + connectionSummary(column)
         return ZStack {
             button.buttonStyle(.plain).focusEffectDisabled().disabled(!enabled)
@@ -328,6 +383,11 @@ struct HeldWorkspaceWheelView: View {
                 .help(column.name + "\n" + connectionSummary(column))
                 .accessibilityLabel(accessibilityName)
                 .accessibilityIdentifier("wheel-go-" + column.id)
+                .opacity(draggedConnection?.contextID == column.id ? 0.45 : 1)
+            if dropIndex == index {
+                shape.stroke(NativeSurfaceStyle.accent, style: StrokeStyle(lineWidth: 5, dash: [5, 3]))
+                    .clipShape(shape).allowsHitTesting(false)
+            }
             HStack(spacing: 6) {
                 tool("pencil", label: model.connectionCopy.rename, id: "rename-" + column.id) {
                     pin(); focused = nil; cancelFocused = false
@@ -339,7 +399,7 @@ struct HeldWorkspaceWheelView: View {
                     interactionTarget = nil; showsFeedback = true
                 }
             }.position(x: position.x, y: position.y + HeldWorkspaceWheelLayout.toolsOffset(count: columns.count))
-                .opacity(active ? 1 : 0).allowsHitTesting(active)
+                .opacity(active && draggedConnection == nil ? 1 : 0).allowsHitTesting(active && draggedConnection == nil)
                 // Keep tools in the keyboard/VoiceOver order even when visually hidden.
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: active)
@@ -428,16 +488,23 @@ struct HeldWorkspaceWheelView: View {
                 HStack {
                     Button { changePage(-1) } label: { Image(systemName: "chevron.left").frame(width: 30, height: 22) }
                         .disabled(page == 0).accessibilityLabel(copy.previous).accessibilityIdentifier("wheel-previous-page")
+                        .onDrop(of: [UTType.plainText], delegate: pageDrop(-1))
                     Text(text("\(live.columns.count) connections", "연결 \(live.columns.count)개") + " · \(page + 1)/\(HeldWorkspaceWheelLayout.pageCount(live.columns.count))")
                     Button { changePage(1) } label: { Image(systemName: "chevron.right").frame(width: 30, height: 22) }
                         .disabled(page == HeldWorkspaceWheelLayout.pageCount(live.columns.count) - 1)
                         .accessibilityLabel(copy.next).accessibilityIdentifier("wheel-next-page")
+                        .onDrop(of: [UTType.plainText], delegate: pageDrop(1))
                 }.buttonStyle(.plain).pointingHandCursor().font(.system(size: 11))
                     .padding(.horizontal, 9).background(NativeSurfaceStyle.windowBackground, in: Capsule())
             }
             HStack(spacing: 8) {
               Group {
-                if showsFeedback, let message = model.workspaceSaveMessage {
+                if draggedConnection != nil {
+                    Text(dropIndex.flatMap { columns.indices.contains($0) ? columns[$0] : nil }
+                        .map { text("Move to \($0.name)’s position", "\($0.name) 위치로 순서 변경") }
+                        ?? text("Drag onto another sector · Esc to cancel", "다른 칸에 놓아 순서 변경 · Esc로 취소"))
+                        .foregroundStyle(NativeSurfaceStyle.primaryText)
+                } else if showsFeedback, let message = model.workspaceSaveMessage {
                     Text(message).foregroundStyle(model.workspaceSaveFeedbackKind == .failure ? Color.orange : NativeSurfaceStyle.secondaryText)
                         .accessibilityIdentifier("held-add-feedback")
                 } else if let status {
@@ -446,6 +513,9 @@ struct HeldWorkspaceWheelView: View {
                     Text(connectionSummary(column)).help(connectionSummary(column))
                         .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("wheel-connection-summary")
+                } else {
+                    Text(text("Click to switch · Drag sectors to reorder", "클릭으로 이동 · 칸을 드래그해 순서 변경"))
+                        .foregroundStyle(NativeSurfaceStyle.secondaryText)
                 }
               }.font(.system(size: 11)).lineLimit(2)
                 .padding(.horizontal, 10).padding(.vertical, 5)
@@ -465,11 +535,6 @@ struct HeldWorkspaceWheelView: View {
                         .padding(.horizontal, 8).frame(height: 28)
                         .background(NativeSurfaceStyle.windowBackground, in: Capsule())
                 }.disabled(model.isSwitching).accessibilityIdentifier("held-edit-connections")
-                Button { pin(); showTable() } label: {
-                    Label(text("Table", "표로 보기"), systemImage: "rectangle.split.3x3")
-                        .padding(.horizontal, 8).frame(height: 28)
-                        .background(NativeSurfaceStyle.windowBackground, in: Capsule())
-                }.accessibilityIdentifier("wheel-show-table")
                 Button {
                     pin(); focused = nil
                     clearing = model.prepareDeleteAllSavedWorkspaces()
@@ -499,6 +564,32 @@ struct HeldWorkspaceWheelView: View {
         if live.displayIDs.isEmpty { return copy.noDisplays }
         if model.workspaceRecoveryTargetID != nil { return copy.failed }
         return nil
+    }
+
+    private func choose(_ column: HeldWorkspaceColumn) {
+        guard draggedConnection == nil, canChoose(column) else { return }
+        if model.verifiedCurrentWorkspaceID == column.id { close() }
+        else if needsSpaceSelection(column) { pin(); edit() }
+        else { select(column) }
+    }
+
+    private func finishDrag() {
+        pageHoverTask?.cancel(); pageHoverTask = nil
+        draggedConnection = nil; dropIndex = nil; interactionTarget = nil
+    }
+
+    private func pageDrop(_ offset: Int) -> WheelPageDropDelegate {
+        WheelPageDropDelegate(enabled: draggedConnection?.session == dragSession && model.canChangeSavedWorkspaces
+            && (offset < 0 ? page > 0 : page < HeldWorkspaceWheelLayout.pageCount(live.columns.count) - 1),
+            entered: {
+                pageHoverTask?.cancel()
+                let id = draggedConnection?.id
+                pageHoverTask = Task { @MainActor in
+                    do { try await Task.sleep(for: .milliseconds(600)) } catch { return }
+                    guard draggedConnection?.id == id, id != nil else { return }
+                    dropIndex = nil; changePage(offset)
+                }
+            }, exited: { pageHoverTask?.cancel(); pageHoverTask = nil })
     }
 
     private func pin() { pinned = true; keepOpen() }
@@ -536,75 +627,42 @@ struct HeldWorkspaceWheelView: View {
     }
 }
 
-/// Curved destinations must not install rectangular hand-cursor regions over
-/// the entire ring. Use the same geometry for hover cursors and sector hit tests.
-private struct WheelCursorRegion: NSViewRepresentable {
-    let count: Int
-    let geometry: HeldWorkspaceWheelGeometry
-    let enabled: Set<Int>
-    let centerEnabled: Bool
-    let hovered: (Int?, Bool) -> Void
-    func makeNSView(context: Context) -> CursorView { CursorView() }
-    func updateNSView(_ view: CursorView, context: Context) {
-        view.count = count; view.enabled = enabled; view.centerEnabled = centerEnabled; view.hovered = hovered
-        view.geometry = geometry
-    }
-    final class CursorView: NSView {
-        var count = 0
-        var geometry = HeldWorkspaceWheelGeometry()
-        var enabled: Set<Int> = []
-        var centerEnabled = false
-        var hovered: ((Int?, Bool) -> Void)?
-        override var isFlipped: Bool { true }
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-        override func updateTrackingAreas() {
-            super.updateTrackingAreas()
-            trackingAreas.forEach(removeTrackingArea)
-            addTrackingArea(NSTrackingArea(rect: .zero, options: [.activeAlways, .inVisibleRect, .mouseMoved, .mouseEnteredAndExited], owner: self))
-            addTrackingArea(NSTrackingArea(rect: .zero, options: [.activeInKeyWindow, .inVisibleRect, .cursorUpdate], owner: self))
-            window?.acceptsMouseMovedEvents = true
-        }
-        override func mouseMoved(with event: NSEvent) { updateCursor(event) }
-        override func mouseEntered(with event: NSEvent) { updateCursor(event) }
-        override func cursorUpdate(with event: NSEvent) { updateCursor(event) }
-        override func mouseExited(with event: NSEvent) {
-            hovered?(nil, false)
-            if window?.isVisible == true { NSCursor.arrow.set() }
-        }
-        private func updateCursor(_ event: NSEvent) {
-            let raw = convert(event.locationInWindow, from: nil)
-            let point = CGPoint(x: raw.x * geometry.diameter / max(1, bounds.width), y: raw.y * geometry.diameter / max(1, bounds.height))
-            let isCenter = hypot(point.x - geometry.midpoint, point.y - geometry.midpoint) <= geometry.centerRadius
-            let index = HeldWorkspaceWheelLayout.sector(at: point, count: count, geometry: geometry)
-            hovered?(index, isCenter)
-            // Hidden/offscreen views can be rendered and exercised without
-            // taking over the user's system cursor.
-            guard window?.isVisible == true else { return }
-            let actionable = (isCenter && centerEnabled) || index.map { enabled.contains($0) } == true
-            (actionable ? NSCursor.pointingHand : NSCursor.arrow).set()
-        }
-    }
-}
-
 /// NSPanel handles cancelOperation before the SwiftUI root when a button owns
 /// keyboard focus. Give an open dialog first refusal, then close the panel.
 private struct WheelEscapeHandler: NSViewRepresentable {
+    var isEnabled = true
     let cancel: () -> Bool
     func makeNSView(context: Context) -> HandlerView { HandlerView() }
-    func updateNSView(_ view: HandlerView, context: Context) { view.cancel = cancel; view.install() }
+    func updateNSView(_ view: HandlerView, context: Context) { view.cancel = cancel; view.isEnabled = isEnabled; view.install() }
     static func dismantleNSView(_ view: HandlerView, coordinator: ()) {
         if let panel = view.window as? HeldMatrixPanel, panel.cancelContentOwner === view {
             panel.cancelContent = nil; panel.cancelContentOwner = nil
         }
     }
     final class HandlerView: NSView {
+        var isEnabled = true
         var cancel: (() -> Bool)?
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
         override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); install() }
         func install() {
             guard let panel = window as? HeldMatrixPanel else { return }
+            guard isEnabled else {
+                if panel.cancelContentOwner === self { panel.cancelContent = nil; panel.cancelContentOwner = nil }
+                return
+            }
             panel.cancelContentOwner = self
             panel.cancelContent = { [weak self] in self?.cancel?() ?? false }
         }
     }
+}
+
+private struct WheelPageDropDelegate: DropDelegate {
+    let enabled: Bool
+    let entered: () -> Void
+    let exited: () -> Void
+    func validateDrop(info: DropInfo) -> Bool { enabled && info.hasItemsConforming(to: [UTType.plainText]) }
+    func dropEntered(info: DropInfo) { if validateDrop(info: info) { entered() } }
+    func dropExited(info: DropInfo) { exited() }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: enabled ? .move : .forbidden) }
+    func performDrop(info: DropInfo) -> Bool { exited(); return false }
 }

@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+/// Every visible string/decoration used by a card. Action closures are always
+/// replaced, even when an unchanged card can retain its native hosting content.
+struct WorkspaceDesktopCardContentKey: Equatable {
+    var text: [String]
+    var flags: [Bool] = []
+}
+
 /// Keep click-to-select and drag-to-connect on the same card without relying on
 /// a SwiftUI Button's competing click and drag recognizers.
 struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
@@ -11,6 +18,7 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
     var accessibilityState: String? = nil
     var allowsMove = false
     var usesPointingHand = false
+    var contentKey: WorkspaceDesktopCardContentKey?
     let click: () -> Void
     let beginDrag: () -> String
     let endDrag: () -> Void
@@ -18,15 +26,19 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
 
     func makeNSView(context: Context) -> CardButton {
         let view = CardButton()
-        update(view)
+        update(view, isEnabled: enabled && context.environment.isEnabled)
         return view
     }
 
-    func updateNSView(_ view: CardButton, context: Context) { update(view) }
+    func updateNSView(_ view: CardButton, context: Context) { update(view, isEnabled: enabled && context.environment.isEnabled) }
 
-    private func update(_ view: CardButton) {
-        view.host.rootView = AnyView(content())
-        view.isEnabled = enabled
+    private func update(_ view: CardButton, isEnabled: Bool) {
+        if contentKey == nil || view.contentKey != contentKey {
+            view.host.rootView = content()
+            view.contentKey = contentKey
+        }
+        let cursorChanged = view.isEnabled != isEnabled || view.isDraggable != isDraggable || view.usesPointingHand != usesPointingHand
+        if view.isEnabled != isEnabled { view.isEnabled = isEnabled }
         view.allowsMove = allowsMove
         view.isDraggable = isDraggable
         view.usesPointingHand = usesPointingHand
@@ -36,11 +48,12 @@ struct WorkspaceDesktopDragSource<Content: View>: NSViewRepresentable {
         view.click = click
         view.beginDrag = beginDrag
         view.endDrag = endDrag
-        view.window?.invalidateCursorRects(for: view)
+        if cursorChanged { view.window?.invalidateCursorRects(for: view) }
     }
 
     final class CardButton: NSButton, NSDraggingSource {
-        let host = NSHostingView(rootView: AnyView(EmptyView()))
+        let host = NSHostingView(rootView: Optional<Content>.none)
+        var contentKey: WorkspaceDesktopCardContentKey?
         var click: (() -> Void)?
         var beginDrag: (() -> String)?
         var endDrag: (() -> Void)?

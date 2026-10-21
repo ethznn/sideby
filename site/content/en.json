@@ -43,9 +43,9 @@
   ],
   "matrix_label": "Quick daily adjustments",
   "matrix_title": "Your next connection, beside your pointer.",
-  "matrix_text": "Hold ⌥⇧Space to open the circular menu. Hover over a connection to preview its Spaces in the center, then click the sector to switch. Hover over the center for Add current setup. With three or more displays, the preview grows to show each display while keeping the menu size stable as you hover. Pencil and trash buttons appear on hover; Undo can restore even the last connection. Edit connections opens the drag editor. Releasing the opening shortcut alone simply closes the menu.",
+  "matrix_text": "Hold ⌥⇧Space to open the quick switcher near your pointer. The Circle/Table control stays in place and remembers your choice. In Circle, hover over a connection to preview its Spaces in the center, then click to switch. Hover over the center for Add current setup. Drag a connection to reorder it without switching Spaces; Undo restores its order. Edit connections hides the view control until you return to switching.",
   "matrix_alt": "Sideby 1.1.0 circular shortcut menu with transparent gaps, a center save action, hover controls, and Undo.",
-  "matrix_note": "Screenshot from Sideby 1.1.0 with fictional data. Version 1.1.1 adds the center hover previews described above.",
+  "matrix_note": "Screenshot from Sideby 1.1.0 with fictional data. The current app also includes center hover previews, a Circle/Table control, and circular-menu reordering.",
   "small_features": [
     [
       "One display works, too.",
@@ -90,7 +90,7 @@
   "end_title": "Keep changes simple.",
   "end_text": "See what is open. Adjust only the connections you need.",
   "docs": "Read the full guide",
-  "release": "What’s new in 1.1.1",
+  "release": "What’s new in 1.1.2",
   "privacy": "Privacy & permissions",
   "footer": "Made for the way you already work.",
   "nav_editor": "Connections",
