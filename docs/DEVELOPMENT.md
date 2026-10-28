@@ -29,7 +29,7 @@ Visible native workspace checks are also opt-in and use isolated workspace data.
 Although they do not change real Spaces or saved workspaces, they **activate
 windows and can move the real pointer**. Do not run them while the user is using
 the Mac; use a separately agreed test session or a dedicated test Mac. Wheel
-tests require the additional `SIDEBY_INTERACTIVE_UI_TESTS=1` flag for this mode:
+and quick-matrix tests require the additional `SIDEBY_INTERACTIVE_UI_TESTS=1` flag for this mode:
 
 ```bash
 SIDEBY_NATIVE_EVIDENCE=1 SIDEBY_INTERACTIVE_UI_TESTS=1 \
@@ -47,6 +47,53 @@ These checks do not replace manual verification of the global shortcut's
 press/release behavior, actual desktop transitions, physical display reconnection,
 or keyboard focus and Return/Escape in the installed app's confirmation sheet.
 
+### Connection guidance and repair presentation
+
+For ordinary/model tests, unset all three interactive flags. Other native suites
+still use `SIDEBY_NATIVE_EVIDENCE` alone; unsetting only the second flag is not
+enough to guarantee a noninteractive run.
+
+```bash
+env -u SIDEBY_NATIVE_EVIDENCE -u SIDEBY_INTERACTIVE_UI_TESTS -u SIDEBY_NATIVE_WINDOW_FOCUS \
+  swift test --filter 'ConnectionGuidancePresentationTests|HeldWorkspaceRecoveryPresentationTests|ConnectionEditorRevealRequestTests|HeldSwitcherInteractionTests'
+```
+
+The recovery tests check cached-state rendering, mixed failures, configured
+offline displays versus excluded displays, fresh retry validation, and stale
+repair requests. Refresh and editor entry may run existing identity-based index
+reconciliation; they must not invent assignments or activate Spaces.
+
+The dedicated onboarding renderer uses hidden production views and sample data.
+It requires an explicit private output path and its own flag (the wheel's
+offscreen flag does not enable it):
+
+```bash
+env -u SIDEBY_NATIVE_EVIDENCE -u SIDEBY_INTERACTIVE_UI_TESTS -u SIDEBY_NATIVE_WINDOW_FOCUS \
+  SIDEBY_RENDER_GUIDANCE=1 SIDEBY_MEDIA_OUTPUT=/tmp/sideby-guidance-review.noindex \
+  swift test --filter ReadmeMediaRenderingTests/testRenderConnectionGuidanceReview
+```
+
+With the same environment, run
+`ReadmeMediaRenderingTests/testMountedPairingGuidanceUpdatesWhenSavedConnectionCountChanges`
+to verify one → two → one saved connections in a single mounted view. It retains
+the same native cell and checks rendered text, exercising native content-cache
+invalidation that separate scenario snapshots cannot cover.
+
+For the circle-to-editor repair route and minimum-size recovery footer, use
+`SIDEBY_OFFSCREEN_EVIDENCE=1` with
+`HeldWorkspaceWheelNativeTests/testMissingSpaceOpensTargetedRepairBarWithoutSwitchingOffscreen`
+and `HeldWorkspaceWheelNativeTests/testRecoveryNamesOriginalTargetAndKeepsGenericEditingOffscreen`.
+These tests press controls on hidden fixture objects only; they do not open the
+Space picker or send system input. Installed-app keyboard traversal, popover
+placement and physical recovery still need a separate interactive session.
+
+The same offscreen flag also enables the wheel's 440/360/320pt typography
+renders, zero/one/two-connection guidance checks, and the quick table's explicit
+action-label regression. The latter presses fixture controls and verifies that
+both the text action and a Space cell still delegate the whole connection.
+These checks are in `HeldWorkspaceWheelNativeTests`; keep the interactive flags
+unset when running that suite for hidden evidence.
+
 Before building a local product bundle, read the current published
 [Sparkle feed](https://github.com/ethznn/sideby/releases/latest/download/appcast.xml)
 and set `SIDEBY_BUILD_NUMBER` to its latest `sparkle:version` plus one. If the
@@ -62,6 +109,20 @@ scripts/build_dev_app_bundle.sh
 ```
 
 `build_app_bundle.sh` defaults to a release build. Override with `SIDEBY_BUILD_CONFIGURATION=debug` when you need a faster local product build. `build_dev_app_bundle.sh` defaults to debug.
+
+Use the default release configuration for user-facing responsiveness checks.
+Debug builds are useful for debugging, but their timings do not represent the
+optimized app. The opt-in hidden-view construction probe can compare both:
+
+```bash
+env -u SIDEBY_NATIVE_EVIDENCE -u SIDEBY_INTERACTIVE_UI_TESTS -u SIDEBY_NATIVE_WINDOW_FOCUS \
+  SIDEBY_MEASURE_SWITCHER=1 swift test -c release \
+  --filter SwitcherOptimizationTests/testRepeatedWheelConstructionTimingOffscreen
+```
+
+The probe measures sample-view construction only, not physical shortcut latency
+or compositor frame rate. Shortcut-held wheels intentionally skip the entrance
+spring and dismiss immediately on release; explicit persistent opening may animate.
 The bundle scripts use a local Developer ID or Apple Development signing identity when one is available, and otherwise sign ad-hoc for local testing.
 
 To keep local apps out of Spotlight results, direct build products and bundles to

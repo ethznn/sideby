@@ -40,9 +40,13 @@ struct ProductOnboardingView: View {
                     }
                     if preparing { preparationContent }
                     else {
-                        CurrentConnectionsView(model: model)
+                        CurrentConnectionsView(model: model, showsFirstConnectionGuidance: true)
                         if !model.settings.contextPlan.contexts.isEmpty {
                         VStack(alignment: .leading, spacing: 9) {
+                            if let message = model.connectionGuidance.usageMessage(language: model.settings.language) {
+                                Text(message).fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("guide-connection-usage")
+                            }
                             Label(model.strings.horizontalScrollGesture(model.settings.requiredModifiers), systemImage: "hand.draw")
                             if let shortcut = model.availableWorkspaceChooserShortcut {
                                 Text(copy.text("Hold \(shortcut) and click a column to move your displays together.", "\(shortcut)를 누른 채 열을 눌러 함께 이동하세요."))

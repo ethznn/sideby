@@ -7,6 +7,66 @@ import XCTest
 @testable import SidebyApp
 
 @MainActor final class SwitcherOptimizationTests: XCTestCase {
+    func testRepeatedWheelConstructionTimingOffscreen() async throws {
+        guard ProcessInfo.processInfo.environment["SIDEBY_MEASURE_SWITCHER"] == "1" else {
+            throw XCTSkip("Opt-in local switcher timing probe")
+        }
+        let model = heldMatrixFixture(count: 8, displayCount: 2)
+        model.workspacePreferences = nil
+        var milliseconds: [Double] = []
+        for _ in 0..<12 {
+            let started = ProcessInfo.processInfo.systemUptime
+            let window = hiddenWindow(HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model),
+                select: { _ in XCTFail("Timing must never switch Spaces") }, usesRadial: true,
+                animateEntrance: false, wheelDiameter: 440))
+            milliseconds.append((ProcessInfo.processInfo.systemUptime - started) * 1000)
+            XCTAssertFalse(window.isVisible)
+            window.close()
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let warm = milliseconds.dropFirst().sorted()
+        print("SWITCHER_TIMING fresh_host_ms first=\(milliseconds[0]) median=\(warm[warm.count / 2]) max=\(warm.last!)")
+    }
+
+    func testHeldInputGateDoesNotRedrawProductViews() {
+        let model = heldMatrixFixture(count: 8, displayCount: 2)
+        var changes = 0
+        let subscription = model.objectWillChange.sink { changes += 1 }
+        defer { subscription.cancel() }
+        for _ in 0..<10 {
+            model.setHeldMatrixInputActive(true)
+            XCTAssertTrue(model.heldMatrixInputActive)
+            model.setHeldMatrixInputActive(false)
+            XCTAssertFalse(model.heldMatrixInputActive)
+        }
+        XCTAssertEqual(changes, 0, "A routing-only input gate must not redraw or relayout the switcher")
+    }
+
+    func testShortcutWheelDrawsWithoutWaitingForAnEntranceAnimationOffscreen() throws {
+        try requireOffscreen()
+        let model = heldMatrixFixture(count: 8, displayCount: 2)
+        model.workspacePreferences = nil
+        let window = hiddenWindow(HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model),
+            select: { _ in XCTFail("Rendering must never switch Spaces") }, usesRadial: true,
+            animateEntrance: false, wheelDiameter: 440))
+        defer { window.close() }
+        let host = try XCTUnwrap(window.contentView)
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        // No sleep/yield to finish a spring. The native cursor surface has the
+        // ring's exact transformed frame, so sample the opaque center from it.
+        func surface(_ view: NSView) -> WheelInteractionSurface.CursorView? {
+            if let value = view as? WheelInteractionSurface.CursorView { return value }
+            return view.subviews.lazy.compactMap(surface).first
+        }
+        let input = try XCTUnwrap(surface(host))
+        let center = input.convert(CGPoint(x: input.bounds.midX, y: input.bounds.midY), to: host)
+        let scale = CGFloat(bitmap.pixelsWide) / host.bounds.width
+        let y = host.isFlipped ? center.y : host.bounds.height - center.y
+        XCTAssertGreaterThan(try XCTUnwrap(bitmap.colorAt(x: Int(center.x * scale), y: Int(y * scale))).alphaComponent, 0.9)
+        XCTAssertFalse(window.isVisible)
+    }
+
     func testUnchangedObservationPublishesNothingAndCurrentConnectionNeverTemporarilyClears() {
         let model = heldMatrixFixture(count: 4, displayCount: 2)
         model.refreshWorkspaceStatus()
@@ -100,9 +160,40 @@ import XCTest
         try await waitUntil { self.element("held-workspace-wheel", in: window) != nil }
         XCTAssertFalse(provider.hasReturned, "The switcher responds before another application's titles are available")
         XCTAssertFalse(provider.calledOnMain); XCTAssertEqual(provider.readCount, 1)
-        XCTAssertEqual(changes, [.table, .wheel]); XCTAssertEqual(pins, 2)
+        XCTAssertEqual(changes, [.table, .wheel]); XCTAssertEqual(pins, 0, "View changes must preserve close-on-release")
         XCTAssertEqual(model.settings, before); XCTAssertFalse(model.isSwitching)
         XCTAssertFalse(window.isVisible); XCTAssertFalse(window.isKeyWindow)
+    }
+
+    func testRepeatedViewChangesKeepHeldLifetimeInEitherStartingModeOffscreen() async throws {
+        try requireOffscreen()
+        for startsWithWheel in [true, false] {
+            let model = heldMatrixFixture(count: 3, displayCount: 2)
+            model.workspacePreferences = nil
+            var pins = 0
+            let window = hiddenWindow(HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model),
+                select: { _ in XCTFail("Changing presentation never switches Spaces") }, keepOpen: { pins += 1 },
+                usesRadial: startsWithWheel, animateEntrance: false, wheelDiameter: 440))
+            defer { window.close() }
+            try await waitUntil { self.element("held-view-control", in: window) != nil }
+            for _ in 0..<3 {
+                try press("wheel-show-table", in: window)
+                try await waitUntil { self.element("held-switch-table", in: window) != nil }
+                let footer = try XCTUnwrap(element("held-footer", in: window))
+                let label = (footer.perform(NSSelectorFromString("accessibilityLabel"))?.takeUnretainedValue() as? String)
+                    ?? (footer.perform(NSSelectorFromString("accessibilityValue"))?.takeUnretainedValue() as? String) ?? ""
+                XCTAssertEqual(label, HeldMatrixStrings(language: model.settings.language).releaseHint)
+                try press("held-show-wheel", in: window)
+                try await waitUntil { self.element("held-workspace-wheel", in: window) != nil }
+                XCTAssertEqual(pins, 0, "Neither direction may pin a shortcut-held panel")
+            }
+            // Genuine editing still requests a pinned panel so releasing the
+            // shortcut does not abandon an editor or its confirmation.
+            try press("held-edit-connections", in: window)
+            try await waitUntil { self.element("current-connections-table", in: window) != nil }
+            XCTAssertGreaterThan(pins, 0)
+            XCTAssertFalse(window.isVisible)
+        }
     }
 
     func testLazyTableRevealsDistantCurrentColumnAndFollowsChangedSelectionOffscreen() async throws {

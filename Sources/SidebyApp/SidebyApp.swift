@@ -410,7 +410,8 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     @Published var workspaceDesktopAliases: [String: String] = [:]
     @Published var heldMatrixConfiguration = HeldMatrixConfiguration()
     @Published var heldMatrixShortcutError: String?
-    @Published var heldMatrixInputActive = false
+    // Input routing only. Press/release must not invalidate every observed product view.
+    var heldMatrixInputActive = false
     var heldMatrixIsRecording = false
     @Published var heldMatrixSwitchInFlight = false
     var heldMatrixController: HeldWorkspaceMatrixController?

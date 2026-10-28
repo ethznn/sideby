@@ -165,17 +165,10 @@ import SwiftUI
 
     private func hide() {
         guard let panel else { return }
-        if presentation == .wheel && panel.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            panel.ignoresMouseEvents = true
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.18
-                panel.animator().alphaValue = 0
-            } completionHandler: {
-                // This captured window can no longer receive actions; a new press
-                // creates a new panel and must never be hidden by this completion.
-                MainActor.assumeIsolated { panel.orderOut(nil) }
-            }
-        } else { panel.orderOut(nil) }
+        // Releasing a held shortcut is a direct dismissal, not an animated transition.
+        // Rapid reopen must not overlap an old window's fade with the new wheel.
+        panel.ignoresMouseEvents = true
+        panel.orderOut(nil)
         // Retain the hidden window until a pending mouse-up is delivered to its
         // original recipient. Every action also validates the press generation.
     }
@@ -241,7 +234,7 @@ import SwiftUI
                 }
                 self.pendingMeasurement = work
                 DispatchQueue.main.async(execute: work)
-            }, usesRadial: self.presentation == .wheel,
+            }, usesRadial: self.presentation == .wheel, animateEntrance: persistent,
             wheelDiameter: HeldWorkspaceWheelLayout.size(in: screen.visibleFrame, geometry: wheelGeometry, toolbarHeight: HeldSwitcherViewControl.height).width - 32,
             wheelAvailable: wheelAvailable, placement: placement,
             presentationChanged: { [weak self] in self?.changePresentation($0) })

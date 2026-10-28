@@ -82,10 +82,31 @@ import XCTest
         XCTAssertEqual(starts, 1); XCTAssertEqual(surface.nativeStarts, 1)
         XCTAssertNil(surface.hitTest(surface.convert(NSPoint(x: 220, y: 220), to: nil)))
         XCTAssertNil(surface.hitTest(surface.convert(.zero, to: nil)))
-        surface.toolsIndex = 0
+        surface.visibleToolIndices = [0]
         XCTAssertNil(surface.hitTest(surface.convert(NSPoint(x: 220, y: 98), to: nil)), "Rename/delete receive their own clicks")
         surface.isEnabled = false
         XCTAssertNil(surface.hitTest(point))
+    }
+
+    func testFocusedAndHoveredToolsBothPassThroughNativeSurfaceAtEveryScale() {
+        for size: CGFloat in [320, 440] {
+            let surface = DragProbe(frame: NSRect(x: 0, y: 0, width: size, height: size))
+            surface.count = 4; surface.enabled = [0, 1, 2, 3]
+            // Focus remains on the first sector while the pointer previews the second.
+            surface.visibleToolIndices = [0, 1]
+            func toolPoint(_ index: Int) -> NSPoint {
+                let position = HeldWorkspaceWheelLayout.labelPoint(index: index, count: 4, geometry: surface.geometry)
+                let scale = size / surface.geometry.diameter
+                return surface.convert(NSPoint(x: position.x * scale,
+                    y: (position.y + HeldWorkspaceWheelLayout.toolsOffset(count: 4)) * scale), to: nil)
+            }
+            XCTAssertNil(surface.hitTest(toolPoint(0)))
+            XCTAssertNil(surface.hitTest(toolPoint(1)))
+            XCTAssertNotNil(surface.hitTest(toolPoint(2)), "Hidden tools must not leave holes in the destination surface")
+            surface.visibleToolIndices = [0]
+            XCTAssertNil(surface.hitTest(toolPoint(0)), "Pointer exit must not intercept the still-focused tool")
+            XCTAssertNotNil(surface.hitTest(toolPoint(1)))
+        }
     }
 }
 

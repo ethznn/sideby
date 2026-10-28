@@ -34,7 +34,7 @@ struct HeldWorkspaceWheelView: View {
     let select: (HeldWorkspaceColumn) -> Void
     var keepOpen: () -> Void = {}
     var close: () -> Void = {}
-    var edit: () -> Void = {}
+    var edit: (ConnectionEditorRevealRequest?) -> Void = { _ in }
     var persistent = false
     var diameter: CGFloat?
     var displayCount: Int?
@@ -54,7 +54,7 @@ private struct HeldWorkspaceWheelContent: View {
     let select: (HeldWorkspaceColumn) -> Void
     var keepOpen: () -> Void = {}
     var close: () -> Void = {}
-    var edit: () -> Void = {}
+    var edit: (ConnectionEditorRevealRequest?) -> Void = { _ in }
     var persistent = false
     var diameter: CGFloat?
     var displayCount: Int?
@@ -87,6 +87,11 @@ private struct HeldWorkspaceWheelContent: View {
         .init(displayCount: openingDisplayCount ?? displayCount ?? live.displayIDs.count)
     }
     private var renderedDiameter: CGFloat { diameter ?? geometry.diameter }
+    private var ringScale: CGFloat { renderedDiameter / geometry.diameter }
+    private var compactRing: Bool { ringScale < 0.9 }
+    private func ringFont(_ preferred: CGFloat, minimum: CGFloat = 11) -> CGFloat {
+        HeldWorkspaceWheelLayout.fontSize(preferred, minimum: minimum, scale: ringScale)
+    }
     private var columns: [HeldWorkspaceColumn] { Array(live.columns[HeldWorkspaceWheelLayout.pageRange(page, count: live.columns.count)]) }
     private func text(_ en: String, _ ko: String) -> String { model.connectionCopy.text(en, ko) }
     private var activeID: String? {
@@ -96,11 +101,23 @@ private struct HeldWorkspaceWheelContent: View {
     private var previewColumn: HeldWorkspaceColumn? {
         columns.first { $0.id == activeID }
     }
+    private var visibleToolIndices: Set<Int> {
+        guard draggedConnection == nil, renaming == nil, clearing == nil else { return [] }
+        return Set(columns.indices.filter { index in
+            let id = columns[index].id
+            return activeID == id || focused == "rename-" + id || focused == "delete-" + id
+        })
+    }
     private var centerHighlighted: Bool {
         model.canChangeSavedWorkspaces && interactionTarget == .center
     }
     private var centerActionTitle: String {
         text("Add current setup", "현재 상태 추가하기")
+    }
+    private var recovery: HeldWorkspaceRecoveryPresentation? { model.heldWorkspaceRecovery }
+    private func recoveryDescription(_ recovery: HeldWorkspaceRecoveryPresentation) -> String {
+        recovery.name + "\n" + recovery.message(language: model.settings.language,
+            displayNames: recovery.displayIDs.map { model.displayName(for: $0) })
     }
 
     var body: some View {
@@ -160,7 +177,11 @@ private struct HeldWorkspaceWheelContent: View {
             if let source = draggedConnection?.contextID, !ids.contains(source) { finishDrag() }
             if let renaming, !ids.contains(renaming.id) { self.renaming = nil }
             if let activeID, !ids.contains(activeID) { interactionTarget = nil }
+            if let focused, focused != "save", !columns.contains(where: {
+                focused == $0.id || focused == "rename-" + $0.id || focused == "delete-" + $0.id
+            }) { self.focused = nil }
         }
+        .onChange(of: page) { _, _ in focused = nil }
         .onExitCommand {
             if clearing != nil { clearing = nil }
             else if renaming != nil { renaming = nil }
@@ -210,17 +231,17 @@ private struct HeldWorkspaceWheelContent: View {
                   VStack(spacing: 7) {
                     Image(systemName: "plus.circle.fill").font(.system(size: 23)).foregroundStyle(NativeSurfaceStyle.accent)
                     Text(centerActionTitle)
-                        .font(.system(size: 14, weight: .semibold)).multilineTextAlignment(.center)
+                        .font(.system(size: ringFont(14, minimum: 12), weight: .semibold)).multilineTextAlignment(.center)
                     Text(text("Save the Spaces\non your displays", "지금 보고 있는 Space를\n새 연결로 저장합니다"))
-                        .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText).multilineTextAlignment(.center)
+                        .font(.system(size: ringFont(11, minimum: 10))).foregroundStyle(NativeSurfaceStyle.secondaryText).multilineTextAlignment(.center)
                   }
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: "cursorarrow").font(.system(size: 20))
                         Text(text("Choose a connection", "연결을 골라 주세요"))
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: ringFont(13, minimum: 12), weight: .semibold))
                         Text(text("Hover a sector\nto see its Spaces", "칸에 마우스를 올려\n화면 내용을 확인하세요"))
-                            .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                            .font(.system(size: ringFont(11, minimum: 10))).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     }.multilineTextAlignment(.center)
                 }
               }.frame(width: max(140, geometry.previewWidth))
@@ -228,6 +249,12 @@ private struct HeldWorkspaceWheelContent: View {
                     .background(centerHighlighted ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.tableBackground, in: Circle())
                     .overlay(Circle().strokeBorder(centerHighlighted ? NativeSurfaceStyle.accent : NativeSurfaceStyle.itemBorder,
                         lineWidth: centerHighlighted ? 2.5 : 1))
+                    .overlay {
+                        if focused == "save" {
+                            Circle().inset(by: 5).strokeBorder(NativeSurfaceStyle.primaryText, lineWidth: 2)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     .contentShape(Circle())
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: centerHighlighted)
             }
@@ -244,7 +271,7 @@ private struct HeldWorkspaceWheelContent: View {
                 enabled: Set(columns.enumerated().compactMap { index, column in
                     canChoose(column) ? index : nil
                 }), centerEnabled: model.canChangeSavedWorkspaces,
-                toolsIndex: columns.firstIndex { $0.id == activeID },
+                visibleToolIndices: visibleToolIndices,
                 canReorder: model.canChangeSavedWorkspaces && live.columns.count > 1,
                 activeDrag: draggedConnection, session: dragSession,
                 columnIDs: columns.map(\.id), orderedIDs: live.columns.map(\.id), names: columns.map(\.name),
@@ -277,18 +304,22 @@ private struct HeldWorkspaceWheelContent: View {
         return VStack(spacing: 7) {
             if displays.isEmpty {
                 Text(text("No Spaces connected", "연결된 Space가 없어요"))
-                    .font(.system(size: 13)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    .font(.system(size: ringFont(13, minimum: 12))).foregroundStyle(NativeSurfaceStyle.secondaryText)
             } else {
                 ForEach(displays, id: \.self) { id in
                     VStack(spacing: 2) {
-                        Text((live.displayNames[id] ?? id) + " · " + (column.desktopLabels[id] ?? ""))
-                            .font(.system(size: 10))
+                        HStack(spacing: 3) {
+                            Text(live.displayNames[id] ?? id)
+                                .lineLimit(1).truncationMode(.middle)
+                            if let position = column.desktopLabels[id] {
+                                Text("· " + position).lineLimit(1).fixedSize()
+                            }
+                        }.font(.system(size: ringFont(10, minimum: 10)))
                             .foregroundStyle(NativeSurfaceStyle.secondaryText)
-                            .lineLimit(1).truncationMode(.middle)
                             .frame(width: geometry.previewWidth - 12)
                         Text(previewSpaceTitle(column, displayID: id))
-                            .font(.system(size: 14, weight: .semibold))
-                            .lineLimit(displays.count > 2 ? 1 : displays.count == 1 ? 3 : 2)
+                            .font(.system(size: ringFont(14, minimum: 12), weight: .semibold))
+                            .lineLimit(displays.count > 2 || (compactRing && displays.count > 1) ? 1 : displays.count == 1 ? 3 : 2)
                             .fixedSize(horizontal: false, vertical: true)
                     }.multilineTextAlignment(.center)
                 }
@@ -296,7 +327,7 @@ private struct HeldWorkspaceWheelContent: View {
             Text(needsSpaceSelection(column) ? text("Choose Spaces in this sector", "칸을 눌러 Space 확인")
                 : model.verifiedCurrentWorkspaceID == column.id ? copy.current
                 : text("Click the sector to switch", "칸을 눌러 이동"))
-                .font(.system(size: 10)).foregroundStyle(needsSpaceSelection(column) ? Color.orange : NativeSurfaceStyle.secondaryText)
+                .font(.system(size: ringFont(10, minimum: 10))).foregroundStyle(needsSpaceSelection(column) ? Color.orange : NativeSurfaceStyle.secondaryText)
                 .lineLimit(1)
         }.frame(width: geometry.previewWidth).accessibilityHidden(true)
     }
@@ -328,26 +359,26 @@ private struct HeldWorkspaceWheelContent: View {
                 }.clipShape(shape)
             VStack(spacing: 6) {
                 Text(text("No saved connections yet", "아직 저장된 연결이 없어요"))
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: ringFont(14, minimum: 12), weight: .semibold))
                 Text(text("Save the Spaces you are using\nto return to them together.", "지금 쓰는 Space를 저장해 두면\n한 번에 돌아올 수 있어요."))
-                    .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    .font(.system(size: ringFont(11))).foregroundStyle(NativeSurfaceStyle.secondaryText)
             }.multilineTextAlignment(.center).frame(width: 250).position(x: geometry.midpoint, y: 74)
                 .accessibilityIdentifier("wheel-empty-guidance")
             VStack(spacing: 7) {
                 if live.displayIDs.isEmpty {
-                    Text(copy.noDisplays).font(.system(size: 11)).multilineTextAlignment(.center)
+                    Text(copy.noDisplays).font(.system(size: ringFont(11))).multilineTextAlignment(.center)
                 } else {
                     ForEach(Array(live.displayIDs.prefix(2)), id: \.self) { id in
                         VStack(spacing: 2) {
-                            Text(live.displayNames[id] ?? id).font(.system(size: 10))
+                            Text(live.displayNames[id] ?? id).font(.system(size: ringFont(10, minimum: 10)))
                                 .foregroundStyle(NativeSurfaceStyle.secondaryText)
-                            Text(currentSpaceTitle(id)).font(.system(size: 12, weight: .medium))
+                            Text(currentSpaceTitle(id)).font(.system(size: ringFont(12), weight: .medium))
                         }.lineLimit(1).help((live.displayNames[id] ?? id) + " · " + currentSpaceTitle(id))
                             .accessibilityIdentifier("wheel-empty-space-" + id)
                     }
                     if live.displayIDs.count > 2 {
                         Text(text("and \(live.displayIDs.count - 2) more displays", "외 모니터 \(live.displayIDs.count - 2)대"))
-                            .font(.system(size: 10)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                            .font(.system(size: ringFont(10, minimum: 10))).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     }
                 }
             }.frame(width: 220).position(x: geometry.midpoint, y: 354 + geometry.expansion * 2)
@@ -384,6 +415,10 @@ private struct HeldWorkspaceWheelContent: View {
                 .accessibilityLabel(accessibilityName)
                 .accessibilityIdentifier("wheel-go-" + column.id)
                 .opacity(draggedConnection?.contextID == column.id ? 0.45 : 1)
+            if focused == column.id {
+                shape.stroke(NativeSurfaceStyle.primaryText, style: StrokeStyle(lineWidth: 4, dash: [3, 3]))
+                    .clipShape(shape).allowsHitTesting(false)
+            }
             if dropIndex == index {
                 shape.stroke(NativeSurfaceStyle.accent, style: StrokeStyle(lineWidth: 5, dash: [5, 3]))
                     .clipShape(shape).allowsHitTesting(false)
@@ -399,7 +434,7 @@ private struct HeldWorkspaceWheelContent: View {
                     interactionTarget = nil; showsFeedback = true
                 }
             }.position(x: position.x, y: position.y + HeldWorkspaceWheelLayout.toolsOffset(count: columns.count))
-                .opacity(active && draggedConnection == nil ? 1 : 0).allowsHitTesting(active && draggedConnection == nil)
+                .opacity(visibleToolIndices.contains(index) ? 1 : 0).allowsHitTesting(visibleToolIndices.contains(index))
                 // Keep tools in the keyboard/VoiceOver order even when visually hidden.
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: active)
@@ -418,9 +453,9 @@ private struct HeldWorkspaceWheelContent: View {
         let count = column.cells.count
         let coverage = text("\(count) display\(count == 1 ? "" : "s")", "모니터 \(count)대")
         let partial = count < live.displayIDs.count
-        return VStack(spacing: 4) {
+        return VStack(spacing: compactRing ? 2 : 4) {
             Text(column.name)
-                .font(.system(size: HeldWorkspaceWheelLayout.nameFontSize(count: columns.count), weight: .semibold))
+                .font(.system(size: ringFont(HeldWorkspaceWheelLayout.nameFontSize(count: columns.count), minimum: 13), weight: .semibold))
                 .foregroundStyle(NativeSurfaceStyle.primaryText)
                 .lineLimit(2).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -436,7 +471,7 @@ private struct HeldWorkspaceWheelContent: View {
             } else {
                 Text(partial ? coverage : model.workspaceShortcut(column.id) ?? " ").foregroundStyle(NativeSurfaceStyle.secondaryText)
             }
-        }.font(.system(size: 11)).lineLimit(1)
+        }.font(.system(size: ringFont(11, minimum: 10))).lineLimit(1)
     }
 
     private func needsSpaceSelection(_ column: HeldWorkspaceColumn) -> Bool {
@@ -477,6 +512,12 @@ private struct HeldWorkspaceWheelContent: View {
         Button(action: action) { Image(systemName: image).font(.system(size: 12))
             .frame(width: 28, height: 26).background(NativeSurfaceStyle.controlBackground, in: RoundedRectangle(cornerRadius: 6))
             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(NativeSurfaceStyle.itemBorder))
+            .overlay {
+                if focused == id {
+                    RoundedRectangle(cornerRadius: 4).inset(by: 2)
+                        .strokeBorder(NativeSurfaceStyle.primaryText, lineWidth: 2).allowsHitTesting(false)
+                }
+            }
         }.buttonStyle(.plain).focusEffectDisabled().pointingHandCursor().disabled(!model.canChangeSavedWorkspaces)
             .focused($focused, equals: id).help(label).accessibilityLabel(label)
             .accessibilityIdentifier("wheel-" + id)
@@ -504,18 +545,31 @@ private struct HeldWorkspaceWheelContent: View {
                         .map { text("Move to \($0.name)’s position", "\($0.name) 위치로 순서 변경") }
                         ?? text("Drag onto another sector · Esc to cancel", "다른 칸에 놓아 순서 변경 · Esc로 취소"))
                         .foregroundStyle(NativeSurfaceStyle.primaryText)
+                } else if let recovery {
+                    VStack(spacing: 1) {
+                        Text(recovery.name).fontWeight(.semibold).lineLimit(1).truncationMode(.middle)
+                        Text(recovery.message(language: model.settings.language,
+                            displayNames: recovery.displayIDs.map { model.displayName(for: $0) })).lineLimit(1)
+                    }.foregroundStyle(.orange).help(recoveryDescription(recovery))
+                        .accessibilityElement(children: .ignore).accessibilityLabel(recoveryDescription(recovery))
+                        .accessibilityIdentifier("wheel-recovery-message")
                 } else if showsFeedback, let message = model.workspaceSaveMessage {
                     Text(message).foregroundStyle(model.workspaceSaveFeedbackKind == .failure ? Color.orange : NativeSurfaceStyle.secondaryText)
                         .accessibilityIdentifier("held-add-feedback")
                 } else if let status {
                     Text(status).foregroundStyle(.orange)
                 } else if let column = columns.first(where: { $0.id == activeID }) {
-                    Text(connectionSummary(column)).help(connectionSummary(column))
-                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                    VStack(spacing: 1) {
+                        Text(column.name).fontWeight(.semibold).lineLimit(1).truncationMode(.middle)
+                        Text(connectionSummary(column).components(separatedBy: "\n").first ?? "").lineLimit(1)
+                    }.help(column.name + "\n" + connectionSummary(column))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(column.name + "\n" + connectionSummary(column))
                         .accessibilityIdentifier("wheel-connection-summary")
                 } else {
-                    Text(text("Click to switch · Drag sectors to reorder", "클릭으로 이동 · 칸을 드래그해 순서 변경"))
+                    Text(idleGuidance)
                         .foregroundStyle(NativeSurfaceStyle.secondaryText)
+                        .accessibilityIdentifier("wheel-idle-guidance")
                 }
               }.font(.system(size: 11)).lineLimit(2)
                 .padding(.horizontal, 10).padding(.vertical, 5)
@@ -530,11 +584,21 @@ private struct HeldWorkspaceWheelContent: View {
                   .keyboardShortcut("z", modifiers: .command).accessibilityIdentifier("held-undo-connection")
             }.frame(height: 40)
             HStack(spacing: 6) {
-                Button { pin(); edit() } label: {
+                Button { pin(); edit(nil) } label: {
                     Label(text("Edit connections", "연결 편집"), systemImage: "slider.horizontal.3")
                         .padding(.horizontal, 8).frame(height: 28)
                         .background(NativeSurfaceStyle.windowBackground, in: Capsule())
                 }.disabled(model.isSwitching).accessibilityIdentifier("held-edit-connections")
+                if let recovery {
+                    Button(recovery.actionTitle(language: model.settings.language)) {
+                        pin(); showsFeedback = false
+                        model.performHeldWorkspaceRecovery(recovery, select: select, edit: { edit($0) })
+                    }.padding(.horizontal, 8).frame(height: 28)
+                        .background(NativeSurfaceStyle.windowBackground, in: Capsule())
+                        .help(recoveryDescription(recovery))
+                        .accessibilityLabel(recovery.actionTitle(language: model.settings.language) + " · " + recovery.name)
+                        .accessibilityIdentifier("wheel-recovery-action")
+                } else {
                 Button {
                     pin(); focused = nil
                     clearing = model.prepareDeleteAllSavedWorkspaces()
@@ -545,6 +609,7 @@ private struct HeldWorkspaceWheelContent: View {
                 }.disabled(!model.canDeleteAllSavedWorkspaces)
                     .help(model.connectionCopy.clearAllMessage).accessibilityLabel(model.connectionCopy.clearAll)
                     .accessibilityIdentifier("wheel-clear-all")
+                }
                 Button(action: close) {
                     Image(systemName: "xmark").frame(width: 28, height: 28)
                         .background(NativeSurfaceStyle.windowBackground, in: Circle())
@@ -559,17 +624,34 @@ private struct HeldWorkspaceWheelContent: View {
     private var status: String? {
         if model.settingsStore.hasUnreadableSettings { return model.saveCopy.settingsUnreadable }
         if !model.isEnabled { return copy.off }
-        if model.isSwitching { return copy.moving }
-        if !model.hasSwitchingAccess { return copy.permission }
+        if model.isSwitching || model.contextCaptureSession != nil || model.pendingContextCaptureAlignment != nil { return copy.busy }
+        if model.permissionState != .granted || !model.hasSwitchingAccess { return copy.permission }
         if live.displayIDs.isEmpty { return copy.noDisplays }
-        if model.workspaceRecoveryTargetID != nil { return copy.failed }
         return nil
+    }
+
+    private var idleGuidance: String {
+        if live.columns.isEmpty {
+            return text("Start with Add current setup in the center.", "가운데 ‘현재 상태 추가하기’로 첫 연결을 만드세요.")
+        }
+        if live.columns.count == 1, let column = live.columns.first {
+            if needsSpaceSelection(column) { return text("Choose this connection to check its Spaces.", "이 연결을 눌러 Space를 확인하세요.") }
+            if spacesAlreadyVisible(column) { return text("Choose this connection to return after working elsewhere.", "다른 Space에서 작업한 뒤 이 연결로 돌아오세요.") }
+            return text("Choose this connection to move its assigned displays together.", "이 연결을 누르면 배정한 모니터가 함께 이동합니다.")
+        }
+        return text("Click to switch · Drag sectors to reorder", "클릭으로 이동 · 칸을 드래그해 순서 변경")
     }
 
     private func choose(_ column: HeldWorkspaceColumn) {
         guard draggedConnection == nil, canChoose(column) else { return }
         if model.verifiedCurrentWorkspaceID == column.id { close() }
-        else if needsSpaceSelection(column) { pin(); edit() }
+        else if needsSpaceSelection(column) {
+            guard model.canChangeSavedWorkspaces,
+                  let context = model.settings.contextPlan.contexts.first(where: { $0.id == column.id }) else { return }
+            let missing = model.unresolvedWorkspaceMembers(context)
+            let displayID = live.displayIDs.first { missing.contains($0) }
+            pin(); edit(ConnectionEditorRevealRequest(contextID: column.id, displayID: displayID))
+        }
         else { select(column) }
     }
 

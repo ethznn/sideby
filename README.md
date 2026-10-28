@@ -16,7 +16,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 [Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](https://ethznn.github.io/sideby/#film)
 
-*Sideby 1.1.2 · [What’s new](docs/releases/1.1.2.md).*
+*Sideby 1.1.3 · [What’s new](docs/releases/1.1.3.md).*
 
 ## See and connect in one window
 
@@ -87,7 +87,7 @@ Choose **Edit connections** for the Space list and connection table. Drag within
 | `⌥⇧<` / `⌥⇧>` | Move to the previous / next connection. |
 | Option + Shift + horizontal swipe | Move displays together with the default gesture. |
 
-Numbered, previous/next, and return shortcuts execute when Option and Shift are released. Releasing the opening shortcut closes the quick switcher without switching or saving anything by itself. Changing views, reordering, saving, renaming, removing, or choosing an editor keeps it open. Release the shortcut before editing, then press Option again while dropping a Space to copy. Use Tab to focus controls, Return/Space to activate, and Escape to close. Configure inputs in **Settings → Input**.
+Numbered, previous/next, and return shortcuts execute when Option and Shift are released. Releasing the opening shortcut closes the quick switcher without switching or saving anything by itself, including after changing between Circle and Table. Reordering, saving, renaming, removing, or choosing an editor keeps it open. Release the shortcut before editing, then press Option again while dropping a Space to copy. Use Tab to focus controls, Return/Space to activate, and Escape to close. Configure inputs in **Settings → Input**.
 
 ## When your environment changes
 

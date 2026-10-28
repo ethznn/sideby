@@ -71,6 +71,10 @@ enum HeldWorkspaceWheelLayout {
     }
 
     static func nameFontSize(count: Int) -> CGFloat { count <= 4 ? 18 : 15 }
+    /// The ring and its native hit regions scale together; text retains a readable point size.
+    static func fontSize(_ preferred: CGFloat, minimum: CGFloat, scale: CGFloat) -> CGFloat {
+        max(preferred, minimum / max(0.01, scale))
+    }
     static func toolsOffset(count: Int) -> CGFloat { count <= 4 ? 36 : 32 }
 
     /// Use the actual horizontal room in each curved sector. Top/bottom sectors

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sideby · 구성 관리 — 화면별 데스크탑 행</title>
+<style>
+:root{color-scheme:light;--bg:#fcfcfd;--sidebar:#f2f4f8;--surface:#fff;--ink:#202534;--muted:#616b80;--line:#d9dde5;--accent:#354ecc;--tint:#edf0ff;--hover:#edf0f7;--warning:#946021;--warning-bg:#fbf4e9;--desktop-width:116px;--label-width:142px;--column-width:178px}
+*{box-sizing:border-box}body{margin:0;background:#e5e8ef;color:var(--ink);font:13px -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;padding:30px 24px}button,input,select{font:inherit}button{cursor:pointer;color:inherit;border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:6px 10px;line-height:1.35}button:disabled{opacity:.42;cursor:default}button:not(:disabled):hover{background:var(--hover)}button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:3px solid #8799f7;outline-offset:2px}.primary{background:var(--accent);color:white;border-color:var(--accent)}.primary:not(:disabled):hover{filter:brightness(.94);background:var(--accent)}.quiet{background:transparent;border-color:transparent}.small{font-size:11px;padding:4px 8px}.muted{color:var(--muted)}.icon{width:15px;height:15px;flex:none;vertical-align:-3px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.window{max-width:1180px;height:min(784px,calc(100dvh - 100px));min-height:550px;margin:auto;border:1px solid #bdc3ce;border-radius:12px;overflow:hidden;background:var(--bg);box-shadow:0 20px 60px #27334820;display:flex;flex-direction:column}.titlebar{height:42px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--sidebar);border-bottom:1px solid var(--line);position:relative;font-size:12px;font-weight:600}.lights{position:absolute;left:15px;display:flex;gap:8px;align-items:center}.lights i,.lights button{height:12px;width:12px;min-width:12px;border-radius:50%;border:1px solid #0001;background:#ff6058;padding:0}.lights i:nth-child(2){background:#ffbd2e}.lights i:nth-child(3){background:#28c840}.lights button:hover{background:#f64c46}.shell{display:grid;grid-template-columns:148px minmax(0,1fr);flex:1;min-height:0}.sidebar{background:var(--sidebar);border-right:1px solid var(--line);padding:21px 11px;display:flex;flex-direction:column;gap:5px}.brand{font-size:17px;font-weight:650;color:var(--accent);margin:0 11px 23px}.nav{font-size:12px;white-space:nowrap;padding:10px;display:flex;align-items:center;gap:7px;border-radius:7px;color:var(--muted);font-weight:500}.nav.selected{background:var(--tint);color:var(--accent);box-shadow:inset 0 0 0 1px #354ecc25}.sidebar-bottom{margin-top:auto;padding:20px 11px 0;font-size:10px;line-height:1.8;color:var(--muted)}main{min-width:0;min-height:0;display:flex;flex-direction:column}.intro{padding:24px 24px 17px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}h1{font-size:23px;margin:0 0 7px;font-weight:650;letter-spacing:-.6px}.intro p{margin:0;color:var(--muted);font-size:12px;line-height:1.6}.intro>button{flex:none;font-size:11px}.workspace{padding:0 24px;flex:1;min-height:0;display:flex;flex-direction:column}.sectionhead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex:none;min-height:30px}h2{font-size:12px;margin:0;font-weight:650}.sectionhead h2 span{color:var(--muted);font-weight:400;margin-left:5px}.scroll-controls{display:flex;gap:4px;align-items:center}.scroll-controls button{width:25px;height:24px;padding:0;font-size:15px}.scroll-controls span{font-size:10px;color:var(--muted);margin-right:5px}.shelf{border:1px solid var(--line);border-radius:9px;background:var(--sidebar);overflow:auto;scrollbar-width:thin;flex:none;max-height:232px;overscroll-behavior:contain}.source-groups{min-width:100%;width:max-content}.source-group{display:flex;border-bottom:1px solid var(--line)}.source-group:last-child{border-bottom:0}.display-title{position:sticky;left:0;z-index:1;flex:0 0 var(--label-width);width:var(--label-width);margin:0;padding:10px 13px;background:var(--sidebar);border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;font-size:11px;font-weight:500}.source-label-main{display:flex;align-items:center;gap:6px;line-height:1.4}.display-title small{font-size:10px;color:var(--muted);font-weight:400;margin-top:7px}.source-group.active .display-title{color:var(--accent);background:var(--tint)}.desktops{display:flex;gap:7px;padding:8px 12px;flex:1}.desktop{flex:0 0 var(--desktop-width);width:var(--desktop-width);padding:8px 10px;text-align:left;min-height:54px;cursor:grab;background:var(--surface);border-radius:7px;position:relative}.desktop:active{cursor:grabbing}.desktop strong{display:block;font-size:12px;line-height:1.4;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.desktop span{display:block;margin-top:5px;font-size:10px;color:var(--muted)}.desktop.chosen{border-color:var(--accent);background:var(--tint)}.current-dot{display:inline-block;background:var(--accent);width:5px;height:5px;border-radius:50%;vertical-align:2px;margin-right:4px}.interaction-hint{font-size:11px;min-height:34px;display:flex;align-items:center;gap:6px;color:var(--muted);line-height:1.45;flex:none;padding:6px 0}.interaction-hint.active{color:var(--accent)}.matrixhead{min-height:34px}.matrixhead-right{display:flex;align-items:center;gap:10px}.matrixhead-right .help{font-size:10px;color:var(--muted)}.matrix-scroll{min-height:110px;flex:1;overflow:auto;position:relative;background:var(--surface);border:1px solid var(--line);border-radius:9px;scrollbar-width:thin;overscroll-behavior:contain}.matrix{height:100%;border-collapse:separate;border-spacing:0;width:100%;min-width:calc(var(--label-width) + var(--count) * var(--column-width));table-layout:fixed}.matrix th,.matrix td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:left}.matrix tr>:last-child{border-right:0}.matrix tbody tr:last-child>*{border-bottom:0}.matrix thead th{position:sticky;top:0;z-index:3;background:var(--sidebar);height:65px;vertical-align:top}.matrix .corner{width:var(--label-width);position:sticky;left:0;z-index:4;font-size:10px;color:var(--muted);font-weight:400;padding:15px 13px;line-height:1.7}.display-label{position:sticky;left:0;z-index:2;width:var(--label-width);background:var(--bg);font-weight:500;padding:15px 13px;vertical-align:middle;height:100px}.display-label>span{display:flex;align-items:center;gap:6px;font-size:11px;line-height:1.4}.display-label small{display:block;font-size:10px;color:var(--muted);margin-top:7px;line-height:1.5}.display-label.eligible{color:var(--accent);background:var(--tint)}.context-header{padding:12px 12px 8px;position:relative}.context-top{display:flex;align-items:center;gap:6px}.grip{cursor:grab;color:var(--muted);border:0;background:transparent;padding:0;font-size:15px;line-height:1;width:13px}.grip:active{cursor:grabbing}.context-name{border:0;background:none;padding:0;max-width:calc(100% - 47px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;text-align:left;cursor:pointer}.context-top .more{margin-left:auto;padding:0 4px;font-size:15px;border:0;background:none}.context-meta{display:flex;gap:8px;justify-content:space-between;margin:8px 0 0 19px;font-size:10px;color:var(--muted);font-weight:400}.current-badge{color:var(--accent)}.context-header.drop-before{box-shadow:inset 3px 0 var(--accent)}.context-header.drop-after{box-shadow:inset -3px 0 var(--accent)}.context-header.header-target{background:var(--tint)}.target-row{height:100px;padding:12px;position:relative;vertical-align:middle;background:var(--surface)}.target-row.eligible{background:var(--tint)}.target-row.ineligible .target-cell{opacity:.4}.target-row.over{box-shadow:inset 0 0 0 2px var(--accent);background:var(--tint)}.target-cell{width:100%;text-align:left;padding:10px 11px;min-height:62px;background:var(--bg);border-radius:7px;display:block;position:relative}.target-cell strong{font-size:12px;font-weight:550;line-height:1.5;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:7px}.target-cell span{display:block;font-size:10px;color:var(--muted);margin-top:5px;line-height:1.4}.target-cell:after{content:'⌄';position:absolute;right:8px;top:9px;color:var(--muted);font-size:10px;opacity:0}.target-cell:hover:after{opacity:1}.target-cell.changed{border-color:#9aa9e4;background:var(--tint)}.target-cell.changed:before{content:'';position:absolute;right:9px;top:11px;width:5px;height:5px;background:var(--accent);border-radius:50%}.target-cell.changed:hover:before{opacity:0}.target-cell.empty{border-style:dashed;color:var(--muted)}.target-cell.unavailable{border-color:#cba979;background:var(--warning-bg)}.target-cell.unavailable span{color:var(--warning)}.target-cell.offline{background:var(--sidebar)}.drop-preview{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:var(--tint);padding:15px;color:var(--accent);font-size:11px;line-height:1.6;pointer-events:none}.target-row.over .drop-preview{display:flex}.options{padding:11px 0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex:none;font-size:10px;color:var(--muted)}.options label{cursor:pointer;display:flex;align-items:center;gap:5px}.options input{margin:0}.footer{border-top:1px solid var(--line);background:var(--sidebar);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:77px;flex:none}.footer-message{min-width:0}.footer strong{font-size:12px;display:block;margin-bottom:5px}.footer p{font-size:11px;line-height:1.5;color:var(--muted);margin:0;max-width:480px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.footer-message.error strong{color:var(--warning)}.footer-actions{display:flex;gap:7px;align-items:center;flex:none}.footer-actions button{min-height:30px;font-size:12px}.details-button{font-size:10px;padding:0;border:0;background:none;color:var(--accent);margin-left:7px;text-decoration:underline}.prototype-note{max-width:1180px;margin:13px auto 0;display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:11px;color:#616b80;line-height:1.7}.prototype-controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.prototype-controls button,.prototype-controls select{font-size:11px;padding:4px 7px;border-radius:5px}.prototype-controls select{border:1px solid var(--line);background:var(--surface);color:var(--ink)}.context-menu{position:fixed;z-index:12;background:var(--surface);box-shadow:0 10px 30px #20253425;border:1px solid var(--line);padding:5px;border-radius:8px;min-width:155px}.context-menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:8px;font-size:12px}.context-menu hr{border:0;border-top:1px solid var(--line);margin:4px}.danger{color:#b33d36}dialog{padding:0;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);width:400px;max-width:calc(100vw - 32px);box-shadow:0 20px 60px #0003}dialog::backdrop{background:#20253435}.dialog-content{padding:23px}.dialog-content h3{font-size:16px;margin:0 0 9px}.dialog-content p{font-size:12px;line-height:1.65;color:var(--muted);margin:0 0 15px}.dialog-content p:last-child{margin:0}.choices{display:flex;flex-direction:column;gap:7px;max-height:320px;overflow:auto}.choice{text-align:left;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}.choice small{color:var(--muted);font-size:10px;flex:none}.dialog-actions{border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;padding:13px 18px;background:var(--sidebar)}.name-input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}.changes-list{font-size:12px;line-height:1.8;margin:0;padding-left:18px;max-height:320px;overflow:auto}.closed-state{max-width:500px;margin:180px auto;text-align:center}.closed-state p{color:var(--muted);line-height:1.7}.hidden{display:none!important}.theme-dark{color-scheme:dark;--bg:#24272f;--sidebar:#20232b;--surface:#2c3039;--ink:#f0f2f8;--muted:#adb6c9;--line:#454b59;--accent:#b4bfff;--tint:#343c61;--hover:#333845;--warning:#e9c184;--warning-bg:#493e30;background:#151820}.theme-dark .primary{color:#24272f}.theme-dark .target-cell.changed{border-color:#8b9ada}.theme-dark .prototype-note{color:var(--muted)}
+@media(max-width:980px){body{padding:16px 10px}.window{height:calc(100dvh - 86px)}.shell{grid-template-columns:132px minmax(0,1fr)}.intro,.footer{padding-left:18px;padding-right:18px}.intro{padding-top:18px}.workspace{padding:0 18px}:root{--label-width:130px;--column-width:162px;--desktop-width:108px}.intro p{max-width:330px}.intro>button{max-width:142px}.matrixhead-right .help{display:none}.footer-actions{gap:4px}.footer-actions button{font-size:11px}.footer p{max-width:265px}.prototype-note{align-items:flex-start}.prototype-note>span{max-width:380px}}
+@media(max-height:820px){.intro{padding-top:14px;padding-bottom:10px}h1{font-size:21px}.intro p{font-size:11px}.shelf{max-height:190px}.desktops{padding:6px 10px}.desktop{min-height:50px;padding:6px 10px}.footer{min-height:68px;padding-top:10px;padding-bottom:10px}.matrix thead th{height:58px}.context-header{padding:9px 10px 6px}.context-meta{margin-top:6px}.target-row,.display-label{height:70px}.target-row{padding:7px 10px}.target-cell{min-height:54px;padding:7px 10px}.options{padding:8px 0}.interaction-hint{min-height:28px;font-size:10px}}
+@media(max-width:700px){.sidebar{display:none}.shell{grid-template-columns:1fr}.footer{gap:8px}.footer p{max-width:210px}.footer-actions .quiet{font-size:10px}.options>span{display:none}.prototype-note{flex-direction:column}.intro p{max-width:290px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="window" id="appWindow">
+ <div class="titlebar"><div class="lights"><button id="closeWindow" aria-label="설정 창 닫기"></button><i aria-hidden="true"></i><i aria-hidden="true"></i></div>Sideby 설정</div>
+ <div class="shell">
+  <aside class="sidebar" aria-label="설정 메뉴"><div class="brand">▱ sideby</div><div class="nav selected" aria-current="page">▦ &nbsp;구성 관리</div><div class="nav">⌘ &nbsp;입력과 단축키</div><div class="nav">◈ &nbsp;권한</div><div class="nav">⚙ &nbsp;일반</div><div class="sidebar-bottom">현재 화면을 기억하고<br>필요할 때 다시 고르세요.</div></aside>
+  <main>
+   <header class="intro"><div><h1>구성 관리</h1><p>위에서 데스크탑을 골라 아래 구성에 연결하세요.</p></div><button id="capture">＋ 현재 화면으로 구성 추가</button></header>
+   <section class="workspace" aria-label="데스크탑 연결 편집">
+    <div class="sectionhead"><h2>화면별 데스크탑 <span id="displayCount"></span></h2><div class="scroll-controls"><span id="shelfMore">앱 이름으로 데스크탑 찾기</span><button id="sourcePrevious" aria-label="앞쪽 데스크탑 보기">‹</button><button id="sourceNext" aria-label="뒤쪽 데스크탑 보기">›</button></div></div>
+    <div class="shelf" id="sourceScroll" tabindex="0" aria-label="화면마다 한 행으로 배치한 데스크탑 목록"><div class="source-groups" id="sources"></div></div>
+    <div class="interaction-hint" id="hint" role="status" aria-live="polite"></div>
+    <div class="sectionhead matrixhead"><h2>저장한 구성 <span id="contextCount"></span></h2><div class="matrixhead-right"><span class="help">제목 옆 손잡이를 끌어 순서 변경</span><button id="add" class="small">＋ 새 구성</button></div></div>
+    <div class="matrix-scroll" id="targetScroll" tabindex="0" aria-label="컨텍스트 연결 매트릭스"><table class="matrix" id="matrix"></table></div>
+    <div class="options"><label><input type="checkbox" id="offline"> 연결되지 않은 화면의 저장 정보 보기</label><span>숫자 단축키는 순서를 바꿔도 유지됩니다.</span></div>
+   </section>
+   <footer class="footer"><div class="footer-message" id="footerMessage"><strong id="status"></strong><p><span id="summary"></span><button id="details" class="details-button hidden">모두 보기</button></p></div><div class="footer-actions"><button id="undo" class="quiet" disabled>↶ 편집 되돌리기</button><button id="cancel" disabled>취소</button><button id="save" class="primary" disabled>변경 저장</button></div></footer>
+  </main>
+ </div>
+</div>
+<div class="closed-state hidden" id="closedState"><h2>설정 창을 닫았습니다</h2><p>시안의 저장 상태는 유지됩니다.</p><button id="reopen">설정 다시 열기</button></div>
+<div class="prototype-note"><span>디자인 시안 · 예시 앱 이름과 데스크탑을 사용합니다.<br>카드를 드래그하거나 클릭한 뒤, 연결할 구성의 칸을 선택해 보세요.</span><div class="prototype-controls"><select id="scenario" aria-label="시안 데이터"><option value="normal">화면 2개 · 구성 4개</option><option value="many">화면 3개 · 구성 8개</option></select><button id="renumber">번호 변경 체험</button><button id="theme">다크 모드</button><button id="reset">초기화</button></div></div>
+<dialog id="picker"><div class="dialog-content"><h3 id="pickerTitle"></h3><p id="pickerDesc"></p><div id="choices" class="choices"></div></div><div class="dialog-actions"><button data-close="picker">닫기</button></div></dialog>
+<dialog id="namer"><form id="nameForm"><div class="dialog-content"><h3 id="nameTitle"></h3><p>원하는 데스크탑을 연결할 구성의 이름을 정해 주세요.</p><input id="nameInput" class="name-input" aria-label="구성 이름" maxlength="60" required autocomplete="off"></div><div class="dialog-actions"><button type="button" data-close="namer">취소</button><button type="submit" class="primary">확인</button></div></form></dialog>
+<dialog id="discardDialog"><div class="dialog-content"><h3>편집한 내용을 취소할까요?</h3><p>이번에 편집한 연결과 순서가 마지막 저장 상태로 돌아갑니다.</p></div><div class="dialog-actions"><button data-close="discardDialog">계속 편집</button><button id="discard">편집 취소</button></div></dialog>
+<dialog id="leaveDialog"><div class="dialog-content"><h3>변경사항을 저장할까요?</h3><p id="leaveDescription">아직 저장하지 않은 연결과 순서 변경이 있습니다.</p></div><div class="dialog-actions"><button id="discardClose">저장 안 함</button><button data-close="leaveDialog">계속 편집</button><button id="saveClose" class="primary">저장</button></div></dialog>
+<dialog id="infoDialog"><div class="dialog-content"><h3 id="infoTitle"></h3><p id="infoDescription"></p></div><div class="dialog-actions"><button data-close="infoDialog">확인</button></div></dialog>
+<dialog id="changesDialog"><div class="dialog-content"><h3>저장 전 변경사항</h3><ul class="changes-list" id="changeList"></ul></div><div class="dialog-actions"><button data-close="changesDialog">닫기</button></div></dialog>
+<dialog id="deleteDialog"><div class="dialog-content"><h3 id="deleteTitle"></h3><p>변경사항을 저장하면 이 구성이 삭제됩니다. 데스크탑과 앱은 그대로 유지됩니다.</p></div><div class="dialog-actions"><button data-close="deleteDialog">취소</button><button id="deleteConfirm" class="danger">구성 삭제</button></div></dialog>
+<script>
+const $ = id => document.getElementById(id);
+const clone = x => JSON.parse(JSON.stringify(x));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const monitor = builtin => '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true">'+(builtin?'<path d="M4 3h12v10H4zM2 15h16l-1 2H3z"/>':'<rect x="2" y="2" width="16" height="11" rx="1.5"/><path d="M10 13v4M6 17h8"/>')+'</svg>';
+const baseDisplays = [
+ {id:'mac',name:'MacBook Pro',builtin:true,current:'mac-1',spaces:[{id:'mac-1',name:'Xcode',number:1},{id:'mac-2',name:'Slack',number:2},{id:'mac-3',name:'Notes',number:3}]},
+ {id:'studio',name:'Studio Display',builtin:false,current:'studio-1',spaces:[{id:'studio-1',name:'Chrome',number:1},{id:'studio-2',name:'Figma',number:2},{id:'studio-3',name:'Calendar',number:3}]}
+];
+const baseContexts = [
+ {id:'dev',name:'개발',slot:1,bindings:{mac:'mac-1',studio:'studio-1',home:'home-1'}},
+ {id:'review',name:'디자인 검토',slot:2,bindings:{mac:'mac-3',studio:'studio-2'}},
+ {id:'meeting',name:'회의',slot:3,bindings:{mac:'mac-2',studio:'studio-3'}},
+ {id:'focus',name:'집중',slot:4,bindings:{mac:'mac-1'}}
+];
+const offlineDisplay = {id:'home',name:'집 모니터',offline:true,spaces:[{id:'home-1',name:'Safari',number:2}]};
+let displays, saved, draft, history, savedUndo, selected, drag, naming, deleting, serial=1, notice='', frame=0, pointer=null;
+function display(id){ return displays.find(d=>d.id===id) || (id==='home'?offlineDisplay:null); }
+function space(did,sid){ return display(did)?.spaces.find(s=>s.id===sid); }
+function label(did,sid){ return sid ? space(did,sid)?.name || '데스크탑 확인 필요' : '그대로 유지'; }
+function visibleDisplays(){ return $('offline').checked ? [...displays,offlineDisplay] : displays; }
+function equalBindings(a,b){const keys=Object.keys(a).sort();return keys.join()===Object.keys(b).sort().join()&&keys.every(k=>a[k]===b[k]);}
+function issues(){
+ const errors=[];
+ for(const c of draft){
+  if(!Object.keys(c.bindings).length) errors.push('‘'+c.name+'’에 데스크탑을 하나 이상 연결해 주세요.');
+  const duplicate=draft.find(x=>x.id!==c.id&&draft.indexOf(x)<draft.indexOf(c)&&Object.keys(c.bindings).length&&equalBindings(x.bindings,c.bindings));
+  if(duplicate)errors.push('‘'+c.name+'’은 ‘'+duplicate.name+'’과 같은 구성입니다.');
+ }
+ return errors;
+}
+function changes(){
+ const lines=[];
+ for(const c of saved)if(!draft.some(x=>x.id===c.id))lines.push('‘'+c.name+'’ 구성 삭제');
+ for(const c of draft){
+  const old=saved.find(x=>x.id===c.id);
+  if(!old){lines.push('‘'+c.name+'’ 구성 추가');continue;}
+  if(c.name!==old.name)lines.push(old.name+' → '+c.name);
+  for(const did of new Set([...Object.keys(old.bindings),...Object.keys(c.bindings)]))
+   if(old.bindings[did]!==c.bindings[did])lines.push(c.name+' · '+(display(did)?.name??'저장한 화면')+': '+label(did,old.bindings[did])+' → '+label(did,c.bindings[did]));
+ }
+ const before=saved.filter(c=>draft.some(x=>x.id===c.id)).map(c=>c.id).join();
+ const after=draft.filter(c=>saved.some(x=>x.id===c.id)).map(c=>c.id).join();
+ if(before!==after)lines.push('구성 순서 변경');
+ return lines;
+}
+function remember(){history.push(clone(draft));if(history.length>40)history.shift();notice='';}
+function info(title,message){$('infoTitle').textContent=title;$('infoDescription').textContent=message;$('infoDialog').showModal();}
+function reset(){
+ displays=clone(baseDisplays);saved=clone(baseContexts);
+ if($('scenario').value==='many'){
+  for(const d of displays)for(let n=4;n<=7;n++)d.spaces.push({id:d.id+'-'+n,name:['Safari','Terminal','Mail','Preview'][n-4],number:n});
+  displays.push({id:'third',name:'세로 모니터',builtin:false,current:'third-1',spaces:[{id:'third-1',name:'Notion',number:1},{id:'third-2',name:'Safari',number:2},{id:'third-3',name:'Terminal',number:3}]});
+  saved.push(...['자료 조사','문서 작성','개인 작업','운영 확인'].map((name,i)=>({id:'extra-'+i,name,slot:i+5,bindings:{mac:'mac-'+(i+4),studio:'studio-'+(i+4),third:'third-'+(i%3+1)}})));
+ }
+ draft=clone(saved);history=[];savedUndo=null;selected=null;drag=null;notice='';$('offline').checked=false;render();$('sourceScroll').scrollLeft=0;$('sourceScroll').scrollTop=0;$('targetScroll').scrollLeft=0;$('targetScroll').scrollTop=0;
+}
+function render(){
+ const sourceOffset=$('sourceScroll').scrollLeft, sourceTop=$('sourceScroll').scrollTop, matrixOffset=$('targetScroll').scrollLeft, top=$('targetScroll').scrollTop;
+ $('displayCount').textContent='· '+displays.length+'개 화면';
+ $('sources').innerHTML=displays.map(d=>'<section class="source-group" data-source-display="'+d.id+'" aria-label="'+esc(d.name)+'의 데스크탑"><h3 class="display-title"><span class="source-label-main">'+monitor(d.builtin)+esc(d.name)+'</span><small>데스크탑 '+d.spaces.length+'개</small></h3><div class="desktops">'+d.spaces.map(s=>'<button class="desktop'+(selected?.id===s.id?' chosen':'')+'" draggable="true" data-space="'+s.id+'" data-display="'+d.id+'" aria-pressed="'+(selected?.id===s.id)+'" title="'+esc(d.name)+' · 데스크탑 '+s.number+' · '+esc(s.name)+'"><strong>'+esc(s.name)+'</strong><span>'+(d.current===s.id?'<i class="current-dot"></i>':'')+'데스크탑 '+s.number+(d.current===s.id?' · 현재':'')+'</span></button>').join('')+'</div></section>').join('');
+ $('contextCount').textContent='· '+draft.length;
+ $('matrix').style.setProperty('--count',Math.max(1,draft.length));
+ $('matrix').innerHTML='<thead><tr><th class="corner" scope="col">구성 →<br>화면 ↓</th>'+draft.map(c=>{
+  const original=saved.find(x=>x.id===c.id);const current=c.id==='dev'&&original&&displays.filter(d=>original.bindings[d.id]).every(d=>original.bindings[d.id]===d.current);
+  return '<th class="context-header" scope="col" data-header="'+c.id+'"><div class="context-top"><button class="grip" draggable="true" data-reorder="'+c.id+'" aria-label="'+esc(c.name)+' 순서 이동" title="드래그로 순서 변경 · 메뉴에서도 이동 가능">⠿</button><button class="context-name" data-name="'+c.id+'" title="'+esc(c.name)+' · 이름 변경">'+esc(c.name)+'</button><button class="more" data-menu="'+c.id+'" aria-label="'+esc(c.name)+' 구성 메뉴">⋯</button></div><div class="context-meta"><span>'+(c.slot?'⌥⇧'+(c.slot===10?0:c.slot):'단축키 없음')+'</span>'+(current?'<span class="current-badge" title="현재 사용 중인 저장된 구성">✓ 사용 중</span>':'')+'</div></th>';
+ }).join('')+'</tr></thead><tbody>'+visibleDisplays().map(d=>'<tr><th scope="row" class="display-label" data-label="'+d.id+'"><span>'+monitor(d.builtin)+esc(d.name)+'</span><small>'+(d.offline?'연결 안 됨':'현재 · 데스크탑 '+space(d.id,d.current)?.number)+'</small></th>'+draft.map(c=>{
+  const sid=c.bindings[d.id],s=space(d.id,sid),old=saved.find(x=>x.id===c.id),changed=old?.bindings[d.id]!==sid;
+  return '<td class="target-row" data-context="'+c.id+'" data-display="'+d.id+'"><button class="target-cell'+(!sid?' empty':'')+(changed?' changed':'')+(d.offline?' offline':'')+(sid&&!s?' unavailable':'')+'" data-target="'+c.id+'" data-display="'+d.id+'" aria-label="'+esc(c.name)+' · '+esc(d.name)+' · '+esc(label(d.id,sid))+' · 연결 편집" title="'+esc(label(d.id,sid))+'"><strong>'+esc(label(d.id,sid))+'</strong><span>'+(d.offline?(sid?'저장된 연결 유지':'이 구성에서 이동 안 함'):s?'데스크탑 '+s.number+(changed?' · 저장 전 변경':''):sid?'다시 연결할 데스크탑 선택':'이 화면은 이동하지 않음')+'</span></button><div class="drop-preview"></div></td>';
+ }).join('')+'</tr>').join('')+'</tbody>';
+ if(!draft.length)$('matrix').innerHTML='<thead><tr><th class="corner">화면</th><th class="context-header">첫 구성을 추가해 보세요</th></tr></thead><tbody><tr><th class="display-label">저장한 구성 없음</th><td class="target-row muted">위의 ‘새 구성’으로 화면 조합을 만들 수 있어요.</td></tr></tbody>';
+ $('sourceScroll').scrollLeft=sourceOffset;$('sourceScroll').scrollTop=sourceTop;$('targetScroll').scrollLeft=matrixOffset;$('targetScroll').scrollTop=top;
+ updateFooter();bind();paint();requestAnimationFrame(updateShelfControls);
+}
+function updateFooter(){
+ const lines=changes(),errors=issues();
+ $('footerMessage').classList.toggle('error',!!errors.length);
+ $('status').textContent=errors.length?'저장 전에 확인해 주세요':lines.length?lines.length+'개 변경사항 · 저장 전':notice||'저장한 구성과 같습니다';
+ $('summary').textContent=errors[0]||lines[0]||'데스크탑 연결을 바꾼 뒤 저장하세요.';
+ $('summary').title=(errors.length?errors:lines).join('\n');
+ $('details').classList.toggle('hidden',lines.length<=1);$('details').textContent='전체 '+lines.length+'개 보기';
+ $('save').disabled=!lines.length||!!errors.length;$('cancel').disabled=!lines.length;
+ $('undo').disabled=lines.length?!history.length:!history.length&&!savedUndo;
+ $('undo').textContent=history.length?'↶ 편집 되돌리기':savedUndo?'↶ 마지막 저장 되돌리기':'↶ 편집 되돌리기';
+}
+function activeSource(){return drag?.kind==='space'?drag:selected;}
+function clearDrag(){drag=null;pointer=null;cancelAnimationFrame(frame);frame=0;document.querySelectorAll('.over,.header-target,.drop-before,.drop-after').forEach(x=>x.classList.remove('over','header-target','drop-before','drop-after'));paint();}
+function paint(){
+ const s=activeSource();
+ document.querySelectorAll('[data-source-display]').forEach(x=>x.classList.toggle('active',!!s&&x.dataset.sourceDisplay===s.display));
+ document.querySelectorAll('[data-label]').forEach(x=>x.classList.toggle('eligible',!!s&&x.dataset.label===s.display));
+ document.querySelectorAll('.target-row[data-display]').forEach(x=>{x.classList.toggle('eligible',!!s&&x.dataset.display===s.display);x.classList.toggle('ineligible',!!s&&x.dataset.display!==s.display);});
+ $('hint').classList.toggle('active',!!s);
+ $('hint').textContent=s?'↓ '+display(s.display).name+' · '+label(s.display,s.id)+' — 강조된 칸이나 구성 제목에 놓으세요.':'데스크탑을 아래로 끌거나, 칸을 눌러 연결할 수 있어요.';
+}
+function preview(cid,source){
+ document.querySelectorAll('.over,.header-target').forEach(x=>x.classList.remove('over','header-target'));
+ const c=draft.find(x=>x.id===cid),cell=document.querySelector('[data-context="'+cid+'"][data-display="'+source.display+'"]');
+ if(!c||!cell)return;
+ cell.classList.add('over');
+ const scroller=$('targetScroll'),bounds=cell.getBoundingClientRect(),viewport=scroller.getBoundingClientRect(),heading=$('matrix').querySelector('thead').getBoundingClientRect().height;
+ if(bounds.bottom>viewport.bottom-2)scroller.scrollTop+=bounds.bottom-viewport.bottom+2;
+ else if(bounds.top<viewport.top+heading)scroller.scrollTop-=viewport.top+heading-bounds.top;
+ const old=c.bindings[source.display];
+ cell.querySelector('.drop-preview').textContent=old===source.id?'이미 연결된 데스크탑입니다':old?label(source.display,old)+' → '+label(source.display,source.id)+'\n연결 교체':label(source.display,source.id)+' 연결';
+ document.querySelector('[data-header="'+cid+'"]')?.classList.add('header-target');
+ $('hint').textContent=c.name+' · '+display(source.display).name+': '+label(source.display,old)+' → '+label(source.display,source.id);
+}
+function assign(cid,did,sid){
+ const c=draft.find(x=>x.id===cid);if(!c)return;
+ if(sid&&(!space(did,sid)||display(did)?.offline))return;
+ if(c.bindings[did]!==sid&&!(c.bindings[did]===undefined&&sid===null)){remember();if(sid)c.bindings[did]=sid;else delete c.bindings[did];}
+ selected=null;clearDrag();render();
+}
+function reorder(id,target,after=false){
+ if(id===target)return;
+ const next=clone(draft),from=next.findIndex(c=>c.id===id);if(from<0)return;
+ const item=next.splice(from,1)[0];const to=next.findIndex(c=>c.id===target);if(to<0)return;
+ next.splice(to+(after?1:0),0,item);
+ if(next.map(c=>c.id).join()!==draft.map(c=>c.id).join()){remember();draft=next;}
+ clearDrag();render();
+}
+function edgeScroll(){
+ if(!drag||!pointer){frame=0;return;}
+ const scroller=$('targetScroll'),r=scroller.getBoundingClientRect();
+ if(pointer.y>=r.top&&pointer.y<=r.bottom){
+  if(pointer.x>r.right-36)scroller.scrollLeft+=8;else if(pointer.x<r.left+36)scroller.scrollLeft-=8;
+  const heading=$('matrix').querySelector('thead').getBoundingClientRect().height;
+  if(pointer.y>r.bottom-24)scroller.scrollTop+=6;else if(pointer.y>r.top+heading&&pointer.y<r.top+heading+20)scroller.scrollTop-=6;
+ }
+ frame=requestAnimationFrame(edgeScroll);
+}
+function bind(){
+ document.querySelectorAll('[data-space]').forEach(b=>{
+  b.onclick=()=>{selected=selected?.id===b.dataset.space?null:{id:b.dataset.space,display:b.dataset.display};render();document.querySelector('[data-space="'+b.dataset.space+'"]')?.focus({preventScroll:true});};
+  b.ondragstart=e=>{selected=null;drag={kind:'space',id:b.dataset.space,display:b.dataset.display};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='copy';paint();};
+  b.ondragend=()=>clearDrag();
+ });
+ document.querySelectorAll('[data-target]').forEach(b=>b.onclick=()=>{if(selected){if(selected.display===b.dataset.display)assign(b.dataset.target,b.dataset.display,selected.id);else $('hint').textContent='강조된 '+display(selected.display).name+' 행에 연결해 주세요.';}else openPicker(b.dataset.target,b.dataset.display);});
+ document.querySelectorAll('.target-row[data-display]').forEach(td=>{
+  td.ondragover=e=>{if(drag?.kind==='space'&&drag.display===td.dataset.display){e.preventDefault();e.dataTransfer.dropEffect='copy';preview(td.dataset.context,drag);}};
+  td.ondragleave=e=>{if(!td.contains(e.relatedTarget)){td.classList.remove('over');document.querySelectorAll('.header-target').forEach(x=>x.classList.remove('header-target'));paint();}};
+  td.ondrop=e=>{e.preventDefault();if(drag?.kind==='space'&&drag.display===td.dataset.display)assign(td.dataset.context,drag.display,drag.id);};
+ });
+ document.querySelectorAll('[data-reorder]').forEach(b=>{b.ondragstart=e=>{selected=null;drag={kind:'context',id:b.dataset.reorder};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='move';};b.ondragend=()=>clearDrag();b.onclick=()=>openMenu(b.dataset.reorder,b);});
+ document.querySelectorAll('[data-header]').forEach(th=>{
+  th.ondragover=e=>{
+   if(!drag)return;e.preventDefault();
+   if(drag.kind==='space'){e.dataTransfer.dropEffect='copy';preview(th.dataset.header,drag);}
+   else if(drag.id!==th.dataset.header){e.dataTransfer.dropEffect='move';const after=e.clientX>th.getBoundingClientRect().left+th.offsetWidth/2;document.querySelectorAll('.drop-before,.drop-after').forEach(x=>x.classList.remove('drop-before','drop-after'));th.classList.add(after?'drop-after':'drop-before');}
+  };
+  th.ondragleave=e=>{if(!th.contains(e.relatedTarget)){th.classList.remove('drop-before','drop-after','header-target');document.querySelectorAll('.over').forEach(x=>x.classList.remove('over'));paint();}};
+  th.ondrop=e=>{e.preventDefault();if(drag?.kind==='space')assign(th.dataset.header,drag.display,drag.id);else if(drag?.kind==='context')reorder(drag.id,th.dataset.header,e.clientX>th.getBoundingClientRect().left+th.offsetWidth/2);};
+ });
+ document.querySelectorAll('[data-name]').forEach(b=>b.onclick=()=>{if(selected)assign(b.dataset.name,selected.display,selected.id);else openName(b.dataset.name);});
+ document.querySelectorAll('[data-menu]').forEach(b=>b.onclick=()=>openMenu(b.dataset.menu,b));
+}
+function openPicker(cid,did){
+ const c=draft.find(x=>x.id===cid),d=display(did);$('pickerTitle').textContent=c.name+' · '+d.name;
+ $('pickerDesc').textContent=d.offline?'현재 연결되지 않은 화면입니다. 저장된 연결을 유지하거나 이 구성에서 해제할 수 있어요.':'이 구성에서 사용할 데스크탑을 선택하세요.';
+ $('choices').innerHTML=(d.offline?'<button class="choice" data-keep="true"><span>저장된 연결 유지</span><small>'+esc(label(did,c.bindings[did]))+'</small></button>':d.spaces.map(s=>'<button class="choice" data-pick="'+s.id+'"><span>'+esc(s.name)+(c.bindings[did]===s.id?' ✓':'')+'</span><small>데스크탑 '+s.number+'</small></button>').join(''))+'<button class="choice" data-pick=""><span>그대로 유지</span><small>이 화면의 연결 해제</small></button>';
+ $('choices').querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{assign(cid,did,b.dataset.pick||null);$('picker').close();});$('choices').querySelector('[data-keep]')?.addEventListener('click',()=>$('picker').close());$('picker').showModal();
+}
+function openName(id=null,capture=false){
+ naming={id,capture};$('nameTitle').textContent=id?'구성 이름 변경':capture?'현재 화면으로 구성 추가':'새 구성';$('nameInput').value=id?draft.find(c=>c.id===id).name:'';$('namer').showModal();$('nameInput').focus();
+}
+function openMenu(id,b){
+ document.querySelector('.context-menu')?.remove();const i=draft.findIndex(c=>c.id===id),menu=document.createElement('div');menu.className='context-menu';menu.setAttribute('aria-label','구성 편집 메뉴');
+ menu.innerHTML='<button data-action="rename">이름 변경…</button><button data-action="left" '+(i===0?'disabled':'')+'>왼쪽으로 이동</button><button data-action="right" '+(i===draft.length-1?'disabled':'')+'>오른쪽으로 이동</button><hr><button data-action="delete" class="danger">구성 삭제…</button>';
+ document.body.append(menu);const r=b.getBoundingClientRect();menu.style.top=Math.min(r.bottom+4,innerHeight-menu.offsetHeight-10)+'px';menu.style.left=Math.min(r.left,innerWidth-menu.offsetWidth-10)+'px';
+ menu.querySelectorAll('button').forEach(btn=>btn.onclick=()=>{menu.remove();const action=btn.dataset.action;if(action==='rename')openName(id);else if(action==='delete'){deleting=id;$('deleteTitle').textContent='‘'+draft.find(c=>c.id===id).name+'’ 구성을 삭제할까요?';$('deleteDialog').showModal();}else{const index=draft.findIndex(c=>c.id===id);reorder(id,draft[index+(action==='left'?-1:1)].id,action==='right');}});menu.querySelector('button').focus();
+}
+function save(){
+ if(issues().length||!changes().length)return false;
+ savedUndo=clone(saved);saved=clone(draft);history=[];notice='변경사항을 저장했어요';selected=null;render();return true;
+}
+function closeWindow(){selected=null;clearDrag();$('appWindow').classList.add('hidden');$('closedState').classList.remove('hidden');}
+function updateShelfControls(){const el=$('sourceScroll'),overflow=el.scrollWidth>el.clientWidth+2;$('sourcePrevious').disabled=el.scrollLeft<2;$('sourceNext').disabled=el.scrollLeft+el.clientWidth>=el.scrollWidth-2;for(const id of ['sourcePrevious','sourceNext'])$(id).classList.toggle('hidden',!overflow);$('shelfMore').textContent=overflow?'옆으로 더 볼 수 있어요':'앱 이름으로 데스크탑 찾기';}
+$('sourceScroll').onscroll=updateShelfControls;window.addEventListener('resize',updateShelfControls);
+$('sourcePrevious').onclick=()=>$('sourceScroll').scrollBy({left:-Math.max(250,$('sourceScroll').clientWidth*.65),behavior:'smooth'});$('sourceNext').onclick=()=>$('sourceScroll').scrollBy({left:Math.max(250,$('sourceScroll').clientWidth*.65),behavior:'smooth'});
+$('targetScroll').ondragover=e=>{pointer={x:e.clientX,y:e.clientY};if(drag&&!frame)frame=requestAnimationFrame(edgeScroll);};$('targetScroll').ondragleave=e=>{if(!$('targetScroll').contains(e.relatedTarget))pointer=null;};document.addEventListener('drop',()=>clearDrag());
+$('nameForm').onsubmit=e=>{
+ e.preventDefault();const name=$('nameInput').value.trim();if(!name)return;
+ if(naming.id){if(draft.find(c=>c.id===naming.id).name!==name){remember();draft.find(c=>c.id===naming.id).name=name;}}
+ else{remember();const slot=Array.from({length:10},(_,i)=>i+1).find(x=>!draft.some(c=>c.slot===x));draft.push({id:'new-'+serial++,name,slot,bindings:naming.capture?Object.fromEntries(displays.map(d=>[d.id,d.current])):{}});}
+ $('namer').close();selected=null;render();if(!naming.id)$('targetScroll').scrollLeft=$('targetScroll').scrollWidth;
+};
+$('add').onclick=()=>openName();$('capture').onclick=()=>{const bindings=Object.fromEntries(displays.map(d=>[d.id,d.current]));const duplicate=draft.find(c=>equalBindings(c.bindings,bindings));if(duplicate){info('이미 저장한 구성입니다','현재 화면은 ‘'+duplicate.name+'’ 구성과 같습니다. 해당 구성을 선택해 연결을 확인할 수 있어요.');return;}openName(null,true);};
+$('offline').onchange=()=>render();$('details').onclick=()=>{$('changeList').innerHTML=changes().map(x=>'<li>'+esc(x)+'</li>').join('');$('changesDialog').showModal();};
+$('undo').onclick=()=>{if(history.length){draft=history.pop();selected=null;notice='';render();}else if(savedUndo){saved=clone(savedUndo);draft=clone(saved);savedUndo=null;notice='마지막 저장을 되돌렸어요';render();}};
+$('cancel').onclick=()=>$('discardDialog').showModal();$('discard').onclick=()=>{draft=clone(saved);history=[];selected=null;$('discardDialog').close();render();};$('save').onclick=save;
+$('deleteConfirm').onclick=()=>{remember();draft=draft.filter(c=>c.id!==deleting);$('deleteDialog').close();render();};
+$('closeWindow').onclick=()=>{if(changes().length){$('saveClose').disabled=!!issues().length;$('leaveDescription').textContent=issues()[0]||'아직 저장하지 않은 연결과 순서 변경이 있습니다.';$('leaveDialog').showModal();}else closeWindow();};
+$('discardClose').onclick=()=>{draft=clone(saved);history=[];$('leaveDialog').close();render();closeWindow();};$('saveClose').onclick=()=>{if(save()){$('leaveDialog').close();closeWindow();}};$('reopen').onclick=()=>{$('appWindow').classList.remove('hidden');$('closedState').classList.add('hidden');render();};
+window.addEventListener('beforeunload',e=>{if(changes().length){e.preventDefault();e.returnValue='';}});
+$('renumber').onclick=()=>{for(const d of displays){d.spaces.reverse();d.spaces.forEach((s,i)=>s.number=i+1);}notice='번호가 바뀌어도 같은 데스크탑을 따라갑니다';render();};
+$('reset').onclick=reset;$('scenario').onchange=reset;$('theme').onclick=()=>{document.body.classList.toggle('theme-dark');$('theme').textContent=document.body.classList.contains('theme-dark')?'라이트 모드':'다크 모드';};
+for(const b of document.querySelectorAll('[data-close]'))b.onclick=()=>$(b.dataset.close).close();
+for(const d of document.querySelectorAll('dialog'))d.addEventListener('close',()=>{const active=document.querySelector('[data-target]');if(!document.querySelector('dialog[open]'))active?.focus({preventScroll:true});});
+document.addEventListener('click',e=>{if(!e.target.closest('.context-menu')&&!e.target.closest('[data-menu]')&&!e.target.closest('[data-reorder]'))document.querySelector('.context-menu')?.remove();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){selected=null;clearDrag();document.querySelector('.context-menu')?.remove();document.querySelectorAll('.chosen').forEach(x=>{x.classList.remove('chosen');x.setAttribute('aria-pressed','false');});}});
+reset();
+</script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Vision
 import XCTest
 import SidebyCore
 import SidebySystem
@@ -12,6 +13,86 @@ import SidebyUI
 final class ReadmeMediaRenderingTests: XCTestCase {
     private var root: URL {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    }
+
+    func testRenderConnectionGuidanceReview() async throws {
+        guard ProcessInfo.processInfo.environment["SIDEBY_RENDER_GUIDANCE"] == "1" else {
+            throw XCTSkip("Opt-in isolated onboarding guidance rendering")
+        }
+        let path = try XCTUnwrap(ProcessInfo.processInfo.environment["SIDEBY_MEDIA_OUTPUT"], "Use a private output folder")
+        let output = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        for language in [AppLanguage.korean, .english] {
+            for scenario in ["empty", "partial-current", "current", "destination", "two-one-available"] {
+                let model = try makeModel(language: language,
+                    workspaceCount: scenario == "empty" ? 0 : scenario == "two-one-available" ? 2 : 1,
+                    currentIndex: scenario == "destination" ? 1 : 0)
+                model.workspacePreferences = nil
+                if scenario == "partial-current", let context = model.settings.contextPlan.contexts.first {
+                    XCTAssertTrue(model.setCurrentConnection(displayID: "display-1", key: nil, contextID: context.id))
+                    XCTAssertNotNil(model.connectionGuidance.pairing)
+                    XCTAssertEqual(model.connectionGuidance.usage, .rememberCurrent)
+                }
+                if scenario == "two-one-available", let context = model.settings.contextPlan.contexts.last {
+                    model.settings.savedWorkspaces.bookmarks[context.id]?["display-0"] = "missing-sample-space"
+                    XCTAssertEqual(model.connectionGuidance, ConnectionGuidancePresentation())
+                }
+                let before = model.settings.savedWorkspaces
+                for dark in [false, true] {
+                    for compact in [false, true] {
+                        let preferences = MemoryProductUIPreferences()
+                        preferences.onboardingStage = .workspaces
+                        let name = "guidance-\(language)-\(scenario)-\(dark ? "dark" : "light")-\(compact ? "compact" : "normal").png"
+                        try await render(onboarding(model, preferences), to: output.appendingPathComponent(name),
+                            width: compact ? 560 : 720, height: compact ? 480 : 760, dark: dark)
+                    }
+                }
+                XCTAssertEqual(model.settings.savedWorkspaces, before)
+                XCTAssertFalse(model.isSwitching)
+            }
+        }
+    }
+
+    func testMountedPairingGuidanceUpdatesWhenSavedConnectionCountChanges() async throws {
+        guard ProcessInfo.processInfo.environment["SIDEBY_RENDER_GUIDANCE"] == "1" else {
+            throw XCTSkip("Opt-in isolated onboarding guidance rendering")
+        }
+        let model = try makeModel(language: .english, workspaceCount: 1)
+        model.workspacePreferences = nil
+        let firstID = try XCTUnwrap(model.settings.contextPlan.contexts.first?.id)
+        XCTAssertTrue(model.setCurrentConnection(displayID: "display-1", key: nil, contextID: firstID))
+        let host = NSHostingView(rootView: CurrentConnectionsView(model: model, showsFirstConnectionGuidance: true)
+            .frame(width: 900, height: 700).scaleEffect(2, anchor: .topLeading)
+            .frame(width: 1800, height: 1400, alignment: .topLeading))
+        let window = mount(host, size: .init(width: 1800, height: 1400), dark: false)
+        defer { window.close() }
+        func cell(_ view: NSView) -> NSView? {
+            if view.accessibilityIdentifier() == "connection-cell-\(firstID)-display-1" { return view }
+            return view.subviews.lazy.compactMap(cell).first
+        }
+        func renderedText() throws -> String {
+            host.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = ["en-US"]
+            try VNImageRequestHandler(cgImage: XCTUnwrap(bitmap.cgImage), options: [:]).perform([request])
+            return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        let mountedCell = try XCTUnwrap(cell(host))
+        XCTAssertTrue(try renderedText().contains("Add to this connection"))
+        XCTAssertTrue(model.setCurrentConnection(displayID: "display-0", key: "sample-display-0-desktop-1", contextID: nil))
+        let secondID = try XCTUnwrap(model.settings.contextPlan.contexts.first { $0.id != firstID }?.id)
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertTrue(cell(host) === mountedCell, "Exercise invalidation of the same native card")
+        XCTAssertFalse(try renderedText().contains("Add to this connection"))
+        XCTAssertTrue(model.deleteSavedWorkspace(secondID))
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertTrue(cell(host) === mountedCell)
+        XCTAssertTrue(try renderedText().contains("Add to this connection"))
+        XCTAssertFalse(window.isVisible)
     }
 
     func testOffscreenOnboardingDefersNamesUntilExplicitRefreshWithoutChangingWorkOrProgress() async throws {

@@ -9,11 +9,13 @@ struct CurrentConnectionsView: View {
     @ObservedObject var model: SidebyAppModel
     var showsDesktopSources = false
     var isQuickEditor = false
+    var showsFirstConnectionGuidance = false
     var availableHeight: CGFloat = 600
     var select: ((String) -> Void)?
     var keepOpen: () -> Void = {}
     var close: (() -> Void)?
     var copyRequested: () -> Bool = { NSEvent.modifierFlags.contains(.option) }
+    var onInteraction: () -> Void = {}
     @State private var sourceOffsets: [String: CGFloat] = [:]
     @State private var observation: WorkspaceLayoutObservation?
     @State private var picker: String?
@@ -45,6 +47,9 @@ struct CurrentConnectionsView: View {
     private var compact: Bool { showsDesktopSources && availableHeight < 580 }
     private var activeDisplayID: String? { drag?.desktop?.displayID ?? selectedDesktop?.displayID }
     private var canUndo: Bool { model.settings.savedWorkspaces.undo != nil }
+    private var pairingGuidance: ConnectionGuidancePresentation.Pairing? {
+        showsFirstConnectionGuidance ? model.connectionGuidance.pairing : nil
+    }
 
 
     var body: some View {
@@ -73,7 +78,7 @@ struct CurrentConnectionsView: View {
                     }.controlSize(.small).pointingHandCursor()
                         .disabled(!model.canDeleteAllSavedWorkspaces)
                         .accessibilityIdentifier("connections-clear-all")
-                Button(copy.displays) { keepOpen(); showsDisplays = true }.pointingHandCursor()
+                Button(copy.displays) { onInteraction(); keepOpen(); showsDisplays = true }.pointingHandCursor()
                     .accessibilityIdentifier("connections-displays")
                     .popover(isPresented: $showsDisplays) {
                         ScrollView {
@@ -94,6 +99,12 @@ struct CurrentConnectionsView: View {
                 Text(showsDesktopSources
                     ? copy.text("Place a Space in a cell for the same display. Use Go together to switch.", "Space를 같은 모니터의 칸에 놓으세요. 화면 이동은 ‘함께 이동’을 누르세요.") : copy.hint)
                     .font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+            }
+            if pairingGuidance != nil && !isSelectingConnections {
+                Text(copy.text("To move another display together, add its Space in this column.",
+                    "함께 넘길 모니터라면 같은 열에 Space를 추가하세요."))
+                    .font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("connections-pairing-hint")
             }
             if showsDesktopSources && !isSelectingConnections { desktopSources }
             if !connected.isEmpty && (observation == nil || connected.contains(where: { keys($0) == nil })) {
@@ -179,6 +190,7 @@ struct CurrentConnectionsView: View {
     }
 
     private func startSelectingConnections() {
+        onInteraction()
         keepOpen(); selectedDesktop = nil; picker = nil; drag = nil; dropCell = nil
         renaming = nil
         selectedConnectionIDs.removeAll(); isSelectingConnections = true
@@ -214,6 +226,7 @@ struct CurrentConnectionsView: View {
     }
 
     private func confirmRemoval(_ scope: ConnectionRemovalScope) {
+        onInteraction()
         guard let proposal = model.prepareConnectionRemoval(scope) else { return }
         keepOpen(); selectedDesktop = nil; picker = nil
         if case .connections(let ids) = scope, ids.count == 1 {
@@ -382,7 +395,8 @@ struct CurrentConnectionsView: View {
             identifier: "connection-source-" + displayID + "-\(index)",
             accessibilityState: selected ? copy.text("Selected. Click a cell for this display.", "선택됨. 같은 모니터의 칸을 누르세요.") : nil,
             contentKey: .init(text: [title, copy.spacePosition(index), copy.text("On screen", "현재")], flags: [current, selected]),
-            click: { keepOpen(); selectedDesktop = selected ? nil : desktop; picker = nil }, beginDrag: {
+            click: { onInteraction(); keepOpen(); selectedDesktop = selected ? nil : desktop; picker = nil }, beginDrag: {
+                onInteraction()
                 keepOpen()
                 selectedDesktop = desktop
                 let payload = WorkspaceComposerDrag(session: session, desktop: desktop)
@@ -550,6 +564,7 @@ struct CurrentConnectionsView: View {
                     identifier: "connection-rename-" + context.id, allowsMove: true,
                     contentKey: .init(text: [context.name]),
                     click: { beginRenaming(context) }, beginDrag: {
+                        onInteraction()
                         keepOpen(); renaming = nil; picker = nil; selectedDesktop = nil
                         let payload = WorkspaceComposerDrag(session: session, contextID: context.id)
                         drag = payload
@@ -630,6 +645,7 @@ struct CurrentConnectionsView: View {
     }
 
     private func beginRenaming(_ context: ContextDefinition) {
+        onInteraction()
         keepOpen(); selectedDesktop = nil; picker = nil; drag = nil; dropCell = nil
         renaming = context
     }
@@ -647,16 +663,20 @@ struct CurrentConnectionsView: View {
         let hovering = dropCell == cellID
         let preview = dropPreview(context, assigned: assigned)
         let isSelected = context.map { selectedConnectionIDs.contains($0.id) } ?? false
+        let suggestsPairing = !isSelectingConnections && context?.id == pairingGuidance?.contextID
+            && pairingGuidance?.displayIDs.contains(displayID) == true
+        let emptySubtitle = suggestsPairing ? copy.text("Add to this connection", "이 연결에 추가하기")
+            : showsDesktopSources ? copy.orChoose : copy.text("Click to connect", "눌러서 연결하기")
         return WorkspaceDesktopDragSource(enabled: enabled, label: (isSelectingConnections ? (context?.name ?? "") + " · " : "") + model.displayName(for: displayID) + " · " + title,
             identifier: "connection-cell-" + cellID,
             isDraggable: !isSelectingConnections && connected.contains(displayID) && assigned && !missing && !unreadable && key != nil,
             accessibilityState: isSelectingConnections ? copy.selectedState(isSelected) : hovering ? preview : assigned ? copy.text("Connected", "연결됨") : copy.text("Empty. Click to connect a Space.", "빈 칸. 눌러서 Space를 연결하세요."),
             allowsMove: true,
             contentKey: .init(text: [title, preview, index.map { copy.spacePosition($0) } ?? "",
-                showsDesktopSources ? copy.orChoose : copy.text("Click to connect", "눌러서 연결하기")],
-                flags: [assigned, missing, unreadable, isSelectingConnections, isSelected, hovering, selectedDesktop?.displayID == displayID]),
+                emptySubtitle],
+                flags: [assigned, missing, unreadable, isSelectingConnections, isSelected, hovering, selectedDesktop?.displayID == displayID, suggestsPairing]),
             click: {
-                keepOpen()
+                onInteraction(); keepOpen()
                 if isSelectingConnections {
                     if let context { toggleConnectionSelection(context.id) }
                     return
@@ -669,6 +689,7 @@ struct CurrentConnectionsView: View {
                     readObservation()
                 } else { picker = cellID }
             }, beginDrag: {
+                onInteraction()
                 guard let key, !missing, keys(displayID)?.contains(key) == true else { return "" }
                 keepOpen()
                 selectedDesktop = nil
@@ -692,14 +713,14 @@ struct CurrentConnectionsView: View {
                     } else if let index, title != copy.spacePosition(index) {
                         Text(copy.spacePosition(index)).font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     } else if !assigned && !isSelectingConnections {
-                        Text(showsDesktopSources ? copy.orChoose : copy.text("Click to connect", "눌러서 연결하기"))
+                        Text(emptySubtitle)
                             .font(.system(size: 11)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     }
                 }.padding(9).frame(maxWidth: .infinity, alignment: .leading).frame(height: rowHeight - 8)
                     .background(hovering || (isSelectingConnections && isSelected) ? NativeSurfaceStyle.selectionBackground : assigned ? NativeSurfaceStyle.selectionBackground.opacity(0.65) : NativeSurfaceStyle.windowBackground,
                                 in: RoundedRectangle(cornerRadius: 7))
-                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(missing || unreadable ? Color.orange : hovering || selectedDesktop?.displayID == displayID ? Color.accentColor : NativeSurfaceStyle.itemBorder,
-                        style: StrokeStyle(lineWidth: hovering ? 2 : 1, dash: assigned ? [] : [4, 4])))
+                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(missing || unreadable ? Color.orange : hovering || suggestsPairing || selectedDesktop?.displayID == displayID ? Color.accentColor : NativeSurfaceStyle.itemBorder,
+                        style: StrokeStyle(lineWidth: hovering || suggestsPairing ? 2 : 1, dash: assigned ? [] : [4, 4])))
             }
             .padding(.horizontal, 5).frame(height: rowHeight).help(title)
             .screenBoundedPopover(isPresented: Binding(get: { picker == cellID }, set: { if !$0 { picker = nil } }), width: 290) {

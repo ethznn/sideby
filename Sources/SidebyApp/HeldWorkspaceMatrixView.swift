@@ -8,13 +8,16 @@ private struct HeldMatrixContentSize: Equatable {
     var size: CGSize = .zero
     var editing = false
     var visible = true
+    var repairHeight: CGFloat = 0
 }
 
 struct HeldMatrixStrings {
     let language: AppLanguage
     private func text(_ en: String, _ ko: String) -> String { language == .korean ? ko : en }
     var title: String { text("Switch Spaces together", "Space 함께 이동") }
-    var hint: String { text("Click a name or Space to switch · Pencil to rename · Drag to edit.", "이름·Space 클릭으로 이동 · 연필로 이름 수정 · 드래그로 연결·순서 변경") }
+    var hint: String { text("Click a name or Space to move its assigned displays together · Pencil to rename · Drag to edit.", "이름·Space를 누르면 연결된 모니터가 함께 이동합니다 · 연필로 이름 수정 · 드래그로 연결·순서 변경") }
+    var switchAction: String { text("Go together", "함께 이동") }
+    var repairAction: String { text("Check Spaces", "Space 확인") }
     var editConnections: String { text("Edit connections", "연결 수정") }
     var backToSwitching: String { text("Back to switching", "이동 화면으로") }
     var together: String { text("Move together", "함께 전환") }
@@ -56,6 +59,7 @@ struct HeldWorkspaceMatrixView: View {
     var availableHeight: CGFloat = 900
     var contentMeasured: (CGSize, Bool) -> Void = { _, _ in }
     var usesRadial = false
+    var animateEntrance = true
     var wheelDiameter: CGFloat?
     var wheelAvailable = true
     var placement = HeldSwitcherPlacement()
@@ -64,7 +68,7 @@ struct HeldWorkspaceMatrixView: View {
         HeldWorkspaceMatrixContent(model: model, snapshot: snapshot, select: select,
             rememberColumn: rememberColumn, persistent: persistent, close: close, keepOpen: keepOpen,
             editingChanged: editingChanged, copyRequested: copyRequested, availableHeight: availableHeight,
-            contentMeasured: contentMeasured, usesRadial: usesRadial, wheelDiameter: wheelDiameter,
+            contentMeasured: contentMeasured, usesRadial: usesRadial, animateEntrance: animateEntrance, wheelDiameter: wheelDiameter,
             wheelAvailable: wheelAvailable, placement: placement, presentationChanged: presentationChanged,
             live: HeldWorkspaceSnapshot(model: model, previousColumnID: snapshot.initialColumnID))
             .task { await model.refreshVisibleConnections() }
@@ -84,6 +88,7 @@ private struct HeldWorkspaceMatrixContent: View {
     var availableHeight: CGFloat = 900
     var contentMeasured: (CGSize, Bool) -> Void = { _, _ in }
     var usesRadial = false
+    var animateEntrance = true
     var wheelDiameter: CGFloat?
     var wheelAvailable = true
     @ObservedObject var placement = HeldSwitcherPlacement()
@@ -109,6 +114,8 @@ private struct HeldWorkspaceMatrixContent: View {
     @State private var hoveredActionsID: String?
     @State private var showsFeedback = false
     @State private var revealedConnectionID: String?
+    @State private var repairSession = ConnectionRepairSession()
+    @State private var repairBarHeight: CGFloat = 0
     private var copy: HeldMatrixStrings { .init(language: model.settings.language) }
 
     var body: some View {
@@ -126,9 +133,9 @@ private struct HeldWorkspaceMatrixContent: View {
                 if usesRadial || loadedWheel {
                     HeldWorkspaceWheelView(model: model, select: { column in
                         rememberColumn(column.id); select(column)
-                    }, keepOpen: keepOpen, close: close, edit: { setEditing(true) },
+                    }, keepOpen: keepOpen, close: close, edit: { setEditing(true, request: $0) },
                         persistent: persistent || hasEnteredEditing, diameter: wheelDiameter, displayCount: snapshot.displayIDs.count,
-                        snapshot: live, animateEntrance: !hasEnteredEditing, isActive: showingWheel)
+                        snapshot: live, animateEntrance: animateEntrance && !hasEnteredEditing, isActive: showingWheel)
                         .opacity(showingWheel ? 1 : 0).allowsHitTesting(showingWheel)
                         .accessibilityHidden(!showingWheel).disabled(!showingWheel)
                 }
@@ -142,6 +149,18 @@ private struct HeldWorkspaceMatrixContent: View {
     }
 
     private var matrixBody: some View {
+        VStack(spacing: 0) {
+            if isEditing, let request = repairSession.target {
+                ConnectionRepairBar(model: model, request: request,
+                    isPickerPresented: Binding(get: { repairSession.pickerID == request.id },
+                        set: { repairSession.setPicker($0, for: request.id) }),
+                    dismiss: { repairSession.dismiss(request.id) })
+                    .id(request.id).padding(12)
+                    .background(GeometryReader { geometry in
+                        Color.clear.onChange(of: geometry.size.height, initial: true) { _, height in repairBarHeight = height }
+                    })
+                    .onDisappear { if repairSession.target == nil { repairBarHeight = 0 } }
+            }
         ScrollViewReader { scroll in
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -156,7 +175,8 @@ private struct HeldWorkspaceMatrixContent: View {
                         CurrentConnectionsView(model: model, showsDesktopSources: true, isQuickEditor: true,
                             availableHeight: max(280, availableHeight - 80),
                             select: { id in if let column = live.columns.first(where: { $0.id == id }) { select(column) } },
-                            keepOpen: keepOpen, close: close, copyRequested: copyRequested)
+                            keepOpen: keepOpen, close: close, copyRequested: copyRequested,
+                            onInteraction: { repairSession.closePicker() })
                     } else {
                         HStack {
                             Text(copy.title).font(.system(size: 17, weight: .semibold))
@@ -214,10 +234,12 @@ private struct HeldWorkspaceMatrixContent: View {
                 }
                 .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
                 .background(GeometryReader { geometry in
-                    Color.clear.onChange(of: HeldMatrixContentSize(size: geometry.size, editing: isEditing, visible: !showingWheel), initial: true) { _, measurement in
+                    Color.clear.onChange(of: HeldMatrixContentSize(size: geometry.size, editing: isEditing, visible: !showingWheel,
+                        repairHeight: isEditing ? repairBarHeight : 0), initial: true) { _, measurement in
                         if !showingWheel {
                             let toolbarHeight = measurement.editing ? 0 : HeldSwitcherViewControl.height
-                            contentMeasured(CGSize(width: measurement.size.width, height: measurement.size.height + toolbarHeight), measurement.editing)
+                            contentMeasured(CGSize(width: measurement.size.width,
+                                height: measurement.size.height + toolbarHeight + measurement.repairHeight), measurement.editing)
                         }
                     }
                 })
@@ -233,6 +255,7 @@ private struct HeldWorkspaceMatrixContent: View {
                 if let id { scroll.scrollTo(id, anchor: .center) }
             }
         }
+        }
         .foregroundStyle(NativeSurfaceStyle.primaryText)
         .background(NativeSurfaceStyle.windowBackground, in: RoundedRectangle(cornerRadius: 17))
         .overlay(RoundedRectangle(cornerRadius: 17).strokeBorder(NativeSurfaceStyle.frameBorder))
@@ -242,20 +265,24 @@ private struct HeldWorkspaceMatrixContent: View {
         .onChange(of: model.settings.savedWorkspaces.undo) { _, _ in
             if hasEnteredEditing { showsFeedback = true }
         }
+        .onDisappear { repairSession.show(nil) }
     }
 
     private func changeView(_ mode: HeldSwitcherViewMode) {
         guard (mode != viewMode || isEditing), mode != .wheel || wheelAvailable else { return }
-        keepOpen(); hasEnteredEditing = true
+        // Choosing a presentation is not editing: a shortcut-held panel must
+        // still close on release. An explicitly pinned editor stays pinned.
         renaming = nil; repairingCell = nil; finishDrag()
+        repairSession.show(nil)
         if mode == .wheel { loadedWheel = true } else { loadedTable = true }
         chosenView = mode; isEditing = false
         editingChanged(false)
         presentationChanged(mode.presentation)
     }
 
-    private func setEditing(_ editing: Bool) {
+    private func setEditing(_ editing: Bool, request: ConnectionEditorRevealRequest? = nil) {
         if editing { keepOpen(); hasEnteredEditing = true }
+        repairSession.show(editing ? request : nil)
         isEditing = editing
         editingChanged(editing)
         presentationChanged(editing ? .editor : viewMode.presentation)
@@ -391,12 +418,6 @@ private struct HeldWorkspaceMatrixContent: View {
                 .popover(isPresented: Binding(get: { renaming?.id == column.id }, set: { if !$0 { renaming = nil } })) {
                     if let target = renaming { ConnectionNameEditor(model: model, target: target, close: { renaming = nil }) }
                 }
-            }
-            HStack(spacing: 4) {
-                if current { Label(copy.current, systemImage: "checkmark.circle.fill") }
-                else if model.isSwitching && model.workspaceSwitchTargetName == column.name { Text(copy.moving) }
-                else if let shortcut = model.workspaceShortcut(column.id) { Text(shortcut) }
-                Spacer(minLength: 0)
                 HeldConnectionActionsMenu(
                     label: column.name + " · " + model.connectionCopy.text("Connection actions", "연결 관리"),
                     removeTitle: model.connectionCopy.text("Remove connection · Keep Spaces", "연결 삭제 · Space는 유지"),
@@ -417,9 +438,18 @@ private struct HeldWorkspaceMatrixContent: View {
                     .onHover { hoveredActionsID = $0 && model.canChangeSavedWorkspaces ? column.id : nil }
                     .accessibilityLabel(column.name + " · " + model.connectionCopy.text("Connection actions", "연결 관리"))
                     .accessibilityIdentifier("held-actions-" + column.id)
+            }
+            HStack(spacing: 4) {
+                if current { Label(copy.current, systemImage: "checkmark.circle.fill").fixedSize() }
+                else if model.isSwitching && model.workspaceSwitchTargetName == column.name { Text(copy.moving).lineLimit(1) }
+                else if let shortcut = model.workspaceShortcut(column.id) { Text(shortcut).lineLimit(1) }
+                Spacer(minLength: 0)
                 Button { switchTo(column, enabled: enabled) } label: {
-                    Image(systemName: repairable ? "exclamationmark.circle" : "arrow.right.circle")
-                        .foregroundStyle(repairable ? Color.orange : current ? Color.accentColor : NativeSurfaceStyle.secondaryText)
+                    Text(repairable ? copy.repairAction : copy.switchAction)
+                        .font(.system(size: 11, weight: .medium)).lineLimit(1).fixedSize()
+                        .foregroundStyle(repairable ? Color.orange : NativeSurfaceStyle.accent)
+                        .padding(.horizontal, 5).frame(height: 24)
+                        .background(NativeSurfaceStyle.controlBackground, in: RoundedRectangle(cornerRadius: 5))
                 }
                     .buttonStyle(.plain).disabled(!enabled && !repairable).pointingHandCursor(enabled || repairable)
                     .help(actionLabel).accessibilityLabel(actionLabel)
@@ -471,8 +501,9 @@ private struct HeldWorkspaceMatrixContent: View {
         let hint = dragCopies ? model.connectionCopy.text("Release to copy", "놓으면 복사") : missing
             ? model.connectionCopy.text("Hold Option to copy here", "Option을 누르면 여기에 복사")
             : model.connectionCopy.text("Release to move / swap", "놓으면 이동·자리 바꾸기")
+        let clickHint = canRepair ? copy.repairHint : copy.move(column.name)
         return WorkspaceDesktopDragSource(enabled: canSwitch || canDrag || canRepair,
-            label: model.displayName(for: displayID) + " · " + title,
+            label: model.displayName(for: displayID) + " · " + title + " · " + clickHint,
             identifier: "held-cell-" + cellID, isDraggable: canDrag,
             accessibilityState: hovering ? hint : title, allowsMove: true, usesPointingHand: true,
             contentKey: .init(text: [title, column.desktopLabels[displayID] ?? "", column.cells[displayID] ?? "", copy.missingHint, hint],
@@ -500,7 +531,7 @@ private struct HeldWorkspaceMatrixContent: View {
                     .overlay(alignment: .top) { Rectangle().fill(NativeSurfaceStyle.frameBorder).frame(height: 0.5).allowsHitTesting(false) }
                     .overlay { if hovering { RoundedRectangle(cornerRadius: 5).strokeBorder(Color.accentColor, lineWidth: 2) } }
             }
-            .help(canRepair ? copy.repairHint : copy.move(column.name) + " · " + model.connectionCopy.text("Drag to change connection", "끌어서 연결 변경"))
+            .help(clickHint + " · " + model.connectionCopy.text("Drag to change connection", "끌어서 연결 변경"))
             .pointingHandCursor(canSwitch || canDrag || canRepair)
             .id(cellID)
             .screenBoundedPopover(isPresented: Binding(get: { repairingCell == cellID }, set: { if !$0 { repairingCell = nil } }), width: 290) {

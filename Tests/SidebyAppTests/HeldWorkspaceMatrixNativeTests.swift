@@ -7,7 +7,10 @@ import XCTest
 
 @MainActor final class HeldWorkspaceMatrixNativeTests: XCTestCase {
     private func requireNative() throws {
-        guard ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE"] == "1" else { throw XCTSkip("Opt-in quick switch interactions") }
+        guard ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE"] == "1",
+              ProcessInfo.processInfo.environment["SIDEBY_INTERACTIVE_UI_TESTS"] == "1" else {
+            throw XCTSkip("Visible/input tests require a separately authorized interactive test session")
+        }
         NSApplication.shared.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"),
             with: NSNumber(value: true), with: "AXEnhancedUserInterface")
         let policy = NSApplication.shared.activationPolicy()
@@ -843,7 +846,8 @@ import XCTest
     }
 
     func testNativeLayoutAndColumnClickInBothAppearances() async throws {
-        guard ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE"] == "1" else {
+        guard ProcessInfo.processInfo.environment["SIDEBY_NATIVE_EVIDENCE"] == "1",
+              ProcessInfo.processInfo.environment["SIDEBY_INTERACTIVE_UI_TESTS"] == "1" else {
             throw XCTSkip("Opt-in quick matrix native rendering and click evidence")
         }
         NSApplication.shared.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"),

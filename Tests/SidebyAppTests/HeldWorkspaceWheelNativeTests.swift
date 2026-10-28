@@ -261,7 +261,7 @@ import XCTest
         model.settings.contextPlan.replaceContexts(contexts, currentContextID: "work-0")
         var edits = 0
         let window = window(HeldWorkspaceWheelView(model: model, select: { _ in XCTFail("Preview never switches") },
-            edit: { edits += 1 }, diameter: 320), size: NSSize(width: 352, height: 448), visible: false)
+            edit: { _ in edits += 1 }, diameter: 320), size: NSSize(width: 352, height: 448), visible: false)
         defer { window.close() }
         try await Task.sleep(for: .milliseconds(500))
         let frame = window.frame, before = model.settings
@@ -359,7 +359,7 @@ import XCTest
     func testLargerNamesAndWindowTitlesRenderOffscreenAtSparseDenseAndMinimumSizes() async throws {
         try requireOffscreenRendering()
         for language in [AppLanguage.korean, .english] {
-            for (count, diameter) in [(2, 440.0), (4, 440.0), (8, 440.0), (8, 320.0)] {
+            for (count, diameter) in [(2, 440.0), (4, 440.0), (8, 440.0), (8, 360.0), (8, 320.0)] {
                 let model = heldMatrixFixture(count: count, displayCount: 2)
                 model.workspacePreferences = nil; model.settings.language = language
                 let names = language == .korean
@@ -391,6 +391,54 @@ import XCTest
                     try capture("wheel-readable-\(language)-\(count)-\(Int(diameter))-\(index)", window: window)
                 }
                 XCTAssertEqual(window.frame.size, size); XCTAssertEqual(model.settings, before)
+            }
+        }
+    }
+
+    func testQuickTableNamesItsActionAndStillDelegatesTheWholeConnectionOffscreen() async throws {
+        try requireOffscreenRendering()
+        for language in [AppLanguage.korean, .english] {
+            let model = heldMatrixFixture(count: 3, displayCount: 2)
+            model.workspacePreferences = nil; model.settings.language = language
+            let before = model.settings.savedWorkspaces
+            var selected: [String] = []
+            let window = window(HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model),
+                select: { selected.append($0.id) }), size: .init(width: 760, height: 440), visible: false)
+            defer { window.close() }
+            try await Task.sleep(for: .milliseconds(350))
+            try capture("table-explicit-action-\(language)", window: window)
+            let cell = try XCTUnwrap(element("held-cell-work-2-mac", in: window))
+            let label = cell.perform(NSSelectorFromString("accessibilityLabel"))?.takeUnretainedValue() as? String ?? ""
+            XCTAssertTrue(label.contains(HeldMatrixStrings(language: language).move("Operations")),
+                          "A cell explains that it activates the whole connection, not only its display")
+            try pressOffscreen("held-go-work-1", in: window)
+            try pressOffscreen("held-cell-work-2-mac", in: window)
+            XCTAssertEqual(selected, ["work-1", "work-2"])
+            XCTAssertEqual(model.settings.savedWorkspaces, before)
+            XCTAssertFalse(window.isVisible)
+        }
+    }
+
+    func testIdleGuidanceMatchesAvailableActionsAtZeroOneAndTwoConnectionsOffscreen() async throws {
+        try requireOffscreenRendering()
+        for language in [AppLanguage.korean, .english] {
+            for count in [0, 1, 2] {
+                let model = heldMatrixFixture(count: count, displayCount: 2)
+                model.workspacePreferences = nil; model.settings.language = language
+                let window = window(HeldWorkspaceWheelView(model: model,
+                    select: { _ in XCTFail("Idle guidance must never activate a connection") }, diameter: 320),
+                    size: .init(width: 352, height: 448), visible: false)
+                defer { window.close() }
+                try await Task.sleep(for: .milliseconds(350))
+                let message = try XCTUnwrap(element("wheel-idle-guidance", in: window))
+                let label = (message.perform(NSSelectorFromString("accessibilityLabel"))?.takeUnretainedValue() as? String)
+                    ?? (message.perform(NSSelectorFromString("accessibilityValue"))?.takeUnretainedValue() as? String) ?? ""
+                let expected = language == .korean
+                    ? ["첫 연결", "돌아오세요", "순서 변경"][count]
+                    : ["Start with", "return after", "reorder"][count]
+                XCTAssertTrue(label.contains(expected), label)
+                try capture("wheel-idle-\(language)-\(count)", window: window)
+                XCTAssertFalse(window.isVisible)
             }
         }
     }
@@ -486,7 +534,7 @@ import XCTest
         var closes = 0, edits = 0
         let window = window(HeldWorkspaceWheelView(model: model,
             select: { _ in XCTFail("The current partial connection never switches") },
-            close: { closes += 1 }, edit: { edits += 1 }))
+            close: { closes += 1 }, edit: { _ in edits += 1 }))
         defer { window.close() }
         try await Task.sleep(for: .milliseconds(500))
         let button = try XCTUnwrap(element("wheel-go-work-0", in: window))
@@ -696,6 +744,11 @@ import XCTest
     }
     private func pressOffscreen(_ id: String, in window: NSWindow) throws {
         let object = try XCTUnwrap(element(id, in: window), id)
+        if let button = object as? NSButton {
+            XCTAssertTrue(button.isEnabled)
+            button.performClick(nil)
+            return
+        }
         let action = NSSelectorFromString("accessibilityPerformPress")
         XCTAssertTrue(object.responds(to: action))
         let implementation = try XCTUnwrap(object.method(for: action))
@@ -744,10 +797,68 @@ import XCTest
                 try capture("switcher-toggle-\(startsWithCircle)-\(id)", window: window)
             }
             XCTAssertEqual(changes, startsWithCircle ? [.editor, .wheel, .table, .wheel] : [.editor, .table, .wheel])
-            // The wheel pins its action before handing off to the shared editor.
-            XCTAssertEqual(pins, startsWithCircle ? 4 : 2)
+            // Only actual editing pins: the wheel pins before the shared editor,
+            // whereas changing presentation must preserve the current lifetime.
+            XCTAssertEqual(pins, startsWithCircle ? 2 : 1)
             XCTAssertEqual(model.settings, before); XCTAssertFalse(window.isVisible)
         }
+    }
+
+    func testMissingSpaceOpensTargetedRepairBarWithoutSwitchingOffscreen() async throws {
+        try requireOffscreenRendering()
+        let model = heldMatrixFixture(count: 3, displayCount: 2)
+        model.workspacePreferences = nil
+        model.settings.savedWorkspaces.bookmarks["work-1"]?["mac"] = "missing-sample-space"
+        model.refreshWorkspaceStatus()
+        let before = model.settings.savedWorkspaces
+        let window = window(HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model),
+            select: { _ in XCTFail("Repair entry must never move Spaces") },
+            availableHeight: 580, usesRadial: true, wheelDiameter: 440),
+            size: NSSize(width: 900, height: 580), visible: false)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(350))
+        try pressOffscreen("wheel-go-work-1", in: window)
+        try await Task.sleep(for: .milliseconds(350))
+        let bar = try XCTUnwrap(element("connection-repair-bar", in: window) as? any NSAccessibilityElementProtocol)
+        let choice = try XCTUnwrap(element("connection-repair-choose", in: window) as? any NSAccessibilityElementProtocol)
+        XCTAssertTrue(window.frame.contains(bar.accessibilityFrame()), "The repair bar is pinned outside all table scroll views")
+        XCTAssertTrue(bar.accessibilityFrame().contains(choice.accessibilityFrame()))
+        try capture("targeted-repair-editor", window: window)
+        model.isSwitching = true
+        try await Task.sleep(for: .milliseconds(100))
+        let disabledChoice = try XCTUnwrap(element("connection-repair-choose", in: window))
+        let enabledSelector = NSSelectorFromString("isAccessibilityEnabled")
+        XCTAssertTrue(disabledChoice.responds(to: enabledSelector))
+        let enabledImplementation = try XCTUnwrap(disabledChoice.method(for: enabledSelector))
+        let isEnabled = unsafeBitCast(enabledImplementation, to: (@convention(c) (AnyObject, Selector) -> Bool).self)
+        XCTAssertFalse(isEnabled(disabledChoice, enabledSelector))
+        model.isSwitching = false
+        try pressOffscreen("connection-repair-dismiss", in: window)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertNil(element("connection-repair-bar", in: window))
+        XCTAssertNotNil(element("current-connections-table", in: window))
+        XCTAssertEqual(model.settings.savedWorkspaces, before)
+        XCTAssertFalse(window.isVisible)
+    }
+
+    func testRecoveryNamesOriginalTargetAndKeepsGenericEditingOffscreen() async throws {
+        try requireOffscreenRendering()
+        let model = heldMatrixFixture(count: 10, displayCount: 2)
+        model.workspacePreferences = nil
+        model.workspaceRecoveryTargetID = "work-9"
+        let window = window(HeldWorkspaceWheelView(model: model,
+            select: { _ in XCTFail("Rendering recovery never moves Spaces") }, diameter: 320),
+            size: NSSize(width: 352, height: 448), visible: false)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(350))
+        try await trackPointer(HeldWorkspaceWheelLayout.labelPoint(index: 2, count: 8), in: window)
+        let message = try XCTUnwrap(element("wheel-recovery-message", in: window))
+        let label = message.perform(NSSelectorFromString("accessibilityLabel"))?.takeUnretainedValue() as? String ?? ""
+        XCTAssertTrue(label.contains("Review"))
+        XCTAssertNotNil(element("held-edit-connections", in: window))
+        XCTAssertNotNil(element("wheel-recovery-action", in: window))
+        try capture("recovery-off-page-minimum", window: window)
+        XCTAssertFalse(window.isVisible)
     }
 
     func testWheelNativeDragWiringReordersAndUndoRestoresWithoutSwitchingOffscreen() async throws {

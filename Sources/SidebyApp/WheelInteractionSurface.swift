@@ -9,7 +9,7 @@ struct WheelInteractionSurface: NSViewRepresentable {
     let geometry: HeldWorkspaceWheelGeometry
     let enabled: Set<Int>
     let centerEnabled: Bool
-    let toolsIndex: Int?
+    let visibleToolIndices: Set<Int>
     let canReorder: Bool
     let activeDrag: WorkspaceComposerDrag?
     let session: UUID
@@ -26,7 +26,7 @@ struct WheelInteractionSurface: NSViewRepresentable {
     func makeNSView(context: Context) -> CursorView { CursorView() }
     func updateNSView(_ view: CursorView, context: Context) {
         view.count = count; view.geometry = geometry; view.enabled = enabled
-        view.centerEnabled = centerEnabled; view.toolsIndex = toolsIndex
+        view.centerEnabled = centerEnabled; view.visibleToolIndices = visibleToolIndices
         view.canReorder = canReorder; view.isEnabled = context.environment.isEnabled
         view.activeDrag = activeDrag; view.session = session; view.columnIDs = columnIDs; view.names = names; view.orderedIDs = orderedIDs
         view.hovered = hovered; view.click = click; view.beginDrag = beginDrag
@@ -38,7 +38,7 @@ struct WheelInteractionSurface: NSViewRepresentable {
         var geometry = HeldWorkspaceWheelGeometry()
         var enabled: Set<Int> = []
         var centerEnabled = false
-        var toolsIndex: Int?
+        var visibleToolIndices: Set<Int> = []
         var canReorder = false
         var isEnabled = true
         var activeDrag: WorkspaceComposerDrag?
@@ -75,7 +75,7 @@ struct WheelInteractionSurface: NSViewRepresentable {
             let local = canvasPoint(convert(point, from: superview))
             guard let index = HeldWorkspaceWheelLayout.sector(at: local, count: count, geometry: geometry),
                   enabled.contains(index) || canReorder else { return nil }
-            if toolsIndex == index {
+            if visibleToolIndices.contains(index) {
                 let position = HeldWorkspaceWheelLayout.labelPoint(index: index, count: count, geometry: geometry)
                 let tools = CGRect(x: position.x - 31, y: position.y + HeldWorkspaceWheelLayout.toolsOffset(count: count) - 13, width: 62, height: 26)
                 if tools.contains(local) { return nil }
