@@ -87,7 +87,7 @@ These tests press controls on hidden fixture objects only; they do not open the
 Space picker or send system input. Installed-app keyboard traversal, popover
 placement and physical recovery still need a separate interactive session.
 
-The same offscreen flag also enables the wheel's 440/360/320pt typography
+The same offscreen flag also enables the wheel's 384/360/320pt typography
 renders, zero/one/two-connection guidance checks, and the quick table's explicit
 action-label regression. The latter presses fixture controls and verifies that
 both the text action and a Space cell still delegate the whole connection.

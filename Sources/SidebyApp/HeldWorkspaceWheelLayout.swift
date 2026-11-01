@@ -8,10 +8,11 @@ struct HeldWorkspaceWheelGeometry: Equatable {
     var expansion: CGFloat { CGFloat(max(0, displayCount - 2)) * 20 }
     var centerRadius: CGFloat { 84 + expansion }
     var innerRadius: CGFloat { centerRadius + HeldWorkspaceWheelLayout.gap }
-    var outerRadius: CGFloat { 218 + expansion }
-    var diameter: CGFloat { 440 + expansion * 2 }
+    var outerRadius: CGFloat { 204 + expansion }
+    var diameter: CGFloat { 412 + expansion * 2 }
+    var preferredDiameter: CGFloat { HeldWorkspaceWheelLayout.preferredDiameter + expansion * 2 }
     var midpoint: CGFloat { diameter / 2 }
-    var labelRadius: CGFloat { 158 + expansion }
+    var labelRadius: CGFloat { 148 + expansion }
     var previewWidth: CGFloat { displayCount > 2 ? 160 : 132 }
 }
 
@@ -20,19 +21,21 @@ enum HeldWorkspaceWheelLayout {
     static let pageSize = 8
     static let gap: CGFloat = 10
     static let innerRadius: CGFloat = centerRadius + gap
-    static let outerRadius: CGFloat = 218
+    static let outerRadius: CGFloat = 204
     static let centerRadius: CGFloat = 84
-    static let diameter: CGFloat = 440
+    static let diameter: CGFloat = 412
+    // Render below the geometry canvas size; pointer regions use the same scale.
+    static let preferredDiameter: CGFloat = 384
     static let ringTop: CGFloat = 8
-    static let chromeHeight: CGFloat = 128
+    static let chromeHeight: CGFloat = 112
 
     static func size(in visibleFrame: NSRect, geometry: HeldWorkspaceWheelGeometry = .init(), toolbarHeight: CGFloat = 0) -> NSSize {
-        let ring = max(1, min(geometry.diameter, visibleFrame.width - 64, visibleFrame.height - chromeHeight - toolbarHeight - 32))
+        let ring = max(1, min(geometry.preferredDiameter, visibleFrame.width - 64, visibleFrame.height - chromeHeight - toolbarHeight - 32))
         return NSSize(width: ring + 32, height: ring + chromeHeight + toolbarHeight)
     }
 
     static func fits(in visibleFrame: NSRect, geometry: HeldWorkspaceWheelGeometry = .init(), toolbarHeight: CGFloat = 0) -> Bool {
-        (size(in: visibleFrame, geometry: geometry, toolbarHeight: toolbarHeight).width - 32) / geometry.diameter >= 320 / 440
+        (size(in: visibleFrame, geometry: geometry, toolbarHeight: toolbarHeight).width - 32) / geometry.diameter >= 320 / diameter
     }
 
     static func origin(size: NSSize, pointer: NSPoint, visibleFrame: NSRect, toolbarHeight: CGFloat = 0) -> NSPoint {
@@ -61,7 +64,54 @@ enum HeldWorkspaceWheelLayout {
         let local = angle.truncatingRemainder(dividingBy: step)
         let edgeDistance = radius * sin(min(local, step - local) * .pi / 180)
         guard count == 1 || edgeDistance >= gap / 2 else { return nil }
-        return min(count - 1, Int(angle / step))
+        let index = min(count - 1, Int(angle / step))
+        // Only the small corner bands need a path check. Keep the usual hover
+        // and label-layout path arithmetic-only, and never activate cut corners.
+        if count > 1, radius < geometry.innerRadius + cornerRadius * 2
+            || radius > geometry.outerRadius - cornerRadius * 2 {
+            guard sectorPath(index: index, count: count, geometry: geometry).contains(point) else { return nil }
+        }
+        return index
+    }
+
+    static let cornerRadius: CGFloat = 7
+
+    /// Shared by drawing and corner hit testing, including the single full ring.
+    static func sectorPath(index: Int, count: Int, geometry: HeldWorkspaceWheelGeometry) -> CGPath {
+        let center = CGPoint(x: geometry.midpoint, y: geometry.midpoint)
+        let outer = geometry.outerRadius, inner = geometry.innerRadius
+        let path = CGMutablePath()
+        guard count > 1 else {
+            path.addArc(center: center, radius: outer, startAngle: 0, endAngle: .pi * 2, clockwise: false)
+            path.addArc(center: center, radius: inner, startAngle: .pi * 2, endAngle: 0, clockwise: true)
+            path.closeSubpath()
+            return path
+        }
+        let step = .pi * 2 / CGFloat(count)
+        let start = -.pi / 2 - step / 2 + CGFloat(index) * step
+        let end = start + step
+        let outerInset = asin(gap / 2 / outer), innerInset = asin(gap / 2 / inner)
+        let r = cornerRadius
+        func point(_ radius: CGFloat, _ angle: CGFloat) -> CGPoint {
+            CGPoint(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
+        }
+        func along(_ point: CGPoint, _ angle: CGFloat, _ distance: CGFloat) -> CGPoint {
+            CGPoint(x: point.x + distance * cos(angle), y: point.y + distance * sin(angle))
+        }
+        let outerStart = point(outer, start + outerInset), outerEnd = point(outer, end - outerInset)
+        let innerStart = point(inner, start + innerInset), innerEnd = point(inner, end - innerInset)
+        path.addArc(center: center, radius: outer, startAngle: start + outerInset + r / outer,
+                    endAngle: end - outerInset - r / outer, clockwise: false)
+        path.addQuadCurve(to: along(outerEnd, end, -r), control: outerEnd)
+        path.addLine(to: along(innerEnd, end, r))
+        path.addQuadCurve(to: point(inner, end - innerInset - r / inner), control: innerEnd)
+        path.addArc(center: center, radius: inner, startAngle: end - innerInset - r / inner,
+                    endAngle: start + innerInset + r / inner, clockwise: true)
+        path.addQuadCurve(to: along(innerStart, start, r), control: innerStart)
+        path.addLine(to: along(outerStart, start, -r))
+        path.addQuadCurve(to: point(outer, start + outerInset + r / outer), control: outerStart)
+        path.closeSubpath()
+        return path
     }
 
     static func labelPoint(index: Int, count: Int, geometry: HeldWorkspaceWheelGeometry = .init()) -> CGPoint {
@@ -70,12 +120,12 @@ enum HeldWorkspaceWheelLayout {
                        y: geometry.midpoint + geometry.labelRadius * sin(angle))
     }
 
-    static func nameFontSize(count: Int) -> CGFloat { count <= 4 ? 18 : 15 }
+    static func nameFontSize(count: Int) -> CGFloat { count <= 4 ? 16 : 14 }
     /// The ring and its native hit regions scale together; text retains a readable point size.
     static func fontSize(_ preferred: CGFloat, minimum: CGFloat, scale: CGFloat) -> CGFloat {
         max(preferred, minimum / max(0.01, scale))
     }
-    static func toolsOffset(count: Int) -> CGFloat { count <= 4 ? 36 : 32 }
+    static func toolsOffset(count: Int) -> CGFloat { count <= 4 ? 36 : 30 }
 
     /// Use the actual horizontal room in each curved sector. Top/bottom sectors
     /// can hold wider names than the narrow radial band at the sides.

@@ -3,6 +3,28 @@ import XCTest
 @testable import SidebyApp
 
 final class HeldWorkspaceWheelTests: XCTestCase {
+    func testRoundedCornersAreTransparentAndNeverClickable() {
+        for displays in [2, 4] {
+            let geometry = HeldWorkspaceWheelGeometry(displayCount: displays)
+            for count in 2...8 {
+                let step = 2 * CGFloat.pi / CGFloat(count)
+                for index in 0..<count {
+                    let boundary = -CGFloat.pi / 2 - step / 2 + CGFloat(index) * step
+                    let offset = HeldWorkspaceWheelLayout.gap / 2 + 0.15
+                    for radius in [geometry.innerRadius + 0.15, geometry.outerRadius - 0.15] {
+                        let along = sqrt(radius * radius - offset * offset)
+                        let point = CGPoint(x: geometry.midpoint + along * cos(boundary) - offset * sin(boundary),
+                                            y: geometry.midpoint + along * sin(boundary) + offset * cos(boundary))
+                        XCTAssertNil(HeldWorkspaceWheelLayout.sector(at: point, count: count, geometry: geometry),
+                            "A rounded-away corner must not switch or start a drag")
+                        XCTAssertFalse(ConnectionSector(index: index, count: count, geometry: geometry)
+                            .path(in: CGRect(x: 0, y: 0, width: geometry.diameter, height: geometry.diameter)).contains(point))
+                    }
+                }
+            }
+        }
+    }
+
     func testWholePanelStaysOnPointerDisplayIncludingFooter() {
         for screen in [NSRect(x: -1920, y: -300, width: 1920, height: 1055),
                        NSRect(x: 320, y: 1440, width: 800, height: 560),
@@ -40,13 +62,13 @@ final class HeldWorkspaceWheelTests: XCTestCase {
                     }
                 }
             }
-            XCTAssertNil(HeldWorkspaceWheelLayout.sector(at: CGPoint(x: 220, y: 220), count: count))
+            XCTAssertNil(HeldWorkspaceWheelLayout.sector(at: CGPoint(x: 206, y: 206), count: count))
             XCTAssertNil(HeldWorkspaceWheelLayout.sector(at: .zero, count: count))
         }
     }
 
     func testEnlargedNameAndToolsStayInsideTheirOwnSectorWithoutOverlapping() {
-        let ring = CGRect(x: 0, y: 0, width: 440, height: 440)
+        let ring = CGRect(x: 0, y: 0, width: 412, height: 412)
         for count in 1...8 {
             for index in 0..<count {
                 let frame = HeldWorkspaceWheelLayout.labelFrame(index: index, count: count)
@@ -78,7 +100,7 @@ final class HeldWorkspaceWheelTests: XCTestCase {
             let geometry = HeldWorkspaceWheelGeometry(displayCount: displays)
             let bounds = CGRect(x: 0, y: 0, width: geometry.diameter, height: geometry.diameter)
             XCTAssertEqual(geometry.innerRadius - geometry.centerRadius, 10)
-            XCTAssertEqual(geometry.outerRadius - geometry.innerRadius, 124, "Display rows must not consume the connection controls")
+            XCTAssertEqual(geometry.outerRadius - geometry.innerRadius, 110, "Display rows must not consume the connection controls")
             for count in 1...8 {
                 for index in 0..<count {
                     let path = ConnectionSector(index: index, count: count, geometry: geometry).path(in: bounds)
@@ -122,19 +144,19 @@ final class HeldWorkspaceWheelTests: XCTestCase {
                 let boundary = -Double.pi / 2 - step / 2 + Double(index) * step
                 let direction = CGPoint(x: cos(boundary), y: sin(boundary))
                 let normal = CGPoint(x: -direction.y, y: direction.x)
-                for radius in [110.0, 155, 205] {
+                for radius in [110.0, 145, 185] {
                     for offset in [-4.9, 0, 4.9] {
-                        let point = CGPoint(x: 220 + radius * direction.x + offset * normal.x,
-                                            y: 220 + radius * direction.y + offset * normal.y)
+                        let point = CGPoint(x: 206 + radius * direction.x + offset * normal.x,
+                                            y: 206 + radius * direction.y + offset * normal.y)
                         XCTAssertNil(HeldWorkspaceWheelLayout.sector(at: point, count: count))
                         for sector in 0..<count {
-                            XCTAssertFalse(ConnectionSector(index: sector, count: count).path(in: CGRect(x: 0, y: 0, width: 440, height: 440)).contains(point))
+                            XCTAssertFalse(ConnectionSector(index: sector, count: count).path(in: CGRect(x: 0, y: 0, width: 412, height: 412)).contains(point))
                         }
                     }
-                    let point = CGPoint(x: 220 + radius * direction.x + 5.1 * normal.x,
-                                        y: 220 + radius * direction.y + 5.1 * normal.y)
+                    let point = CGPoint(x: 206 + radius * direction.x + 5.1 * normal.x,
+                                        y: 206 + radius * direction.y + 5.1 * normal.y)
                     XCTAssertEqual(HeldWorkspaceWheelLayout.sector(at: point, count: count), index)
-                    XCTAssertTrue(ConnectionSector(index: index, count: count).path(in: CGRect(x: 0, y: 0, width: 440, height: 440)).contains(point))
+                    XCTAssertTrue(ConnectionSector(index: index, count: count).path(in: CGRect(x: 0, y: 0, width: 412, height: 412)).contains(point))
                 }
             }
         }

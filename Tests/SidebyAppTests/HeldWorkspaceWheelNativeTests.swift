@@ -100,22 +100,33 @@ import XCTest
                 bitmap.colorAt(x: Int(x * scale), y: Int(y * scale))?.alphaComponent ?? 1
             }
             XCTAssertEqual(alpha(0, 0), 0, accuracy: 0.01, "Outside HUD is transparent")
-            XCTAssertEqual(alpha(325, 228), 0, accuracy: 0.01, "Center-to-sector gap is transparent")
-            XCTAssertEqual(alpha(290, 99), 0, accuracy: 0.01, "Sector gap is transparent")
-            XCTAssertGreaterThan(alpha(236, 228), 0.99, "Center control remains legible")
+            XCTAssertEqual(alpha(291, 200), 0, accuracy: 0.01, "Center-to-sector gap is transparent")
+            XCTAssertEqual(alpha(258, 80), 0, accuracy: 0.01, "Sector gap is transparent")
+            XCTAssertGreaterThan(alpha(208, 200), 0.99, "Center control remains legible")
         }
         try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: folder.appendingPathComponent(name + ".png"))
     }
 
-    /// Exercise the actual AppKit tracker without moving the user's pointer.
-    private func trackPointer(_ point: NSPoint, in window: NSWindow, canvasDiameter: CGFloat = 440) async throws {
-        func find(_ view: NSView) -> NSView? {
-            if String(describing: type(of: view)) == "CursorView" { return view }
+    private func wheelTracker(in window: NSWindow) throws -> WheelInteractionSurface.CursorView {
+        func find(_ view: NSView) -> WheelInteractionSurface.CursorView? {
+            if let tracker = view as? WheelInteractionSurface.CursorView { return tracker }
             return view.subviews.lazy.compactMap(find).first
         }
-        let tracker = try XCTUnwrap(window.contentView.flatMap(find))
-        let local = NSPoint(x: point.x * tracker.bounds.width / canvasDiameter, y: point.y * tracker.bounds.height / canvasDiameter)
-        let event = try XCTUnwrap(NSEvent.mouseEvent(with: .mouseMoved, location: tracker.convert(local, to: nil),
+        return try XCTUnwrap(window.contentView.flatMap(find))
+    }
+
+    private func canvasPoint(_ point: NSPoint, in window: NSWindow,
+                             diameter: CGFloat = HeldWorkspaceWheelLayout.diameter) throws -> NSPoint {
+        let tracker = try wheelTracker(in: window)
+        return tracker.convert(NSPoint(x: point.x * tracker.bounds.width / diameter,
+                                       y: point.y * tracker.bounds.height / diameter), to: nil)
+    }
+
+    /// Exercise the actual AppKit tracker without moving the user's pointer.
+    private func trackPointer(_ point: NSPoint, in window: NSWindow, canvasDiameter: CGFloat = HeldWorkspaceWheelLayout.diameter) async throws {
+        let tracker = try wheelTracker(in: window)
+        let event = try XCTUnwrap(NSEvent.mouseEvent(with: .mouseMoved,
+            location: try canvasPoint(point, in: window, diameter: canvasDiameter),
             modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
             context: nil, eventNumber: 0, clickCount: 0, pressure: 0))
         tracker.mouseMoved(with: event)
@@ -129,7 +140,7 @@ import XCTest
     }
 
     private func centerFill(in window: NSWindow) throws -> NSColor {
-        try fill(at: NSPoint(x: 298, y: 220), in: window)
+        try fill(at: NSPoint(x: 284, y: 206), in: window)
     }
 
     private func fill(at point: NSPoint, in window: NSWindow) throws -> NSColor {
@@ -137,7 +148,9 @@ import XCTest
         let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
         host.cacheDisplay(in: host.bounds, to: bitmap)
         let scale = CGFloat(bitmap.pixelsWide) / host.bounds.width
-        return try XCTUnwrap(bitmap.colorAt(x: Int((16 + point.x) * scale), y: Int((8 + point.y) * scale))?.usingColorSpace(.deviceRGB))
+        let local = host.convert(try canvasPoint(point, in: window), from: nil)
+        let y = host.isFlipped ? local.y : host.bounds.height - local.y
+        return try XCTUnwrap(bitmap.colorAt(x: Int(local.x * scale), y: Int(y * scale))?.usingColorSpace(.deviceRGB))
     }
 
     private func colorDifference(_ lhs: NSColor, _ rhs: NSColor) -> CGFloat {
@@ -147,7 +160,7 @@ import XCTest
 
     func testOnlyHoveredTargetIsHighlightedAndCenterShowsBothSpacesIncludingCurrentConnection() async throws {
         try requireOffscreenRendering()
-        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+        for appearance in [NSAppearance.Name.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua] {
             let model = heldMatrixFixture(count: 4, displayCount: 2)
             model.workspacePreferences = nil
             model.workspaceDesktopNames["mac"] = [0: "Checkout.swift", 1: "Checkout PR #42", 2: "Operations"]
@@ -158,15 +171,14 @@ import XCTest
             defer { window.close() }
             try await Task.sleep(for: .milliseconds(500))
             XCTAssertFalse(window.isVisible)
-            let top = NSPoint(x: 220, y: 20), right = NSPoint(x: 420, y: 220), bottom = NSPoint(x: 220, y: 420)
+            let top = NSPoint(x: 206, y: 20), right = NSPoint(x: 392, y: 206), bottom = NSPoint(x: 206, y: 392)
             try await trackPointer(.zero, in: window)
-            let neutral = try fill(at: right, in: window)
-            XCTAssertLessThan(try colorDifference(fill(at: top, in: window), neutral), 0.02,
-                "Current connection must not compete with the hovered target")
-            XCTAssertLessThan(try colorDifference(centerFill(in: window), neutral), 0.02)
+            let samples = [top, right, bottom]
+            let neutral = try samples.map { try fill(at: $0, in: window) }
+            let neutralCenter = try centerFill(in: window)
+            XCTAssertEqual(try centerValue(in: window), "", "Current location does not automatically select a preview")
             try capture("wheel-states-\(appearance.rawValue)-neutral", window: window)
 
-            var activeFill: NSColor?
             for (index, point, titles) in [
                 (0, top, ["Checkout.swift", "Checkout API"]),
                 (1, right, ["Checkout PR #42", "Checkout preview"]),
@@ -178,35 +190,33 @@ import XCTest
                 for title in titles { XCTAssertTrue(value.contains(title), "Center must include each display's actual Space content") }
                 XCTAssertTrue(value.contains("MacBook Pro")); XCTAssertTrue(value.contains("Studio Display"))
                 let hovered = try fill(at: point, in: window)
-                XCTAssertGreaterThan(colorDifference(hovered, neutral), 0.08)
-                if let activeFill { XCTAssertLessThan(colorDifference(hovered, activeFill), 0.02) }
-                activeFill = hovered
-                for other in [top, right, bottom] where other != point {
-                    XCTAssertLessThan(try colorDifference(fill(at: other, in: window), neutral), 0.02,
+                XCTAssertGreaterThan(colorDifference(hovered, neutral[index]), 0.08)
+                for (otherIndex, other) in samples.enumerated() where other != point {
+                    XCTAssertLessThan(try colorDifference(fill(at: other, in: window), neutral[otherIndex]), 0.02,
                         "Only one sector may have hover emphasis")
                 }
-                XCTAssertLessThan(try colorDifference(centerFill(in: window), neutral), 0.02,
+                XCTAssertLessThan(try colorDifference(centerFill(in: window), neutralCenter), 0.02,
                     "Center is a neutral content preview while an outer sector is hovered")
                 try capture("wheel-states-\(appearance.rawValue)-preview-\(index)", window: window)
             }
 
-            try await trackPointer(NSPoint(x: 220, y: 220), in: window)
+            try await trackPointer(NSPoint(x: 206, y: 206), in: window)
             let button = try XCTUnwrap(element("held-add-current-connection", in: window))
             XCTAssertEqual(button.perform(NSSelectorFromString("accessibilityLabel"))?.takeUnretainedValue() as? String, "현재 상태 추가하기")
             XCTAssertFalse(try centerValue(in: window).contains("Checkout"))
-            XCTAssertLessThan(try colorDifference(centerFill(in: window), XCTUnwrap(activeFill)), 0.02,
-                "Center uses exactly the same highlight as outer sectors")
-            for point in [top, right, bottom] { XCTAssertLessThan(try colorDifference(fill(at: point, in: window), neutral), 0.02) }
+            XCTAssertGreaterThan(try colorDifference(centerFill(in: window), neutralCenter), 0.08,
+                "The center only gains emphasis when it is the active action")
+            for (index, point) in samples.enumerated() { XCTAssertLessThan(try colorDifference(fill(at: point, in: window), neutral[index]), 0.02) }
             try capture("wheel-states-\(appearance.rawValue)-center", window: window)
 
             // Keyboard focus still previews the destination, but pointer exit wins
             // even if that key focus remains on the control.
             window.selectNextKeyView(nil)
             try await Task.sleep(for: .milliseconds(150))
-            try await trackPointer(NSPoint(x: 220, y: 130), in: window)
+            try await trackPointer(NSPoint(x: 206, y: 116), in: window)
             XCTAssertEqual(try centerValue(in: window), "")
-            for point in [top, right, bottom] { XCTAssertLessThan(try colorDifference(fill(at: point, in: window), neutral), 0.02) }
-            XCTAssertLessThan(try colorDifference(centerFill(in: window), neutral), 0.02)
+            for (index, point) in samples.enumerated() { XCTAssertLessThan(try colorDifference(fill(at: point, in: window), neutral[index]), 0.02) }
+            XCTAssertLessThan(try colorDifference(centerFill(in: window), neutralCenter), 0.02)
             XCTAssertEqual(model.settings, before); XCTAssertEqual(model.workspaceLastObservedSpaceKeys, observed)
         }
     }
@@ -226,7 +236,7 @@ import XCTest
                 try await Task.sleep(for: .milliseconds(500))
                 try await trackPointer(.zero, in: window)
                 let normal = try centerFill(in: window)
-                try await trackPointer(NSPoint(x: 220, y: 220), in: window)
+                try await trackPointer(NSPoint(x: 206, y: 206), in: window)
                 let highlighted = try centerFill(in: window)
                 let difference = abs(normal.redComponent - highlighted.redComponent)
                     + abs(normal.greenComponent - highlighted.greenComponent) + abs(normal.blueComponent - highlighted.blueComponent)
@@ -241,9 +251,9 @@ import XCTest
                         XCTAssertTrue(preview.contains(index == 1 ? "변경 사항 검토" : "운영 대시보드"))
                         try capture("wheel-center-preview-\(language)-\(index)", window: window)
                     }
-                    try await trackPointer(NSPoint(x: 220, y: 220), in: window)
+                    try await trackPointer(NSPoint(x: 206, y: 206), in: window)
                     XCTAssertFalse(try centerValue(in: window).contains("Operations"), "Center hover restores the save action")
-                    try await trackPointer(NSPoint(x: 220, y: 130), in: window)
+                    try await trackPointer(NSPoint(x: 206, y: 116), in: window)
                     XCTAssertEqual(try centerValue(in: window), "", "Transparent gap has no connection preview")
                 }
                 XCTAssertEqual(model.settings, before)
@@ -261,7 +271,7 @@ import XCTest
         model.settings.contextPlan.replaceContexts(contexts, currentContextID: "work-0")
         var edits = 0
         let window = window(HeldWorkspaceWheelView(model: model, select: { _ in XCTFail("Preview never switches") },
-            edit: { _ in edits += 1 }, diameter: 320), size: NSSize(width: 352, height: 448), visible: false)
+            edit: { _ in edits += 1 }, diameter: 320), size: NSSize(width: 352, height: 432), visible: false)
         defer { window.close() }
         try await Task.sleep(for: .milliseconds(500))
         let frame = window.frame, before = model.settings
@@ -316,7 +326,7 @@ import XCTest
                 let before = model.settings
                 let window = window(HeldWorkspaceWheelView(model: model,
                     select: { _ in XCTFail("Preview never switches") }),
-                    size: NSSize(width: geometry.diameter + 32, height: geometry.diameter + 128), visible: false)
+                    size: NSSize(width: geometry.diameter + 32, height: geometry.diameter + HeldWorkspaceWheelLayout.chromeHeight), visible: false)
                 window.appearance = NSAppearance(named: language == .korean ? .darkAqua : .aqua)
                 defer { window.close() }
                 try await Task.sleep(for: .milliseconds(400))
@@ -359,7 +369,7 @@ import XCTest
     func testLargerNamesAndWindowTitlesRenderOffscreenAtSparseDenseAndMinimumSizes() async throws {
         try requireOffscreenRendering()
         for language in [AppLanguage.korean, .english] {
-            for (count, diameter) in [(2, 440.0), (4, 440.0), (8, 440.0), (8, 360.0), (8, 320.0)] {
+            for (count, diameter) in [(2, 384.0), (4, 384.0), (8, 384.0), (8, 360.0), (8, 320.0)] {
                 let model = heldMatrixFixture(count: count, displayCount: 2)
                 model.workspacePreferences = nil; model.settings.language = language
                 let names = language == .korean
@@ -372,7 +382,7 @@ import XCTest
                 model.workspaceDesktopNames["mac"] = [0: "Notes — Project ideas", 1: "Checkout — Payment confirmation"]
                 model.workspaceDesktopNames["external-1"] = [0: "Research browser", 1: "Preview — Test payment completed"]
                 let before = model.settings
-                let size = NSSize(width: diameter + 32, height: diameter + 128)
+                let size = NSSize(width: diameter + 32, height: diameter + HeldWorkspaceWheelLayout.chromeHeight)
                 let window = window(HeldWorkspaceWheelView(model: model,
                     select: { _ in XCTFail("Rendering must never switch") }, diameter: diameter), size: size, visible: false)
                 window.appearance = NSAppearance(named: language == .korean ? .darkAqua : .aqua)
@@ -427,7 +437,7 @@ import XCTest
                 model.workspacePreferences = nil; model.settings.language = language
                 let window = window(HeldWorkspaceWheelView(model: model,
                     select: { _ in XCTFail("Idle guidance must never activate a connection") }, diameter: 320),
-                    size: .init(width: 352, height: 448), visible: false)
+                    size: .init(width: 352, height: 432), visible: false)
                 defer { window.close() }
                 try await Task.sleep(for: .milliseconds(350))
                 let message = try XCTUnwrap(element("wheel-idle-guidance", in: window))
@@ -437,13 +447,22 @@ import XCTest
                     ? ["첫 연결", "돌아오세요", "순서 변경"][count]
                     : ["Start with", "return after", "reorder"][count]
                 XCTAssertTrue(label.contains(expected), label)
+                if count == 0 {
+                    let center = try XCTUnwrap(element("held-add-current-connection", in: window) as? any NSAccessibilityElementProtocol)
+                    for displayID in ["mac", "external-1"] {
+                        let row = try XCTUnwrap(element("wheel-empty-space-" + displayID, in: window) as? any NSAccessibilityElementProtocol)
+                        XCTAssertFalse(center.accessibilityFrame().intersects(row.accessibilityFrame()),
+                            "The current Space summary must not overlap the center save action at minimum size")
+                        XCTAssertTrue(window.frame.contains(row.accessibilityFrame()))
+                    }
+                }
                 try capture("wheel-idle-\(language)-\(count)", window: window)
                 XCTAssertFalse(window.isVisible)
             }
         }
     }
 
-    private func window<Content: View>(_ view: Content, size: NSSize = NSSize(width: 472, height: 568),
+    private func window<Content: View>(_ view: Content, size: NSSize = NSSize(width: 416, height: 496),
                                        visible: Bool = true) -> HeldMatrixPanel {
         let screen = NSScreen.main!.visibleFrame
         let window = HeldMatrixPanel(contentRect: NSRect(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2,
@@ -469,7 +488,7 @@ import XCTest
             defer { window.close() }
             try await Task.sleep(for: .milliseconds(600))
             let point = HeldWorkspaceWheelLayout.labelPoint(index: 1, count: 4)
-            let hoverPoint = NSPoint(x: 16 + point.x, y: 568 - 8 - point.y)
+            let hoverPoint = try canvasPoint(point, in: window)
             try await hover(hoverPoint, in: window)
             try capture("wheel-\(language)-hover", window: window)
             try click("wheel-rename-work-1", in: window)
@@ -512,11 +531,11 @@ import XCTest
         defer { window.close() }
         try await Task.sleep(for: .milliseconds(500))
         let point = HeldWorkspaceWheelLayout.labelPoint(index: 1, count: 4)
-        try click(NSPoint(x: 16 + point.x, y: 568 - 8 - point.y + 10), in: window)
+        try click(try canvasPoint(NSPoint(x: point.x, y: point.y - 10), in: window), in: window)
         XCTAssertEqual(selected, ["work-1"])
         XCTAssertEqual(model.settings, before)
         XCTAssertNil(element("connection-name-field", in: window))
-        try click(NSPoint(x: 325, y: 568 - 228), in: window)
+        try click(try canvasPoint(NSPoint(x: 295, y: 206), in: window), in: window)
         XCTAssertEqual(selected, ["work-1"], "Transparent gaps do not select or capture")
         XCTAssertEqual(model.settings, before)
     }
@@ -543,11 +562,11 @@ import XCTest
         XCTAssertTrue(label.contains("MacBook Pro만 연결"))
         XCTAssertTrue(label.contains("다른 모니터는 유지"))
         let point = HeldWorkspaceWheelLayout.labelPoint(index: 0, count: 3)
-        try await hover(NSPoint(x: 16 + point.x, y: 568 - 8 - point.y), in: window)
+        try await hover(try canvasPoint(point, in: window), in: window)
         let summary = try XCTUnwrap(element("wheel-connection-summary", in: window) as? any NSAccessibilityElementProtocol)
         XCTAssertGreaterThan(summary.accessibilityFrame().height, 24, "Both status and display coverage must be visible")
         try capture("wheel-current-partial", window: window)
-        try click(NSPoint(x: 16 + point.x, y: 568 - 8 - point.y + 10), in: window)
+        try click(try canvasPoint(NSPoint(x: point.x, y: point.y - 10), in: window), in: window)
         XCTAssertEqual(closes, 1); XCTAssertEqual(edits, 0)
         XCTAssertEqual(model.settings, before)
 
@@ -557,7 +576,7 @@ import XCTest
         model.settings.savedWorkspaces.bookmarks["work-0"] = [:]
         model.refreshWorkspaceStatus()
         try await Task.sleep(for: .milliseconds(100))
-        try click(NSPoint(x: 16 + point.x, y: 568 - 8 - point.y + 10), in: window)
+        try click(try canvasPoint(NSPoint(x: point.x, y: point.y - 10), in: window), in: window)
         XCTAssertEqual(edits, 1)
         XCTAssertEqual(closes, 1)
     }
@@ -572,7 +591,7 @@ import XCTest
         defer { window.close() }
         try await Task.sleep(for: .milliseconds(500))
         let point = HeldWorkspaceWheelLayout.labelPoint(index: 0, count: 2)
-        let hoverPoint = NSPoint(x: point.x + 16, y: 568 - 8 - point.y)
+        let hoverPoint = try canvasPoint(point, in: window)
         for (code, character) in [(UInt16(36), "\r"), (UInt16(53), "\u{1b}")] {
             try click("wheel-clear-all", in: window)
             try await Task.sleep(for: .milliseconds(100))
@@ -672,7 +691,7 @@ import XCTest
             XCTAssertEqual(model.workspaceLastObservedSpaceKeys, observed)
             let onlyID = model.settings.contextPlan.contexts[0].id
             let point = HeldWorkspaceWheelLayout.labelPoint(index: 0, count: 1)
-            try await hover(NSPoint(x: point.x + 16, y: 568 - 8 - point.y), in: window)
+            try await hover(try canvasPoint(point, in: window), in: window)
             try click("wheel-delete-" + onlyID, in: window)
             try await Task.sleep(for: .milliseconds(100))
             XCTAssertTrue(model.settings.contextPlan.contexts.isEmpty, "The last connection is deleted without confirmation")
@@ -700,7 +719,7 @@ import XCTest
                     model.settings.savedWorkspaces.bookmarks = [:]
                 }
                 let window = window(HeldWorkspaceWheelView(model: model, select: { _ in }, diameter: 320),
-                    size: NSSize(width: 352, height: 448))
+                    size: NSSize(width: 352, height: 432))
                 defer { window.close() }
                 try await Task.sleep(for: .milliseconds(500))
                 for id in ["held-edit-connections", "wheel-clear-all", "held-undo-connection", "held-add-current-connection"] {
@@ -848,7 +867,7 @@ import XCTest
         model.workspaceRecoveryTargetID = "work-9"
         let window = window(HeldWorkspaceWheelView(model: model,
             select: { _ in XCTFail("Rendering recovery never moves Spaces") }, diameter: 320),
-            size: NSSize(width: 352, height: 448), visible: false)
+            size: NSSize(width: 352, height: 432), visible: false)
         defer { window.close() }
         try await Task.sleep(for: .milliseconds(350))
         try await trackPointer(HeldWorkspaceWheelLayout.labelPoint(index: 2, count: 8), in: window)
@@ -898,7 +917,7 @@ import XCTest
         // A second drag cancelled over the center changes nothing.
         _ = tracker.beginDrag?(1)
         try await Task.sleep(for: .milliseconds(150))
-        XCTAssertNil(tracker.dropTarget(raw: tracker.activeDrag?.rawValue, at: tracker.convert(NSPoint(x: 220, y: 220), to: nil)))
+        XCTAssertNil(tracker.dropTarget(raw: tracker.activeDrag?.rawValue, at: tracker.convert(NSPoint(x: 206, y: 206), to: nil)))
         tracker.endDrag?()
         XCTAssertEqual(model.settings.contextPlan, before.contextPlan)
         XCTAssertFalse(window.isVisible)

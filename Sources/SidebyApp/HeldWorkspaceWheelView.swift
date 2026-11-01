@@ -9,22 +9,8 @@ struct ConnectionSector: Shape {
     let count: Int
     var geometry = HeldWorkspaceWheelGeometry()
     func path(in rect: CGRect) -> Path {
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        let step = 360.0 / Double(max(1, count))
-        let start = -90 - step / 2 + Double(index) * step
-        let end = start + step
-        let outer = geometry.outerRadius
-        let inner = geometry.innerRadius
-        // Offset both straight edges by half the same point distance. Angular
-        // spacing would taper toward the center; these edges stay parallel.
-        let halfGap = count == 1 ? 0 : HeldWorkspaceWheelLayout.gap / 2
-        let outerInset = asin(halfGap / outer) * 180 / .pi
-        let innerInset = asin(halfGap / inner) * 180 / .pi
-        var path = Path()
-        path.addArc(center: center, radius: outer, startAngle: .degrees(start + outerInset), endAngle: .degrees(end - outerInset), clockwise: false)
-        path.addArc(center: center, radius: inner, startAngle: .degrees(end - innerInset), endAngle: .degrees(start + innerInset), clockwise: true)
-        path.closeSubpath()
-        return path
+        let path = HeldWorkspaceWheelLayout.sectorPath(index: index, count: count, geometry: geometry)
+        return Path(path).offsetBy(dx: rect.midX - geometry.midpoint, dy: rect.midY - geometry.midpoint)
     }
 }
 
@@ -86,7 +72,7 @@ private struct HeldWorkspaceWheelContent: View {
     private var geometry: HeldWorkspaceWheelGeometry {
         .init(displayCount: openingDisplayCount ?? displayCount ?? live.displayIDs.count)
     }
-    private var renderedDiameter: CGFloat { diameter ?? geometry.diameter }
+    private var renderedDiameter: CGFloat { diameter ?? geometry.preferredDiameter }
     private var ringScale: CGFloat { renderedDiameter / geometry.diameter }
     private var compactRing: Bool { ringScale < 0.9 }
     private func ringFont(_ preferred: CGFloat, minimum: CGFloat = 11) -> CGFloat {
@@ -204,7 +190,7 @@ private struct HeldWorkspaceWheelContent: View {
             ring.frame(width: geometry.diameter, height: geometry.diameter)
                 .scaleEffect(renderedDiameter / geometry.diameter)
                 .frame(width: renderedDiameter, height: renderedDiameter).padding(.top, 8)
-            footer.frame(height: 120).padding(.horizontal, 12)
+            footer.frame(height: HeldWorkspaceWheelLayout.chromeHeight - HeldWorkspaceWheelLayout.ringTop).padding(.horizontal, 12)
         }.frame(width: renderedDiameter + 32, height: renderedDiameter + HeldWorkspaceWheelLayout.chromeHeight)
     }
 
@@ -229,26 +215,26 @@ private struct HeldWorkspaceWheelContent: View {
                     connectionPreview(column)
                 } else if interactionTarget == .center || columns.isEmpty {
                   VStack(spacing: 7) {
-                    Image(systemName: "plus.circle.fill").font(.system(size: 23)).foregroundStyle(NativeSurfaceStyle.accent)
+                    Image(systemName: "plus").font(.system(size: 20, weight: .medium)).foregroundStyle(NativeSurfaceStyle.accent)
                     Text(centerActionTitle)
-                        .font(.system(size: ringFont(14, minimum: 12), weight: .semibold)).multilineTextAlignment(.center)
+                        .font(.system(size: ringFont(13, minimum: 12), weight: .medium)).multilineTextAlignment(.center)
                     Text(text("Save the Spaces\non your displays", "지금 보고 있는 Space를\n새 연결로 저장합니다"))
                         .font(.system(size: ringFont(11, minimum: 10))).foregroundStyle(NativeSurfaceStyle.secondaryText).multilineTextAlignment(.center)
                   }
                 } else {
                     VStack(spacing: 8) {
-                        Image(systemName: "cursorarrow").font(.system(size: 20))
+                        Image(systemName: "cursorarrow").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeSurfaceStyle.secondaryText)
                         Text(text("Choose a connection", "연결을 골라 주세요"))
-                            .font(.system(size: ringFont(13, minimum: 12), weight: .semibold))
+                            .font(.system(size: ringFont(13, minimum: 12), weight: .medium))
                         Text(text("Hover a sector\nto see its Spaces", "칸에 마우스를 올려\n화면 내용을 확인하세요"))
                             .font(.system(size: ringFont(11, minimum: 10))).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     }.multilineTextAlignment(.center)
                 }
               }.frame(width: max(140, geometry.previewWidth))
                     .frame(width: geometry.centerRadius * 2, height: geometry.centerRadius * 2)
-                    .background(centerHighlighted ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.tableBackground, in: Circle())
-                    .overlay(Circle().strokeBorder(centerHighlighted ? NativeSurfaceStyle.accent : NativeSurfaceStyle.itemBorder,
-                        lineWidth: centerHighlighted ? 2.5 : 1))
+                    .background(HeldWorkspaceWheelStyle.center(active: centerHighlighted), in: Circle())
+                    .overlay(Circle().strokeBorder(centerHighlighted ? HeldWorkspaceWheelStyle.activeBorder : HeldWorkspaceWheelStyle.border,
+                        lineWidth: centerHighlighted ? 1.25 : 0.75))
                     .overlay {
                         if focused == "save" {
                             Circle().inset(by: 5).strokeBorder(NativeSurfaceStyle.primaryText, lineWidth: 2)
@@ -318,7 +304,7 @@ private struct HeldWorkspaceWheelContent: View {
                             .foregroundStyle(NativeSurfaceStyle.secondaryText)
                             .frame(width: geometry.previewWidth - 12)
                         Text(previewSpaceTitle(column, displayID: id))
-                            .font(.system(size: ringFont(14, minimum: 12), weight: .semibold))
+                            .font(.system(size: ringFont(13, minimum: 12), weight: .medium))
                             .lineLimit(displays.count > 2 || (compactRing && displays.count > 1) ? 1 : displays.count == 1 ? 3 : 2)
                             .fixedSize(horizontal: false, vertical: true)
                     }.multilineTextAlignment(.center)
@@ -351,15 +337,15 @@ private struct HeldWorkspaceWheelContent: View {
     private var emptyRing: some View {
         ZStack {
             let shape = ConnectionSector(index: 0, count: 1, geometry: geometry)
-            shape.fill(NativeSurfaceStyle.tableBackground)
+            shape.fill(HeldWorkspaceWheelStyle.surface(active: false))
                 .overlay {
-                    Circle().stroke(NativeSurfaceStyle.itemBorder, lineWidth: 2).padding(2)
-                    Circle().stroke(NativeSurfaceStyle.itemBorder, lineWidth: 2)
+                    Circle().stroke(HeldWorkspaceWheelStyle.border, lineWidth: 1).padding(2)
+                    Circle().stroke(HeldWorkspaceWheelStyle.border, lineWidth: 1)
                         .frame(width: geometry.innerRadius * 2, height: geometry.innerRadius * 2)
                 }.clipShape(shape)
             VStack(spacing: 6) {
                 Text(text("No saved connections yet", "아직 저장된 연결이 없어요"))
-                    .font(.system(size: ringFont(14, minimum: 12), weight: .semibold))
+                    .font(.system(size: ringFont(13, minimum: 12), weight: .medium))
                 Text(text("Save the Spaces you are using\nto return to them together.", "지금 쓰는 Space를 저장해 두면\n한 번에 돌아올 수 있어요."))
                     .font(.system(size: ringFont(11))).foregroundStyle(NativeSurfaceStyle.secondaryText)
             }.multilineTextAlignment(.center).frame(width: 250).position(x: geometry.midpoint, y: 74)
@@ -381,7 +367,7 @@ private struct HeldWorkspaceWheelContent: View {
                             .font(.system(size: ringFont(10, minimum: 10))).foregroundStyle(NativeSurfaceStyle.secondaryText)
                     }
                 }
-            }.frame(width: 220).position(x: geometry.midpoint, y: 354 + geometry.expansion * 2)
+            }.frame(width: 220).position(x: geometry.midpoint, y: geometry.diameter - 66)
         }.allowsHitTesting(false)
     }
 
@@ -443,10 +429,10 @@ private struct HeldWorkspaceWheelContent: View {
     private func sectorSurface(_ shape: ConnectionSector, active: Bool) -> some View {
         // Current location is a label, not a second selection. Only the pointer
         // or keyboard target receives the same fill and outline as the center.
-        let fill = active ? NativeSurfaceStyle.selectionBackground : NativeSurfaceStyle.tableBackground
-        let border = active ? NativeSurfaceStyle.accent : NativeSurfaceStyle.itemBorder
-        let width: CGFloat = active ? 2.5 : 1
-        return shape.fill(fill).overlay(shape.stroke(border, lineWidth: width * 2).clipShape(shape))
+        let border = active ? HeldWorkspaceWheelStyle.activeBorder : HeldWorkspaceWheelStyle.border
+        let width: CGFloat = active ? 1.25 : 0.65
+        return shape.fill(HeldWorkspaceWheelStyle.surface(active: active))
+            .overlay(shape.stroke(border, lineWidth: width * 2).clipShape(shape))
     }
 
     private func sectorLabel(_ column: HeldWorkspaceColumn, current: Bool, aligned: Bool, missing: Bool) -> some View {
@@ -455,8 +441,9 @@ private struct HeldWorkspaceWheelContent: View {
         let partial = count < live.displayIDs.count
         return VStack(spacing: compactRing ? 2 : 4) {
             Text(column.name)
-                .font(.system(size: ringFont(HeldWorkspaceWheelLayout.nameFontSize(count: columns.count), minimum: 13), weight: .semibold))
+                .font(.system(size: ringFont(HeldWorkspaceWheelLayout.nameFontSize(count: columns.count), minimum: 13), weight: .medium))
                 .foregroundStyle(NativeSurfaceStyle.primaryText)
+                .minimumScaleFactor(13 / max(13, ringFont(HeldWorkspaceWheelLayout.nameFontSize(count: columns.count), minimum: 13) * ringScale))
                 .lineLimit(2).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             if current {
@@ -510,8 +497,8 @@ private struct HeldWorkspaceWheelContent: View {
 
     private func tool(_ image: String, label: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) { Image(systemName: image).font(.system(size: 12))
-            .frame(width: 28, height: 26).background(NativeSurfaceStyle.controlBackground, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(NativeSurfaceStyle.itemBorder))
+            .frame(width: 28, height: 26).background(HeldWorkspaceWheelStyle.chrome, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(HeldWorkspaceWheelStyle.border, lineWidth: 0.65))
             .overlay {
                 if focused == id {
                     RoundedRectangle(cornerRadius: 4).inset(by: 2)
@@ -524,7 +511,7 @@ private struct HeldWorkspaceWheelContent: View {
     }
 
     private var footer: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             if HeldWorkspaceWheelLayout.pageCount(live.columns.count) > 1 {
                 HStack {
                     Button { changePage(-1) } label: { Image(systemName: "chevron.left").frame(width: 30, height: 22) }
@@ -536,7 +523,7 @@ private struct HeldWorkspaceWheelContent: View {
                         .accessibilityLabel(copy.next).accessibilityIdentifier("wheel-next-page")
                         .onDrop(of: [UTType.plainText], delegate: pageDrop(1))
                 }.buttonStyle(.plain).pointingHandCursor().font(.system(size: 11))
-                    .padding(.horizontal, 9).background(NativeSurfaceStyle.windowBackground, in: Capsule())
+                    .padding(.horizontal, 9).background(HeldWorkspaceWheelStyle.chrome, in: Capsule())
             }
             HStack(spacing: 8) {
               Group {
@@ -573,11 +560,11 @@ private struct HeldWorkspaceWheelContent: View {
                 }
               }.font(.system(size: 11)).lineLimit(2)
                 .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(NativeSurfaceStyle.windowBackground, in: Capsule())
+                .background(HeldWorkspaceWheelStyle.chrome, in: Capsule())
               Button { pin(); _ = model.undoSavedWorkspaceChange(); showsFeedback = true } label: {
                   Label(text("Undo", "되돌리기"), systemImage: "arrow.uturn.backward")
                       .padding(.horizontal, 10).frame(height: 28)
-                      .background(NativeSurfaceStyle.windowBackground, in: Capsule())
+                      .background(HeldWorkspaceWheelStyle.chrome, in: Capsule())
               }.buttonStyle(.plain).pointingHandCursor().font(.system(size: 11)).fixedSize()
                   .disabled(!model.canChangeSavedWorkspaces || model.settings.savedWorkspaces.undo == nil)
                   .help((model.settings.savedWorkspaces.undo?.label ?? model.connectionCopy.undo) + " (⌘Z)\n" + model.connectionCopy.undoHistoryHint)
@@ -587,14 +574,12 @@ private struct HeldWorkspaceWheelContent: View {
                 Button { pin(); edit(nil) } label: {
                     Label(text("Edit connections", "연결 편집"), systemImage: "slider.horizontal.3")
                         .padding(.horizontal, 8).frame(height: 28)
-                        .background(NativeSurfaceStyle.windowBackground, in: Capsule())
                 }.disabled(model.isSwitching).accessibilityIdentifier("held-edit-connections")
                 if let recovery {
                     Button(recovery.actionTitle(language: model.settings.language)) {
                         pin(); showsFeedback = false
                         model.performHeldWorkspaceRecovery(recovery, select: select, edit: { edit($0) })
                     }.padding(.horizontal, 8).frame(height: 28)
-                        .background(NativeSurfaceStyle.windowBackground, in: Capsule())
                         .help(recoveryDescription(recovery))
                         .accessibilityLabel(recovery.actionTitle(language: model.settings.language) + " · " + recovery.name)
                         .accessibilityIdentifier("wheel-recovery-action")
@@ -605,16 +590,17 @@ private struct HeldWorkspaceWheelContent: View {
                 } label: {
                     Text(text("Clear all…", "모두 비우기…"))
                         .padding(.horizontal, 8).frame(height: 28)
-                        .background(NativeSurfaceStyle.windowBackground, in: Capsule())
                 }.disabled(!model.canDeleteAllSavedWorkspaces)
                     .help(model.connectionCopy.clearAllMessage).accessibilityLabel(model.connectionCopy.clearAll)
                     .accessibilityIdentifier("wheel-clear-all")
                 }
                 Button(action: close) {
                     Image(systemName: "xmark").frame(width: 28, height: 28)
-                        .background(NativeSurfaceStyle.windowBackground, in: Circle())
                 }.accessibilityLabel(model.saveCopy.close)
             }.buttonStyle(.plain).pointingHandCursor().font(.system(size: 11))
+                .padding(3)
+                .background(HeldWorkspaceWheelStyle.chrome, in: Capsule())
+                .overlay(Capsule().strokeBorder(HeldWorkspaceWheelStyle.border, lineWidth: 0.65))
                 .help(persistent || pinned ? text("Esc to close", "Esc로 닫기") : copy.releaseHint)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("held-footer")

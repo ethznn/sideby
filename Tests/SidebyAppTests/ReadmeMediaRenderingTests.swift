@@ -149,7 +149,7 @@ final class ReadmeMediaRenderingTests: XCTestCase {
                 to: output.appendingPathComponent("sideby-connections-settings-\(suffix).png"), width: 1040, height: 640, dark: false)
             try await render(HeldWorkspaceWheelView(model: model, select: { _ in }, persistent: true),
                 to: output.appendingPathComponent("sideby-connections-\(suffix).png"),
-                width: 472, height: 568, dark: true, transparent: true,
+                width: 416, height: 496, dark: true, transparent: true,
                 hoverPoint: HeldWorkspaceWheelLayout.labelPoint(index: 1, count: 3))
             let empty = try makeModel(language: language, workspaceCount: 0)
             let preferences = MemoryProductUIPreferences()
@@ -306,7 +306,7 @@ final class ReadmeMediaRenderingTests: XCTestCase {
                 let point = hoverID.flatMap { id in columns.firstIndex { $0.id == id } }
                     .map { HeldWorkspaceWheelLayout.labelPoint(index: $0, count: columns.count) }
                 try await render(HeldWorkspaceWheelView(model: model, select: { _ in }, persistent: true),
-                    to: output.appendingPathComponent("\(name)-\(lang).png"), width: 472, height: 568, dark: true,
+                    to: output.appendingPathComponent("\(name)-\(lang).png"), width: 416, height: 496, dark: true,
                     transparent: true, hoverPoint: point)
             }
             let setup = try makeModel(language: language, workspaceCount: 0)
@@ -632,16 +632,19 @@ final class ReadmeMediaRenderingTests: XCTestCase {
         if let hoverPoint {
             // Dispatch only to this isolated view's cursor tracker. No global
             // input, real desktop capture, or application activation is needed.
-            func tracker(_ view: NSView) -> NSView? {
-                if String(describing: type(of: view)) == "CursorView" { return view }
+            func tracker(_ view: NSView) -> WheelInteractionSurface.CursorView? {
+                if let tracker = view as? WheelInteractionSurface.CursorView { return tracker }
                 return view.subviews.lazy.compactMap(tracker).first
             }
             let cursor = NSCursor.current
+            let input = try XCTUnwrap(tracker(host))
+            let location = input.convert(NSPoint(x: hoverPoint.x * input.bounds.width / input.geometry.diameter,
+                                                 y: hoverPoint.y * input.bounds.height / input.geometry.diameter), to: nil)
             let event = try XCTUnwrap(NSEvent.mouseEvent(with: .mouseMoved,
-                location: NSPoint(x: (16 + hoverPoint.x) * 2, y: pixels.height - (8 + hoverPoint.y) * 2),
+                location: location,
                 modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                 windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0))
-            try XCTUnwrap(tracker(host)).mouseMoved(with: event)
+            input.mouseMoved(with: event)
             cursor.set()
             try await Task.sleep(for: .milliseconds(100))
             host.layoutSubtreeIfNeeded()
