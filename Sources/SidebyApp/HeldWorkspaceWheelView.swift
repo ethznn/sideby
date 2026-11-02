@@ -189,7 +189,10 @@ private struct HeldWorkspaceWheelContent: View {
         VStack(spacing: 0) {
             ring.frame(width: geometry.diameter, height: geometry.diameter)
                 .scaleEffect(renderedDiameter / geometry.diameter)
-                .frame(width: renderedDiameter, height: renderedDiameter).padding(.top, 8)
+                .frame(width: renderedDiameter, height: renderedDiameter)
+                .background(HeldWorkspaceWheelSurround(geometry: geometry, count: columns.count,
+                    isActive: isActive, reduceMotion: reduceMotion).allowsHitTesting(false).accessibilityHidden(true))
+                .padding(.top, 8)
             footer.frame(height: HeldWorkspaceWheelLayout.chromeHeight - HeldWorkspaceWheelLayout.ringTop).padding(.horizontal, 12)
         }.frame(width: renderedDiameter + 32, height: renderedDiameter + HeldWorkspaceWheelLayout.chromeHeight)
     }
@@ -233,8 +236,8 @@ private struct HeldWorkspaceWheelContent: View {
               }.frame(width: max(140, geometry.previewWidth))
                     .frame(width: geometry.centerRadius * 2, height: geometry.centerRadius * 2)
                     .background(HeldWorkspaceWheelStyle.center(active: centerHighlighted), in: Circle())
-                    .overlay(Circle().strokeBorder(centerHighlighted ? HeldWorkspaceWheelStyle.activeBorder : HeldWorkspaceWheelStyle.border,
-                        lineWidth: centerHighlighted ? 1.25 : 0.75))
+                    .overlay(Circle().strokeBorder(centerHighlighted ? HeldWorkspaceWheelStyle.outlineHighlight : HeldWorkspaceWheelStyle.controlBorder,
+                        lineWidth: (centerHighlighted ? 1.75 : 1.25) / ringScale))
                     .overlay {
                         if focused == "save" {
                             Circle().inset(by: 5).strokeBorder(NativeSurfaceStyle.primaryText, lineWidth: 2)
@@ -337,12 +340,7 @@ private struct HeldWorkspaceWheelContent: View {
     private var emptyRing: some View {
         ZStack {
             let shape = ConnectionSector(index: 0, count: 1, geometry: geometry)
-            shape.fill(HeldWorkspaceWheelStyle.surface(active: false))
-                .overlay {
-                    Circle().stroke(HeldWorkspaceWheelStyle.border, lineWidth: 1).padding(2)
-                    Circle().stroke(HeldWorkspaceWheelStyle.border, lineWidth: 1)
-                        .frame(width: geometry.innerRadius * 2, height: geometry.innerRadius * 2)
-                }.clipShape(shape)
+            sectorSurface(shape, active: false)
             VStack(spacing: 6) {
                 Text(text("No saved connections yet", "아직 저장된 연결이 없어요"))
                     .font(.system(size: ringFont(13, minimum: 12), weight: .medium))
@@ -429,8 +427,9 @@ private struct HeldWorkspaceWheelContent: View {
     private func sectorSurface(_ shape: ConnectionSector, active: Bool) -> some View {
         // Current location is a label, not a second selection. Only the pointer
         // or keyboard target receives the same fill and outline as the center.
-        let border = active ? HeldWorkspaceWheelStyle.activeBorder : HeldWorkspaceWheelStyle.border
-        let width: CGFloat = active ? 1.25 : 0.65
+        let border = active ? HeldWorkspaceWheelStyle.outlineHighlight : HeldWorkspaceWheelStyle.controlBorder
+        // Keep internal boundaries legible at the compact rendered size too.
+        let width: CGFloat = (active ? 1.75 : 1.25) / ringScale
         return shape.fill(HeldWorkspaceWheelStyle.surface(active: active))
             .overlay(shape.stroke(border, lineWidth: width * 2).clipShape(shape))
     }
@@ -497,8 +496,7 @@ private struct HeldWorkspaceWheelContent: View {
 
     private func tool(_ image: String, label: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) { Image(systemName: image).font(.system(size: 12))
-            .frame(width: 28, height: 26).background(HeldWorkspaceWheelStyle.chrome, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(HeldWorkspaceWheelStyle.border, lineWidth: 0.65))
+            .frame(width: 28, height: 26).heldFloatingSurface(in: RoundedRectangle(cornerRadius: 8))
             .overlay {
                 if focused == id {
                     RoundedRectangle(cornerRadius: 4).inset(by: 2)
@@ -523,7 +521,7 @@ private struct HeldWorkspaceWheelContent: View {
                         .accessibilityLabel(copy.next).accessibilityIdentifier("wheel-next-page")
                         .onDrop(of: [UTType.plainText], delegate: pageDrop(1))
                 }.buttonStyle(.plain).pointingHandCursor().font(.system(size: 11))
-                    .padding(.horizontal, 9).background(HeldWorkspaceWheelStyle.chrome, in: Capsule())
+                    .padding(.horizontal, 9).heldFloatingSurface(in: Capsule())
             }
             HStack(spacing: 8) {
               Group {
@@ -560,13 +558,13 @@ private struct HeldWorkspaceWheelContent: View {
                 }
               }.font(.system(size: 11)).lineLimit(2)
                 .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(HeldWorkspaceWheelStyle.chrome, in: Capsule())
+                .heldFloatingSurface(in: Capsule())
               Button { pin(); _ = model.undoSavedWorkspaceChange(); showsFeedback = true } label: {
                   Label(text("Undo", "되돌리기"), systemImage: "arrow.uturn.backward")
                       .padding(.horizontal, 10).frame(height: 28)
-                      .background(HeldWorkspaceWheelStyle.chrome, in: Capsule())
               }.buttonStyle(.plain).pointingHandCursor().font(.system(size: 11)).fixedSize()
                   .disabled(!model.canChangeSavedWorkspaces || model.settings.savedWorkspaces.undo == nil)
+                  .heldFloatingSurface(in: Capsule())
                   .help((model.settings.savedWorkspaces.undo?.label ?? model.connectionCopy.undo) + " (⌘Z)\n" + model.connectionCopy.undoHistoryHint)
                   .keyboardShortcut("z", modifiers: .command).accessibilityIdentifier("held-undo-connection")
             }.frame(height: 40)
@@ -599,8 +597,7 @@ private struct HeldWorkspaceWheelContent: View {
                 }.accessibilityLabel(model.saveCopy.close)
             }.buttonStyle(.plain).pointingHandCursor().font(.system(size: 11))
                 .padding(3)
-                .background(HeldWorkspaceWheelStyle.chrome, in: Capsule())
-                .overlay(Capsule().strokeBorder(HeldWorkspaceWheelStyle.border, lineWidth: 0.65))
+                .heldFloatingSurface(in: Capsule())
                 .help(persistent || pinned ? text("Esc to close", "Esc로 닫기") : copy.releaseHint)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("held-footer")

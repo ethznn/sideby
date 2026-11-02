@@ -16,7 +16,7 @@ Connect the Spaces you already use across your displays. When your environment c
 
 [Still image](docs/images/sideby-connections-film-en.png) · [Preview with playback controls](https://ethznn.github.io/sideby/#film)
 
-*Sideby 1.1.4 · [What’s new](docs/releases/1.1.4.md).*
+*Sideby 1.1.5 · [What’s new](docs/releases/1.1.5.md).*
 
 ## See and connect in one window
 

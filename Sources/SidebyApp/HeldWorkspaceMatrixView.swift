@@ -136,11 +136,16 @@ private struct HeldWorkspaceMatrixContent: View {
                     }, keepOpen: keepOpen, close: close, edit: { setEditing(true, request: $0) },
                         persistent: persistent || hasEnteredEditing, diameter: wheelDiameter, displayCount: snapshot.displayIDs.count,
                         snapshot: live, animateEntrance: animateEntrance && !hasEnteredEditing, isActive: showingWheel)
+                        .frame(width: viewport.size.width, height: viewport.size.height, alignment: .top)
                         .opacity(showingWheel ? 1 : 0).allowsHitTesting(showingWheel)
                         .accessibilityHidden(!showingWheel).disabled(!showingWheel)
                 }
                 if !usesRadial || loadedTable || isEditing {
-                    matrixBody.opacity(showingWheel ? 0 : 1).allowsHitTesting(!showingWheel)
+                    // The retained wheel has a fixed intrinsic height. Give
+                    // each layer the viewport's size so its hidden footprint
+                    // cannot push the table's rounded bottom below the window.
+                    matrixBody.frame(width: viewport.size.width, height: viewport.size.height, alignment: .top)
+                        .opacity(showingWheel ? 0 : 1).allowsHitTesting(!showingWheel)
                         .accessibilityHidden(showingWheel).disabled(showingWheel)
                 }
               }.frame(width: viewport.size.width, height: viewport.size.height, alignment: .top)
@@ -258,7 +263,7 @@ private struct HeldWorkspaceMatrixContent: View {
         }
         .foregroundStyle(NativeSurfaceStyle.primaryText)
         .background(NativeSurfaceStyle.windowBackground, in: RoundedRectangle(cornerRadius: 17))
-        .overlay(RoundedRectangle(cornerRadius: 17).strokeBorder(NativeSurfaceStyle.frameBorder))
+        .overlay(RoundedRectangle(cornerRadius: 17).strokeBorder(HeldWorkspaceWheelStyle.controlBorder, lineWidth: 1.25))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("held-workspace-matrix")
         .background(WorkspaceDragCompletion(dragID: drag?.id, finished: finishDrag))

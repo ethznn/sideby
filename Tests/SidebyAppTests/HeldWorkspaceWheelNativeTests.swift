@@ -100,8 +100,8 @@ import XCTest
                 bitmap.colorAt(x: Int(x * scale), y: Int(y * scale))?.alphaComponent ?? 1
             }
             XCTAssertEqual(alpha(0, 0), 0, accuracy: 0.01, "Outside HUD is transparent")
-            XCTAssertEqual(alpha(291, 200), 0, accuracy: 0.01, "Center-to-sector gap is transparent")
-            XCTAssertEqual(alpha(258, 80), 0, accuracy: 0.01, "Sector gap is transparent")
+            XCTAssertLessThan(alpha(291, 200), 0.4, "Center-to-sector gap stays translucent beneath the shallow shadow")
+            XCTAssertLessThan(alpha(258, 80), 0.4, "Sector gap stays translucent beneath the shallow shadow")
             XCTAssertGreaterThan(alpha(208, 200), 0.99, "Center control remains legible")
         }
         try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: folder.appendingPathComponent(name + ".png"))
@@ -402,6 +402,54 @@ import XCTest
                 }
                 XCTAssertEqual(window.frame.size, size); XCTAssertEqual(model.settings, before)
             }
+        }
+    }
+
+    func testWheelOutlineSeparatesFromLightDarkAndBusyBackgroundsOffscreen() async throws {
+        try requireOffscreenRendering()
+        for (name, appearance, background, busy) in [
+            ("light", NSAppearance.Name.aqua, NSColor.white, false),
+            ("dark", .darkAqua, NSColor(calibratedWhite: 0.12, alpha: 1), false),
+            ("light-on-dark", .aqua, NSColor(calibratedWhite: 0.12, alpha: 1), true),
+            ("high-contrast", .accessibilityHighContrastDarkAqua, NSColor.white, true)
+        ] {
+            let model = heldMatrixFixture(count: 4, displayCount: 2)
+            model.workspacePreferences = nil
+            model.settings.language = .korean
+            let before = model.settings
+            let root = ZStack {
+                Color(nsColor: background)
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Sample workspace").font(.system(size: 20, weight: .semibold))
+                    Divider()
+                    ForEach(0..<16) { index in
+                        HStack(spacing: 20) {
+                            Text(String(format: "%02d", index + 1)).font(.system(size: 12, design: .monospaced))
+                            RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(busy ? 0.35 : 0.1))
+                                .frame(width: CGFloat(180 + index % 4 * 90), height: 8)
+                            if busy { Text("Window content · \(index + 1)").font(.system(size: 12)) }
+                        }
+                    }
+                }.foregroundStyle(background == NSColor.white ? Color.black.opacity(0.55) : Color.white.opacity(0.6))
+                    .padding(30).frame(maxWidth: .infinity, alignment: .leading)
+                HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model),
+                    select: { _ in XCTFail("Rendering must never switch Spaces") },
+                    usesRadial: true, animateEntrance: false, wheelDiameter: 384)
+                    .frame(width: 416, height: 536)
+            }.frame(width: 760, height: 600)
+            let window = window(root, size: NSSize(width: 760, height: 600), visible: false)
+            window.appearance = NSAppearance(named: appearance)
+            defer { window.close() }
+            try await Task.sleep(for: .milliseconds(200))
+            window.contentView?.layoutSubtreeIfNeeded()
+            try capture("wheel-outline-\(name)", window: window)
+            try await trackPointer(HeldWorkspaceWheelLayout.labelPoint(index: 1, count: 4), in: window)
+            try capture("wheel-outline-\(name)-hover", window: window)
+            XCTAssertFalse(window.isVisible)
+            XCTAssertEqual(model.settings, before)
+            let tracker = try wheelTracker(in: window)
+            XCTAssertEqual(tracker.convert(tracker.bounds, to: window.contentView).width, 384, accuracy: 1,
+                           "Native hit regions retain the rendered wheel size")
         }
     }
 
@@ -820,6 +868,72 @@ import XCTest
             // whereas changing presentation must preserve the current lifetime.
             XCTAssertEqual(pins, startsWithCircle ? 2 : 1)
             XCTAssertEqual(model.settings, before); XCTAssertFalse(window.isVisible)
+        }
+    }
+
+    func testTableKeepsRoundedBottomAndBorderAfterWheelResizingOffscreen() async throws {
+        try requireOffscreenRendering()
+        for (displays, appearance) in [(1, NSAppearance.Name.aqua), (2, .darkAqua)] {
+            let model = heldMatrixFixture(count: 3, displayCount: displays)
+            model.workspacePreferences = nil
+            let before = model.settings
+            var measurement: CGSize?
+            var pins = 0
+            let root = HeldWorkspaceMatrixView(model: model, snapshot: .init(model: model),
+                select: { _ in XCTFail("Changing presentation must never switch Spaces") },
+                keepOpen: { pins += 1 }, contentMeasured: { size, editing in
+                    if !editing { measurement = size }
+                }, usesRadial: true, animateEntrance: false, wheelDiameter: 384)
+            let window = window(root, size: NSSize(width: 416, height: 536), visible: false)
+            window.appearance = NSAppearance(named: appearance)
+            defer { window.close() }
+            try await Task.sleep(for: .milliseconds(150))
+
+            for pass in 0..<2 {
+                measurement = nil
+                try pressOffscreen("wheel-show-table", in: window)
+                // Match the controller: change width first, then fit the actual
+                // content height. A fixed, tall fixture conceals bottom clipping.
+                window.setContentSize(NSSize(width: 702, height: 536))
+                window.contentView?.layoutSubtreeIfNeeded()
+                for _ in 0..<40 {
+                    if let measurement, abs(measurement.width - 702) < 1 { break }
+                    try await Task.sleep(for: .milliseconds(10))
+                }
+                let measured = try XCTUnwrap(measurement)
+                XCTAssertEqual(measured.width, 702, accuracy: 1)
+                for (state, height) in [("fitted", ceil(measured.height)), ("scrolling", CGFloat(260))] {
+                    window.setContentSize(NSSize(width: 702, height: height))
+                    window.contentView?.layoutSubtreeIfNeeded()
+                    try await Task.sleep(for: .milliseconds(100))
+                    let host = try XCTUnwrap(window.contentView)
+                    let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+                    host.cacheDisplay(in: host.bounds, to: bitmap)
+                    let scale = CGFloat(bitmap.pixelsWide) / host.bounds.width
+                    func pixel(_ x: CGFloat, fromBottom y: CGFloat) throws -> NSColor {
+                        try XCTUnwrap(bitmap.colorAt(x: Int(x * scale),
+                            y: bitmap.pixelsHigh - 1 - Int(y * scale))?.usingColorSpace(.deviceRGB))
+                    }
+                    try capture("table-rounded-\(displays)-\(pass)-\(state)", window: window)
+                    XCTAssertLessThan(try pixel(2, fromBottom: 2).alphaComponent, 0.2,
+                        "The bottom-left corner must remain rounded after shrinking from the wheel")
+                    XCTAssertLessThan(try pixel(host.bounds.width - 3, fromBottom: 2).alphaComponent, 0.2,
+                        "The bottom-right corner must remain rounded even when content scrolls")
+                    var border = NSColor.clear
+                    window.effectiveAppearance.performAsCurrentDrawingAppearance {
+                        border = NSColor(HeldWorkspaceWheelStyle.controlBorder).usingColorSpace(.deviceRGB)!
+                    }
+                    XCTAssertLessThan(colorDifference(try pixel(host.bounds.midX, fromBottom: 0.5), border), 0.2,
+                        "The bottom border must be drawn inside the visible window")
+                }
+                try pressOffscreen("held-show-wheel", in: window)
+                window.setContentSize(NSSize(width: 416, height: 536))
+                window.contentView?.layoutSubtreeIfNeeded()
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            XCTAssertEqual(pins, 0, "Switching views must preserve close-on-release")
+            XCTAssertEqual(model.settings, before)
+            XCTAssertFalse(window.isVisible)
         }
     }
 

@@ -425,6 +425,7 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     var settingsStore: any SettingsStoring = UserDefaultsSettingsStore()
     private let permissionService = AccessibilityPermissionService()
     let displayObserver = MacDisplayObserver()
+    var displaySnapshotsProvider: (() -> [DisplaySnapshot])? = { MacDisplayObserver().currentSnapshots() }
     private let loginItemService = MacLoginItemService()
     private let setupFlow = V1SetupFlow()
     private let visibleAppSuggestionProvider = MacVisibleAppSuggestionProvider()
@@ -518,6 +519,8 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
         self.settingsStore = DiscardingSettingsStore()
         self.workspacePreferences = nil
         self.workspaceNameSuggestionProvider = nil
+        // Fixture layouts must never be replaced by the test machine's monitors.
+        self.displaySnapshotsProvider = nil
         self.selectedDisplayIDs = selectedDisplayIDs
         self.selectedDisplaySpacesOverride = selectedDisplaySpaces
         self.postEventAccessOverride = postEventAccessGranted
@@ -589,20 +592,32 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
     }
 
     func refresh() {
-        let snapshots = displayObserver.currentSnapshots()
-        let oldSettings = settings
-        let oldSelected = selectedDisplayIDs
-        _ = DisplayIdentityMigration.migrate(settings: &settings, snapshots: snapshots)
-        displayLayout = DisplayLayoutMapper.layout(from: snapshots)
-        syncSelectedDisplays(with: displayLayout)
-        workspaceConfigurationChanged(from: oldSettings.contextPlan, selectedIDs: oldSelected)
-        if settings != oldSettings { settingsStore.save(settings) }
+        refreshDisplayLayout()
         refreshContextEditAvailability()
         permissionState = permissionService.currentState
         postEventAccessGranted = CGPreflightPostEventAccess()
         loginItemStatus = strings.startAtLoginStatus(isEnabled: loginItemService.isEnabled)
         refreshWorkspaceStatus()
         diagnostics = currentDiagnostics()
+    }
+
+    /// Screen-change notifications can be missed during startup or reconnection.
+    /// Visible editors also re-read the display list, preserving durable choices.
+    func refreshDisplayLayout() {
+        guard let snapshots = displaySnapshotsProvider?() else { return }
+        let oldSettings = settings
+        let oldSelected = selectedDisplayIDs
+        var next = settings
+        _ = DisplayIdentityMigration.migrate(settings: &next, snapshots: snapshots)
+        let layout = DisplayLayoutMapper.layout(from: snapshots)
+        next.displaySelection.reconcile(with: layout)
+        let selected = next.displaySelection.connectedSelectedDisplayIDs(in: layout)
+        guard layout != displayLayout || selected != selectedDisplayIDs || next != settings else { return }
+        if displayLayout != layout { displayLayout = layout }
+        if selectedDisplayIDs != selected { selectedDisplayIDs = selected }
+        if settings != next { settings = next }
+        workspaceConfigurationChanged(from: oldSettings.contextPlan, selectedIDs: oldSelected)
+        if settings != oldSettings { settingsStore.save(settings) }
     }
 
     private func currentDiagnostics() -> [DiagnosticState] {
@@ -2801,11 +2816,6 @@ final class SidebyAppModel: ObservableObject, SBSOnboardingViewModel {
 
             self.startInputControl(requestsPermissions: false)
         }
-    }
-
-    private func syncSelectedDisplays(with layout: DisplayLayout) {
-        settings.displaySelection.reconcile(with: layout)
-        selectedDisplayIDs = settings.displaySelection.connectedSelectedDisplayIDs(in: layout)
     }
 
     func updateContextPlan(_ mutate: (inout ContextPlan) -> Void) {

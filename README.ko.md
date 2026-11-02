@@ -16,7 +16,7 @@
 
 [정지 이미지](docs/images/sideby-connections-film-ko.png) · [재생·정지 가능한 미리보기](https://ethznn.github.io/sideby/ko/#film)
 
-*Sideby 1.1.4 사용 안내 · [업데이트 내용](docs/releases/1.1.4.md).*
+*Sideby 1.1.5 사용 안내 · [업데이트 내용](docs/releases/1.1.5.md).*
 
 ## 한 화면에서 보고 바로 연결하세요
 

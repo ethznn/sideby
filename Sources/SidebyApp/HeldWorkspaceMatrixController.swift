@@ -256,6 +256,7 @@ import SwiftUI
         screenID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
         if self.presentation == .wheel { panel.makeKeyAndOrderFront(nil) }
         else { panel.orderFrontRegardless() }
+        HeldWorkspaceWheelSurround.reveal(in: panel.contentView)
     }
 
     private func panelOrigin(size: NSSize, screen: NSScreen) -> NSPoint {

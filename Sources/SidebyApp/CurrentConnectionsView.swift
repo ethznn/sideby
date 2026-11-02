@@ -78,13 +78,29 @@ struct CurrentConnectionsView: View {
                     }.controlSize(.small).pointingHandCursor()
                         .disabled(!model.canDeleteAllSavedWorkspaces)
                         .accessibilityIdentifier("connections-clear-all")
-                Button(copy.displays) { onInteraction(); keepOpen(); showsDisplays = true }.pointingHandCursor()
+                Button(copy.displays) {
+                    onInteraction(); keepOpen()
+                    model.refreshDisplayLayout(); model.refreshWorkspaceStatus(); readObservation()
+                    showsDisplays = true
+                }.pointingHandCursor()
                     .accessibilityIdentifier("connections-displays")
                     .popover(isPresented: $showsDisplays) {
-                        ScrollView {
-                            NativeDisplaySelector(displays: model.displayLayout.displays, selectedIDs: model.selectedDisplayIDs,
-                                language: model.settings.language, isEnabled: model.canChangeSavedWorkspaces,
-                                setSelected: { model.setDisplayTarget($0, isSelected: $1); readObservation() })
+                        VStack(alignment: .leading, spacing: 12) {
+                            ScrollView {
+                                if model.displayLayout.displays.isEmpty {
+                                    Text(copy.text("Couldn't read connected displays. Try reading again.",
+                                                   "연결된 모니터 목록을 읽지 못했어요. 다시 읽기를 눌러 주세요."))
+                                        .font(.system(size: 12)).foregroundStyle(NativeSurfaceStyle.secondaryText)
+                                        .accessibilityIdentifier("connections-displays-unavailable")
+                                } else {
+                                    NativeDisplaySelector(displays: model.displayLayout.displays, selectedIDs: model.selectedDisplayIDs,
+                                        language: model.settings.language, isEnabled: model.canChangeSavedWorkspaces,
+                                        setSelected: { model.setDisplayTarget($0, isSelected: $1); readObservation() })
+                                }
+                            }
+                            Button(copy.readAgain) { refresh() }.pointingHandCursor()
+                                .disabled(model.isSwitching || model.contextCaptureSession != nil || model.pendingContextCaptureAlignment != nil)
+                                .accessibilityIdentifier("connections-displays-retry")
                         }.frame(width: 340, height: min(260, max(100, CGFloat(model.displayLayout.displays.count) * 34 + 100))).padding(16)
                     }
                 }
@@ -154,10 +170,10 @@ struct CurrentConnectionsView: View {
         .foregroundStyle(NativeSurfaceStyle.primaryText).tint(NativeSurfaceStyle.accent)
         .background(CurrentConnectionsKeyboardCommands(model: model))
         .background(CurrentConnectionsLiveRefresh(model: model,
-            paused: drag != nil || selectedDesktop != nil || picker != nil || showsDisplays || confirmsClearAll || isSelectingConnections || renaming != nil,
+            paused: drag != nil || selectedDesktop != nil || picker != nil || confirmsClearAll || isSelectingConnections || renaming != nil,
             didRefresh: { if let value = $0, observation != value { observation = value } }))
         .background(WorkspaceDragCompletion(dragID: drag?.id) { drag = nil; dropCell = nil; dropColumn = nil })
-        .onAppear { model.refreshWorkspaceStatus(); readObservation() }
+        .onAppear { model.refreshDisplayLayout(); model.refreshWorkspaceStatus(); readObservation() }
         .alert(removalTitle, isPresented: $confirmsClearAll) {
             Button(model.saveCopy.cancel, role: .cancel) { deletionProposal = nil }
             Button(isSelectedRemoval ? copy.removeSelectedAction : copy.clearAllAction, role: .destructive) {

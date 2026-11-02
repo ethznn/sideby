@@ -11,6 +11,7 @@ extension SidebyAppModel {
         let now = ProcessInfo.processInfo.systemUptime
         if !force, let last = connectionContentRefreshTime, now - last < 1.5 { return nil }
         connectionContentRefreshTime = now
+        refreshDisplayLayout()
         refreshWorkspaceStatus()
         let observation = workspaceObservation(includingUnselectedDisplays: true)
         guard let observation, let provider = workspaceNameSuggestionProvider else { return observation }

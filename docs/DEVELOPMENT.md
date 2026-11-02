@@ -121,8 +121,13 @@ env -u SIDEBY_NATIVE_EVIDENCE -u SIDEBY_INTERACTIVE_UI_TESTS -u SIDEBY_NATIVE_WI
 ```
 
 The probe measures sample-view construction only, not physical shortcut latency
-or compositor frame rate. Shortcut-held wheels intentionally skip the entrance
-spring and dismiss immediately on release; explicit persistent opening may animate.
+or compositor frame rate. Shortcut-held wheels skip the entrance spring and
+dismiss immediately on release. Their outline is emphasized for 400 ms, then
+fades to its normal color over 300 ms, unless Reduce Motion is enabled. Detached
+buttons and toolbars retain opaque surfaces, colored borders and shallow shadows.
+The wheel uses a cached shadow path. These visual effects do not change hit
+regions or delay input.
+Explicit persistent opening may animate.
 The bundle scripts use a local Developer ID or Apple Development signing identity when one is available, and otherwise sign ad-hoc for local testing.
 
 To keep local apps out of Spotlight results, direct build products and bundles to
