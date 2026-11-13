@@ -1,0 +1,131 @@
+{
+  "lang": "en",
+  "title": "Sideby — Pick your Mac workspace by its screens",
+  "description": "Switch from development to planning across your Mac displays together. Save different window layouts on the same desktop, choose workspaces in a large visual gallery, and edit Space connections directly from the menu bar.",
+  "skip": "Skip to content",
+  "nav_how": "How it works",
+  "nav_faq": "Questions",
+  "language_label": "Language",
+  "eyebrow": "A DESKTOP SWITCHER FOR MAC",
+  "hero_1": "Switch tasks.",
+  "hero_2": "Your screens follow.",
+  "intro": "Where's that screen? Connect the screens you use together and move to your next task in one action. Keep different window layouts on the same desktop, too.",
+  "requirements": "macOS 14+ · Apple silicon",
+  "film_alt": "Sideby switches development and planning screens together across two displays and returns to a saved layout",
+  "film_note": "18 seconds · Actual Sideby gallery UI with fictional screens. Transitions and layout changes are edited examples, not switching-speed benchmarks.",
+  "benefit_label": "LESS LOOKING FOR THAT SCREEN",
+  "benefit_title": "Back to your task. In one move.",
+  "benefit_text": "Code and docs. Plans and conversations. Keep the screens you use together in one connection, instead of finding them again on each display.",
+  "benefits": [
+    "Switch Spaces across your displays together.",
+    "Save different window layouts on the same desktop.",
+    "Recognize your next task in large screen previews."
+  ],
+  "how_title": "Keep the setup you have now.",
+  "how_intro": "Arrange your windows and save once. One desktop can hold several saved layouts.",
+  "steps": [
+    [
+      "Allow access.",
+      "Follow the guide for Accessibility and Screen Switching access. Choose Allow previews if you want screen thumbnails."
+    ],
+    [
+      "Add current screens.",
+      "Hold ⌥⇧Space and click the center button. Save the current screens and supported window layouts as a new connection. Rename it later with the pencil button."
+    ],
+    [
+      "See it. Return to it.",
+      "Click an image in the gallery to switch connected Spaces together, then restore the saved desktop window layout."
+    ]
+  ],
+  "matrix_label": "CHOOSE BY THE SCREENS",
+  "matrix_title": "There's the task you meant.",
+  "matrix_text": "Hold ⌥⇧Space to open the gallery on the display under your pointer. Click an image to switch the connection; Bring forward changes only the preview order. Rename stays open for editing; Settings opens the shared settings window.",
+  "matrix_alt": "Sideby gallery with large display previews and the central Add current screens button",
+  "matrix_note": "Actual Sideby 1.3.0 UI with fictional connections and synthetic screens. No personal desktop was captured.",
+  "small_features": [
+    [
+      "One display works, too.",
+      "Save different positions and sizes for windows on one desktop. Connect more displays to switch their Spaces together."
+    ],
+    [
+      "A missing window does not stop you.",
+      "Closed or restarted windows are skipped. Available windows are restored where possible, with results reported."
+    ],
+    [
+      "Previews when you need them.",
+      "Recent images are reused without continuous recording or timer-based capture. Visit an unseen desktop once to create its preview."
+    ]
+  ],
+  "faq_title": "A few things to know.",
+  "faqs": [
+    [
+      "What does Sideby remember?",
+      "Connected Spaces and explicitly saved desktop layouts: window positions, sizes and the focused window. With previews allowed, a small image of that moment is kept on this Mac too. Saving the same desktop again creates a separate setup."
+    ],
+    [
+      "Does it reopen apps or restore every window?",
+      "After switching Spaces, it restores saved windows still available on the destination ordinary desktops. It does not reopen apps, documents or tabs, or pull windows out of another Space. Full-screen apps switch Spaces only. Layout restoration supports Stage Manager off and is subject to app size restrictions."
+    ],
+    [
+      "What if I disconnect a monitor?",
+      "Its connections are kept. Use Show disconnected displays to review them, then reconnect the monitor to use them again."
+    ],
+    [
+      "Which Macs are supported?",
+      "Apple silicon Macs running macOS 14 or later. Public app downloads are temporarily paused."
+    ],
+    [
+      "Which permissions are needed?",
+      "Accessibility supports configured global input and window-layout restoration. Screen Switching access permits desktop transitions; some paths also need System Events Automation. Screen Recording is optional and requested through Allow previews."
+    ],
+    [
+      "Where are screen previews stored?",
+      "Ordinary previews stay in memory; explicitly saved setup images and window information stay on your Mac. Disabling previews does not remove saved setup images. Images and typed input are not uploaded."
+    ]
+  ],
+  "end_title": "Back to your task. Screens and all.",
+  "end_text": "Connect the screens you have now, then move to what is next.",
+  "docs": "How it works",
+  "privacy": "Privacy & permissions",
+  "footer": "Switch tasks. Your screens follow.",
+  "nav_editor": "Connections",
+  "editor_label": "See and connect",
+  "editor_title": "More room to see. Less effort to edit.",
+  "editor_text": "Click Sideby in the menu bar to open Settings → Space connections. Expand the Space list to drag screens into connections. Press Esc or click the menu-bar icon again to close Settings.",
+  "editor_note": "Edits are remembered immediately. Go together switches screens; Undo or ⌘Z restores edits. Existing connections start with the Space list collapsed.",
+  "editor_alt": "Large connection editor with display previews, Show Space list and Go together controls",
+  "editor_overview": "What if desktops or displays change?",
+  "editor_overview_text": "Find new desktops in the upper list and connect them. If a desktop disappears, choose again in the affected cell. Sideby never replaces it with a different desktop at the same position. Disconnected displays keep their connections.",
+  "image_enlarge": "View full-size image",
+  "tutorial_title": "A different task. A different set of screens.",
+  "tutorial_text": "Three six-second examples with fictional screens and edited transitions. Press play to explore.",
+  "editor_image_note": "Current product UI with fictional data and synthetic screen previews.",
+  "table_title": "See the expanded Space list",
+  "table_alt": "Expanded Space previews grouped by display above the editable connection table",
+  "table_note": "Drag within the same display's row to connect. Editing or dragging cells does not switch actual screens.",
+  "video_download": "Download video",
+  "short_films": [
+    [
+      "screens-together",
+      "One move, both displays.",
+      "From development to planning, both displays arrive at the same task."
+    ],
+    [
+      "saved-layouts",
+      "Back where you left them.",
+      "Arrive at the saved desktop, then restore the positions and sizes of available saved windows."
+    ],
+    [
+      "find-return",
+      "Another task. Then back to yours.",
+      "Recognize the workspace in its previews and bring your connected screens along."
+    ]
+  ],
+  "rename_alt": "Rename connection dialog above the gallery, with Cancel and Apply buttons",
+  "rename_note": "Click a connection name or its pencil to rename it.",
+  "support_label": "☕ Buy me a coffee",
+  "support_copy": "Enjoying Sideby? You can buy me a coffee ☕",
+  "availability_title": "Distribution in preparation",
+  "availability_text": "Public app downloads are temporarily paused. We’ll announce availability here when distribution resumes.",
+  "explore": "Explore Sideby"
+}
