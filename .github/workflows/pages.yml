@@ -30,12 +30,14 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      SITE_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
     steps:
       - uses: actions/checkout@v6
       - name: Build public site
-        run: python3 scripts/build_site.py --output .build/site
+        run: python3 scripts/build_site.py --output .build/site --base-url "$SITE_BASE_URL"
       - name: Verify content, links, metadata, and deployment files
-        run: python3 scripts/check_site.py .build/site
+        run: python3 scripts/check_site.py .build/site --base-url "$SITE_BASE_URL"
       - name: Check JavaScript syntax
         run: node --check site/site.js
       - name: Check public documentation
