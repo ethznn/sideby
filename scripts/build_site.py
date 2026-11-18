@@ -83,7 +83,10 @@ for language in ['en', 'ko']:
          'about': {'@id': base + '#app'}},
         {'@type': 'SoftwareApplication', '@id': base + '#app', 'name': 'Sideby',
          'url': base, 'description': content['description'], 'operatingSystem': 'macOS 14 or later',
-         'applicationCategory': 'UtilitiesApplication', 'processorRequirements': 'Apple silicon'}
+         'applicationCategory': 'UtilitiesApplication', 'processorRequirements': 'Apple silicon',
+         'downloadUrl': 'https://github.com/ethznn/sideby/releases/latest/download/Sideby.dmg',
+         'inLanguage': ['en', 'ko', 'ja', 'zh-Hant', 'es-419', 'pt-BR'],
+         'offers': {'@type': 'Offer', 'price': '12.99', 'priceCurrency': 'USD', 'url': 'https://store.dodopayments.com/agrove'}}
     ]}
     values['structured_data'] = json.dumps(graph, ensure_ascii=False).replace('<', '\\u003c')
     target = output / path

@@ -1,6 +1,6 @@
 {
   "updated": "Last updated November 19, 2026",
-  "notice": "Paid distribution is in preparation. Checkout, public app downloads and the 7-day trial are not open yet. The purchase terms below describe the offer that will apply when sales begin.",
+  "notice": "Sideby costs US$12.99 once for one person on up to two Macs. You can try the app for seven days before buying.",
   "pages": {
     "terms": {
       "title": "Terms of use",
@@ -9,7 +9,7 @@
         {
           "title": "Who provides Sideby",
           "paragraphs": [
-            "Sideby is developed and supported by A GROVE, an independent developer business in South Korea. Contact us at prxyeo@gmail.com. When sales open, Dodo Payments will act as Merchant of Record for checkout and payment-related services."
+            "Sideby is developed and supported by A GROVE, an independent developer business in South Korea. Contact us at prxyeo@gmail.com. Dodo Payments acts as Merchant of Record for checkout and payment-related services."
           ],
           "links": [
             [
@@ -29,7 +29,7 @@
         {
           "title": "Seven days to try it",
           "paragraphs": [
-            "The paid edition will include a full-feature trial for seven days from its first launch. No payment card is required, and the trial does not automatically turn into a purchase. When it ends, a license is required to continue using paid functionality. The trial is not available during the current distribution pause."
+            "Try all features for seven days from first launch. No card or automatic charge. After the trial, activate a license to keep switching or saving setups."
           ],
           "links": []
         },
@@ -44,7 +44,7 @@
         {
           "title": "Delivery and activation",
           "paragraphs": [
-            "Once sales begin, successful purchases will be delivered through Dodo Payments with a license key, an app download link and installation instructions. If delivery or activation fails, email us with your purchase email and order reference. Do not send your full payment-card details.",
+            "Dodo Payments handles checkout and emails your license key and access to the installer. Open the DMG, drag Sideby to Applications, then open it. After buying, paste the key from your purchase email into Settings → License and choose Activate.",
             "Connect to the internet to activate your license. After a successful check, you can use paid features offline for up to 30 days. Reconnect to verify the license when the app asks. Your saved workspaces stay on your Mac."
           ],
           "links": []
@@ -52,7 +52,7 @@
         {
           "title": "Supported use",
           "paragraphs": [
-            "Sideby currently supports Apple silicon Macs running macOS 14 or later. It requires the macOS permissions described on the product page. Window restoration depends on supported, available windows and application restrictions; it does not reopen apps, documents or browser tabs. Review these limits before buying."
+            "Sideby currently supports Apple silicon Macs running macOS 14 or later. It requires the macOS permissions described on the product page. Window restoration depends on supported, available windows and application restrictions; it does not reopen apps, documents or browser tabs. Review these limits before buying. Requires an Apple silicon Mac running macOS 14 or later. This release was tested on an M1 Pro running macOS 27.2.1. It has not been run on Sonoma 14."
           ],
           "links": []
         },
@@ -140,7 +140,7 @@
     },
     "privacy": {
       "title": "Privacy policy",
-      "summary": "How the Sideby website, app, support and planned purchase flow handle information.",
+      "summary": "How the Sideby website, app, support and purchase flow handle information.",
       "sections": [
         {
           "title": "Who to contact",
@@ -170,9 +170,9 @@
           "links": []
         },
         {
-          "title": "Purchases and license verification at launch",
+          "title": "Purchases and license verification",
           "paragraphs": [
-            "When sales begin, Dodo Payments will process checkout as Merchant of Record. It handles information such as your purchase email, billing details, payment records and license entitlement. We use the order information available to us to deliver support, look up purchases and coordinate refunds. We do not receive or store your full payment-card number.",
+            "Dodo Payments processes checkout as Merchant of Record. It handles information such as your purchase email, billing details, payment records and license entitlement. We use the order information available to us to deliver support, look up purchases and coordinate refunds. We do not receive or store your full payment-card number.",
             "When you enter a key in Settings → License, Sideby sends Dodo the key and a randomly generated activation name. To verify or release that activation, it sends the key and the activation ID assigned by Dodo. Sideby keeps its license and trial records in the macOS Keychain on this Mac. Screen previews, window contents and typed input are not part of these requests."
           ],
           "links": [
@@ -225,7 +225,7 @@
         {
           "title": "Current availability",
           "paragraphs": [
-            "Public app downloads are temporarily paused while we prepare paid distribution. Checkout and the seven-day trial are not open yet. You can still contact us about an earlier release or a product question."
+            "Try all features for seven days from first launch. No card or automatic charge."
           ],
           "links": []
         },
@@ -238,10 +238,11 @@
         },
         {
           "id": "installation",
-          "title": "Installation readiness",
+          "title": "Install and activate",
           "paragraphs": [
-            "Public downloads and the seven-day trial are still in preparation. The current supported platform is Apple silicon Macs running macOS 14 or later.",
-            "When sales open, your purchase email will include the installer and instructions. Sideby needs Accessibility and screen-switching access; some transitions also use System Events automation. Screen Recording is optional for previews. Signing and notarization details, and the exact install and activation steps, will be published after verification of the paid build."
+            "Requires an Apple silicon Mac running macOS 14 or later. This release was tested on an M1 Pro running macOS 27.2.1. It has not been run on Sonoma 14.",
+            "Open the DMG, drag Sideby to Applications, then open it. After buying, paste the key from your purchase email into Settings → License and choose Activate.",
+            "Allow Accessibility and screen switching when prompted. Screen Recording enables optional previews."
           ],
           "links": []
         },
@@ -249,7 +250,7 @@
           "id": "license",
           "title": "Find a lost license key",
           "paragraphs": [
-            "Once sales open, Dodo Payments will email your license key. Check your inbox and spam folder for the purchase confirmation. If you cannot find it, contact us from your purchase email address and include the order reference if available. Do not send your full license key or card number."
+            "Dodo Payments emails your license key. Check your inbox and spam folder for the purchase confirmation. If you cannot find it, contact us from your purchase email address and include the order reference if available. Do not send your full license key or card number."
           ],
           "links": [
             [
@@ -262,7 +263,7 @@
           "id": "move-mac",
           "title": "Replace a Mac",
           "paragraphs": [
-            "Your license covers one person on up to two Macs. If you replace a Mac, or cannot access an old Mac and need help with the activation limit, contact us with your purchase email and order reference. Instructions for transferring through the app will be available before the paid release."
+            "On your old Mac, open Settings → License and deactivate that Mac while online. Enter the same key on your new Mac. If the old Mac is unavailable, email support with your order reference."
           ],
           "links": [
             [

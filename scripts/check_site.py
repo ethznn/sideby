@@ -61,12 +61,11 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     assert page.find('script', src=f'{parsed_base.path}assets/site.js?v={script_version}'), 'Version the script URL so returning visitors receive playback updates'
     data = json.loads(page.json_text); app = next(item for item in data['@graph'] if item['@type'] == 'SoftwareApplication')
     assert app['name'] == 'Sideby'
-    assert not {'downloadUrl', 'offers', 'isAccessibleForFree', 'license'} & app.keys(), 'Do not publish an active structured offer before paid delivery is ready'
+    assert app['offers']['price'] == '12.99' and app['offers']['priceCurrency'] == 'USD'
+    assert page.find('a', href='https://store.dodopayments.com/agrove') and app['offers']['url'] == 'https://store.dodopayments.com/agrove'
+    assert page.find('a', href='https://github.com/ethznn/sideby/releases/latest/download/Sideby.dmg') and app['downloadUrl'] == 'https://github.com/ethznn/sideby/releases/latest/download/Sideby.dmg'
     assert page.find('details', id='privacy')
     assert page.find('p', **{'class': 'availability'})
-    for link in page.find('a'):
-        href = link.get('href', '')
-        assert '/releases' not in href and not urlparse(href).path.lower().endswith(('.dmg', '.pkg', '.zip')), 'App downloads are paused'
     assert all(claim not in text.lower() for claim in ['free &amp; open source', 'free, open-source', '무료 오픈소스', 'mit license'])
     assert 'aggregateRating' not in app and 'review' not in app, 'Only publish actual reviews'
     assert len(page.find('a', href='#how')) >= 3

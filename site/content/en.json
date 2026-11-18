@@ -72,7 +72,7 @@
     ],
     [
       "Which Macs are supported?",
-      "Apple silicon Macs running macOS 14 or later. Public app downloads are temporarily paused."
+      "Requires an Apple silicon Mac running macOS 14 or later. This release was tested on an M1 Pro running macOS 27.2.1. It has not been run on Sonoma 14."
     ],
     [
       "Which permissions are needed?",
@@ -125,13 +125,13 @@
   "rename_note": "Click a connection name or its pencil to rename it.",
   "support_label": "☕ Buy me a coffee",
   "support_copy": "Enjoying Sideby? You can buy me a coffee ☕",
-  "availability_title": "Distribution in preparation",
-  "availability_text": "Public downloads, purchases and the free trial are not open yet.",
+  "availability_title": "Sideby for Mac",
+  "availability_text": "Requires an Apple silicon Mac running macOS 14 or later. This release was tested on an M1 Pro running macOS 27.2.1. It has not been run on Sonoma 14. App languages: English, Korean, Japanese, Traditional Chinese, Latin American Spanish and Brazilian Portuguese.",
   "explore": "Explore Sideby",
   "nav_pricing": "Pricing",
   "pricing_label": "ONE PURCHASE, YOUR WORKSPACES",
   "pricing_title": "One purchase. Future updates included.",
-  "pricing_intro": "The paid edition is in preparation. Here is the planned launch offer; purchases and the trial are not available yet.",
+  "pricing_intro": "Try all features for seven days from first launch. No card or automatic charge.",
   "price": "US$12.99",
   "price_caption": "One-time purchase · no subscription",
   "price_tax": "Applicable taxes and the final total will be shown at checkout before you pay.",
@@ -146,7 +146,7 @@
   "pricing_facts": [
     [
       "7-day full-feature trial",
-      "Planned from the first launch. No card and no automatic charge."
+      "Try all features for seven days from first launch. No card or automatic charge."
     ],
     [
       "One person, two Macs",
@@ -154,7 +154,7 @@
     ],
     [
       "Download and license by email",
-      "At launch, Dodo Payments will handle checkout and deliver your purchase."
+      "Dodo Payments handles checkout and emails your license key and access to the installer."
     ],
     [
       "All future Sideby updates included",
@@ -165,23 +165,23 @@
       "Request a full refund within seven days of purchase."
     ]
   ],
-  "hero_offer": "Planned launch offer · US$12.99 once · Two of your Macs",
-  "hero_trial": "Planned 7-day full-feature trial · No card or automatic charge",
+  "hero_offer": "US$12.99 once · Up to two of your Macs",
+  "hero_trial": "Try all features for seven days from first launch. No card or automatic charge.",
   "watch_demo": "Watch the 18-second demo",
   "purchase_faq_title": "Before you buy.",
   "purchase_faq_label": "PURCHASE & LICENSE",
   "purchase_faqs": [
     [
       "Will I be charged when the trial ends?",
-      "No. At launch, we plan to offer all features for seven days from first launch, with no card required. You decide whether to buy when the trial ends; there is no automatic charge. Purchases and trials are not open yet."
+      "Try all features for seven days from first launch. No card or automatic charge."
     ],
     [
       "What will I receive after buying?",
-      "Once sales open, a successful purchase will deliver your license key, app download link and installation instructions by email. Dodo Payments will handle checkout and purchase delivery."
+      "Dodo Payments handles checkout and emails your license key and access to the installer. Open the DMG, drag Sideby to Applications, then open it. After buying, paste the key from your purchase email into Settings → License and choose Activate."
     ],
     [
       "What if I replace my Mac or lose my key?",
-      "One person can use the license on up to two of their Macs. Contact support with your purchase email and order reference for help finding your key or replacing a Mac. In-app device transfer instructions will be available before the paid release."
+      "On your old Mac, open Settings → License and deactivate that Mac while online. Enter the same key on your new Mac. If the old Mac is unavailable, email support with your order reference."
     ],
     [
       "Will I need to pay again for a major upgrade?",
@@ -197,7 +197,9 @@
     ]
   ],
   "support_shortcuts_label": "Installation & license help",
-  "install_help": "Installation readiness",
+  "install_help": "Install and activate",
   "license_help": "Find a lost key",
-  "transfer_help": "Replace a Mac"
+  "transfer_help": "Replace a Mac",
+  "trial_button": "Download the 7-day trial",
+  "buy_button": "Buy Sideby"
 }
