@@ -33,6 +33,8 @@ expected = {'index.html', 'ko/index.html', '404.html', '.nojekyll', 'sitemap.xml
 for language in ['en', 'ko']:
     expected.update(f'assets/sideby-{stem}-{language}.png' for stem in ['gallery', 'editor', 'spaces', 'rename'])
     expected.update(f'assets/sideby-{stem}-{language}.{ext}' for stem in ['marketing', 'screens-together', 'saved-layouts', 'find-return'] for ext in ['png', 'mp4'])
+policy_slugs = ['terms', 'refunds', 'privacy', 'support']
+expected.update(prefix + slug + '/index.html' for prefix in ['', 'ko/'] for slug in policy_slugs)
 actual = {str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
 assert actual == expected, f'Unexpected deployment files: {actual ^ expected}'
 assert not any(p.is_symlink() for p in root.rglob('*')), 'Symlinks are not deployable'
@@ -59,7 +61,7 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     assert page.find('script', src=f'{parsed_base.path}assets/site.js?v={script_version}'), 'Version the script URL so returning visitors receive playback updates'
     data = json.loads(page.json_text); app = next(item for item in data['@graph'] if item['@type'] == 'SoftwareApplication')
     assert app['name'] == 'Sideby'
-    assert not {'downloadUrl', 'offers', 'isAccessibleForFree', 'license'} & app.keys(), 'Do not advertise unavailable downloads or unannounced pricing'
+    assert not {'downloadUrl', 'offers', 'isAccessibleForFree', 'license'} & app.keys(), 'Do not publish an active structured offer before paid delivery is ready'
     assert page.find('details', id='privacy')
     assert page.find('p', **{'class': 'availability'})
     for link in page.find('a'):
@@ -68,7 +70,10 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     assert all(claim not in text.lower() for claim in ['free &amp; open source', 'free, open-source', '무료 오픈소스', 'mit license'])
     assert 'aggregateRating' not in app and 'review' not in app, 'Only publish actual reviews'
     assert len(page.find('a', href='#how')) >= 3
-    assert len(page.find('details')) == 8
+    assert len(page.find('details')) == 14, 'Six product FAQs, six purchase FAQs and two editor disclosures'
+    assert page.find('section', id='purchase-questions')
+    assert page.find('div', **{'class': 'hero-offer'})
+    assert page.find('a', href='#film')
     assert page.find('details', **{'class': 'editor-overview'}), 'Offer the full editor as an optional view'
     assert page.find('section', id='edit')
     assert page.find('details', id='table-preview'), 'Offer the large Table screenshot with an explicit disclosure'
@@ -84,8 +89,14 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     for stem in ['gallery', 'editor', 'spaces', 'rename']:
         version = hashlib.sha256((root / f'assets/sideby-{stem}-{language}.png').read_bytes()).hexdigest()[:12]
         assert page.find('img', src=f'{parsed_base.path}assets/sideby-{stem}-{language}.png?v={version}', width='2880', height='1800')
-    assert 'https://buymeacoffee.com/ethznn' in text and 'class="button coffee"' in text
-    assert '1.3.0' in text and '1.2.0' not in text
+    assert page.find('a', href='https://buymeacoffee.com/ethznn')
+    assert page.find('section', id='pricing')
+    assert 'US$12.99' in text
+    assert page.find('a', href='mailto:prxyeo@gmail.com')
+    for slug in policy_slugs:
+        assert page.find('a', href=parsed_base.path + ('' if language == 'en' else 'ko/') + slug + '/')
+    gallery_caption = '가상 연결과 합성 화면' if language == 'ko' else 'fictional connections and synthetic screens'
+    assert gallery_caption in text, 'Gallery caption must identify the sample content'
     style_version = hashlib.sha256((root / 'assets/style.css').read_bytes()).hexdigest()[:12]
     assert page.find('link', rel='stylesheet', href=f'{parsed_base.path}assets/style.css?v={style_version}')
     for tag, attrs in page.tags:
@@ -96,6 +107,9 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
             path = attrs.get(attribute)
             if not path: continue
             parsed = urlparse(path)
+            if parsed.scheme == 'mailto':
+                assert parsed.path == 'prxyeo@gmail.com'
+                continue
             if parsed.scheme:
                 assert parsed.scheme == 'https'
                 if parsed.netloc != parsed_base.netloc: continue
@@ -117,7 +131,45 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     assert 'Mac' in title and 'Sideby' in title
     print(f'PASS {language}: canonical, language links, social metadata, JSON-LD, content, assets, project paths')
 assert len(set(titles)) == 2 and len(set(descriptions)) == 2
+# Every legal page must remain reachable in both languages, including on a custom project path.
+for language, prefix in [('en', ''), ('ko', 'ko/')]:
+    for slug in policy_slugs:
+        relative = prefix + slug + '/index.html'
+        text = (root / relative).read_text(); page = Page(text)
+        assert page.find('html', lang=language) and len(page.find('h1')) == 1
+        assert page.find('link', rel='canonical', href=base + prefix + slug + '/')
+        for code, url in [('en', base + slug + '/'), ('ko', base + 'ko/' + slug + '/'), ('x-default', base + slug + '/')]:
+            assert page.find('link', rel='alternate', hreflang=code, href=url)
+        assert page.find('meta', name='description')
+        assert page.find('aside', **{'class': 'policy-notice'})
+        assert page.find('a', href='mailto:prxyeo@gmail.com')
+        assert not page.find('form') and not page.find('script')
+        assert '${' not in text and '/Users/' not in text
+        for tag, attrs in page.tags:
+            for attribute in ['href', 'src']:
+                url = attrs.get(attribute)
+                if not url: continue
+                parsed = urlparse(url)
+                if parsed.scheme == 'mailto':
+                    assert parsed.path == 'prxyeo@gmail.com'
+                    continue
+                if parsed.scheme:
+                    assert parsed.scheme == 'https'
+                    if parsed.netloc != parsed_base.netloc: continue
+                if url.startswith('#'):
+                    assert any(a.get('id') == parsed.fragment for _, a in page.tags)
+                    continue
+                assert parsed.path.startswith(parsed_base.path), f'Policy link escapes site: {url}'
+                target = root / unquote(parsed.path[len(parsed_base.path):])
+                if parsed.path.endswith('/'): target /= 'index.html'
+                assert target.is_file(), f'Broken policy link: {url}'
+                if parsed.fragment:
+                    assert any(a.get('id') == parsed.fragment for _, a in Page(target.read_text()).tags)
+        for destination in policy_slugs:
+            assert page.find('a', href=parsed_base.path + prefix + destination + '/')
+        assert not any('/releases' in a.get('href','') or urlparse(a.get('href','')).path.lower().endswith(('.dmg','.pkg','.zip')) for a in page.find('a'))
+        print(f'PASS {language}/{slug}: readable policy, canonical, language switching, navigation and support')
 urls = [node.text for node in ET.parse(root / 'sitemap.xml').findall('.//{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
-assert urls == [base, base + 'ko/']
+assert urls == [base, base + 'ko/'] + [base + prefix + slug + '/' for prefix in ['', 'ko/'] for slug in policy_slugs]
 assert Page((root / '404.html').read_text()).find('meta', name='robots', content='noindex')
 print(f'PASS sitemap and deployment allowlist: {len(actual)} public files; no app bundles or local production files')

@@ -1,0 +1,296 @@
+{
+  "updated": "Last updated November 19, 2026",
+  "notice": "Paid distribution is in preparation. Checkout, public app downloads and the 7-day trial are not open yet. The purchase terms below describe the offer that will apply when sales begin.",
+  "pages": {
+    "terms": {
+      "title": "Terms of use",
+      "summary": "What your Sideby purchase includes, how the trial works, and where to get help.",
+      "sections": [
+        {
+          "title": "Who provides Sideby",
+          "paragraphs": [
+            "Sideby is developed and supported by A GROVE, an independent developer business in South Korea. Contact us at prxyeo@gmail.com. When sales open, Dodo Payments will act as Merchant of Record for checkout and payment-related services."
+          ],
+          "links": [
+            [
+              "Contact A GROVE",
+              "mailto:prxyeo@gmail.com"
+            ]
+          ]
+        },
+        {
+          "title": "One purchase, up to two Macs",
+          "paragraphs": [
+            "The launch price is US$12.99, paid once. It is not a subscription. Applicable taxes and the final amount will be shown before you confirm payment.",
+            "One license permits one person to use Sideby on up to two Macs they own or control. Do not share or resell the key. To replace a Mac or resolve an activation limit, contact support."
+          ],
+          "links": []
+        },
+        {
+          "title": "Seven days to try it",
+          "paragraphs": [
+            "The paid edition will include a full-feature trial for seven days from its first launch. No payment card is required, and the trial does not automatically turn into a purchase. When it ends, a license is required to continue using paid functionality. The trial is not available during the current distribution pause."
+          ],
+          "links": []
+        },
+        {
+          "title": "Your license and all future updates",
+          "paragraphs": [
+            "Your license has no scheduled expiry. Every future Sideby update we release, including major version upgrades, is included at no extra charge. For example, a purchase of version 1 also includes Sideby version 2 and later versions if released. The same license scope applies: one person on up to two Macs.",
+            "This promise covers access to future Sideby updates without an additional purchase. It does not guarantee a particular update schedule, indefinite development or compatibility with every future macOS release. Changes to the offer for new buyers do not remove the update rights of customers who purchased under these terms."
+          ],
+          "links": []
+        },
+        {
+          "title": "Delivery and activation",
+          "paragraphs": [
+            "Once sales begin, successful purchases will be delivered through Dodo Payments with a license key, an app download link and installation instructions. If delivery or activation fails, email us with your purchase email and order reference. Do not send your full payment-card details.",
+            "Connect to the internet to activate your license. After a successful check, you can use paid features offline for up to 30 days. Reconnect to verify the license when the app asks. Your saved workspaces stay on your Mac."
+          ],
+          "links": []
+        },
+        {
+          "title": "Supported use",
+          "paragraphs": [
+            "Sideby currently supports Apple silicon Macs running macOS 14 or later. It requires the macOS permissions described on the product page. Window restoration depends on supported, available windows and application restrictions; it does not reopen apps, documents or browser tabs. Review these limits before buying."
+          ],
+          "links": []
+        },
+        {
+          "title": "Refunds and your rights",
+          "paragraphs": [
+            "Request a full refund within seven days of purchase. A completed refund ends the paid license associated with that purchase. Your mandatory consumer rights are not limited by these terms."
+          ],
+          "links": [
+            [
+              "Read the refund policy",
+              "/sideby/refunds/"
+            ]
+          ]
+        },
+        {
+          "title": "Earlier releases and other licenses",
+          "paragraphs": [
+            "These purchase terms apply to the paid Sideby offering. They do not revoke rights already granted under the MIT license for earlier releases or replace applicable third-party software licenses."
+          ],
+          "links": []
+        },
+        {
+          "title": "Questions and changes",
+          "paragraphs": [
+            "Contact prxyeo@gmail.com about purchases, compatibility or these terms. We will update this page when the terms change and show the revision date. The purchase rights promised at checkout remain applicable to that purchase."
+          ],
+          "links": []
+        }
+      ]
+    },
+    "refunds": {
+      "title": "Refund policy",
+      "summary": "Request a full refund within seven days of your Sideby purchase.",
+      "sections": [
+        {
+          "title": "Seven-day full refund",
+          "paragraphs": [
+            "If Sideby is not right for you, request a full refund within seven days of purchase. You do not need to troubleshoot an issue with us before requesting a refund. This applies to paid Sideby licenses, not optional donations made through another service.",
+            "The free trial and the refund period are separate: the trial begins at first launch; the refund period begins when you purchase."
+          ],
+          "links": []
+        },
+        {
+          "title": "How to request it",
+          "paragraphs": [
+            "Email prxyeo@gmail.com from your purchase email address, or include that address and your order reference. Use “Sideby refund” as the subject. Do not include card numbers, bank details or identity documents."
+          ],
+          "links": [
+            [
+              "Request a refund",
+              "mailto:prxyeo@gmail.com?subject=Sideby%20refund"
+            ]
+          ]
+        },
+        {
+          "title": "How the money is returned",
+          "paragraphs": [
+            "Dodo Payments processes the refund to the original payment method. We request a full refund of the purchase; we do not deduct our processing costs from it. Once processed, Dodo sends confirmation. Your bank or payment provider determines when the refund appears on your statement."
+          ],
+          "links": []
+        },
+        {
+          "title": "What happens to the license",
+          "paragraphs": [
+            "When the refund succeeds, the associated paid license is disabled. Stop using that refunded license. A refund cannot remotely erase an installer that has already been downloaded."
+          ],
+          "links": []
+        },
+        {
+          "title": "Other situations",
+          "paragraphs": [
+            "For a duplicate charge, a missing delivery, or a right provided by applicable consumer law, contact us even if more than seven days have passed. This policy does not limit mandatory legal rights. Any required exception will be coordinated with Dodo Payments."
+          ],
+          "links": []
+        },
+        {
+          "title": "No subscription to cancel",
+          "paragraphs": [
+            "Sideby is a one-time purchase. There is no recurring subscription or automatic trial charge to cancel. Future Sideby updates do not carry a separate upgrade charge."
+          ],
+          "links": []
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Privacy policy",
+      "summary": "How the Sideby website, app, support and planned purchase flow handle information.",
+      "sections": [
+        {
+          "title": "Who to contact",
+          "paragraphs": [
+            "A GROVE develops Sideby and handles product support. Contact prxyeo@gmail.com with privacy questions or requests to access, correct or delete information you have provided to us. We may ask for information needed to verify that the request is yours."
+          ],
+          "links": []
+        },
+        {
+          "title": "The website",
+          "paragraphs": [
+            "This static website does not include our own analytics scripts, advertising trackers, account registration or payment form. GitHub Pages hosts it and logs visitors’ IP addresses for security. Clicking an external link takes you to a service with its own privacy practices."
+          ],
+          "links": [
+            [
+              "GitHub Privacy Statement",
+              "https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement"
+            ]
+          ]
+        },
+        {
+          "title": "Your workspaces stay on your Mac",
+          "paragraphs": [
+            "Sideby uses the macOS permissions you grant to connect Spaces and restore supported windows. Ordinary previews are held in memory; explicitly saved setup images and window information are stored on your Mac. Screen previews and typed input are not uploaded by Sideby.",
+            "Screen Recording is optional for previews. Disabling previews stops their use but does not remove previously saved setup images. You can remove saved setups in the app and manage permissions in macOS System Settings."
+          ],
+          "links": []
+        },
+        {
+          "title": "Purchases and license verification at launch",
+          "paragraphs": [
+            "When sales begin, Dodo Payments will process checkout as Merchant of Record. It handles information such as your purchase email, billing details, payment records and license entitlement. We use the order information available to us to deliver support, look up purchases and coordinate refunds. We do not receive or store your full payment-card number.",
+            "When you enter a key in Settings → License, Sideby sends Dodo the key and a randomly generated activation name. To verify or release that activation, it sends the key and the activation ID assigned by Dodo. Sideby keeps its license and trial records in the macOS Keychain on this Mac. Screen previews, window contents and typed input are not part of these requests."
+          ],
+          "links": [
+            [
+              "Dodo Payments Privacy Policy",
+              "https://dodopayments.com/legal/privacy-policy"
+            ]
+          ]
+        },
+        {
+          "title": "Support email",
+          "paragraphs": [
+            "If you email us, we receive your email address, message and any attachments you choose to send. We use them to respond and resolve the issue. Please avoid sending sensitive desktop screenshots, passwords, full license keys or payment-card information unless a specific, appropriate support process requires it. Our email provider processes these messages to deliver and store them."
+          ],
+          "links": []
+        },
+        {
+          "title": "Retention and sharing",
+          "paragraphs": [
+            "We keep support and purchase-related records only as needed to handle your request, administer your license, resolve disputes and meet legal recordkeeping duties. We delete or anonymize records when those purposes no longer require them. Local workspace data remains under your control on your Mac.",
+            "We do not sell your personal information. Information is handled by the hosting, payment and email services needed to provide the website and support, and may be processed outside your country under those providers’ arrangements. We may also disclose information where legally required. Dodo independently retains payment records under its own policy."
+          ],
+          "links": []
+        },
+        {
+          "title": "Your requests and changes",
+          "paragraphs": [
+            "Email us to exercise applicable privacy rights or ask about retention. Some transaction records may need to be retained by us or Dodo for legal purposes even after a deletion request. We will explain any such limitation. This page will be updated when our practices change."
+          ],
+          "links": []
+        }
+      ]
+    },
+    "support": {
+      "title": "Support",
+      "summary": "Help with Sideby, purchases, licenses and refunds, directly from A GROVE.",
+      "sections": [
+        {
+          "title": "Contact the developer",
+          "paragraphs": [
+            "Email prxyeo@gmail.com for help with Sideby. Support is available in English and Korean. Sideby is developed by A GROVE in South Korea; responses are handled by the developer."
+          ],
+          "links": [
+            [
+              "Email Sideby support",
+              "mailto:prxyeo@gmail.com?subject=Sideby%20support"
+            ]
+          ]
+        },
+        {
+          "title": "Current availability",
+          "paragraphs": [
+            "Public app downloads are temporarily paused while we prepare paid distribution. Checkout and the seven-day trial are not open yet. You can still contact us about an earlier release or a product question."
+          ],
+          "links": []
+        },
+        {
+          "title": "App issues",
+          "paragraphs": [
+            "Tell us your Sideby version, macOS version, Mac model, display setup and the steps that led to the issue. Describe what you expected and what happened. If you share a screenshot, remove personal or confidential information first."
+          ],
+          "links": []
+        },
+        {
+          "id": "installation",
+          "title": "Installation readiness",
+          "paragraphs": [
+            "Public downloads and the seven-day trial are still in preparation. The current supported platform is Apple silicon Macs running macOS 14 or later.",
+            "When sales open, your purchase email will include the installer and instructions. Sideby needs Accessibility and screen-switching access; some transitions also use System Events automation. Screen Recording is optional for previews. Signing and notarization details, and the exact install and activation steps, will be published after verification of the paid build."
+          ],
+          "links": []
+        },
+        {
+          "id": "license",
+          "title": "Find a lost license key",
+          "paragraphs": [
+            "Once sales open, Dodo Payments will email your license key. Check your inbox and spam folder for the purchase confirmation. If you cannot find it, contact us from your purchase email address and include the order reference if available. Do not send your full license key or card number."
+          ],
+          "links": [
+            [
+              "Ask about a missing key",
+              "mailto:prxyeo@gmail.com?subject=Sideby%20license"
+            ]
+          ]
+        },
+        {
+          "id": "move-mac",
+          "title": "Replace a Mac",
+          "paragraphs": [
+            "Your license covers one person on up to two Macs. If you replace a Mac, or cannot access an old Mac and need help with the activation limit, contact us with your purchase email and order reference. Instructions for transferring through the app will be available before the paid release."
+          ],
+          "links": [
+            [
+              "Ask about replacing a Mac",
+              "mailto:prxyeo@gmail.com?subject=Sideby%20Mac%20transfer"
+            ]
+          ]
+        },
+        {
+          "title": "Refunds",
+          "paragraphs": [
+            "Request a full refund within seven days of purchase by email. You do not have to complete troubleshooting first."
+          ],
+          "links": [
+            [
+              "Refund policy",
+              "/sideby/refunds/"
+            ]
+          ]
+        },
+        {
+          "title": "Product and payment responsibilities",
+          "paragraphs": [
+            "A GROVE handles the app, compatibility and license-use questions. Dodo Payments handles checkout and payment processing as Merchant of Record. If an issue needs Dodo’s help, we will direct you to the appropriate payment-support route."
+          ],
+          "links": []
+        }
+      ]
+    }
+  }
+}

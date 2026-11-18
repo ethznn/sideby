@@ -34,14 +34,14 @@
 <a class="skip" href="#main">$skip</a>
 <header class="header wrap">
   <a class="brand" href="$home_path" aria-label="Sideby">sideby<span class="brand-dot" aria-hidden="true"></span></a>
-  <nav aria-label="$nav_how"><a href="#how">$nav_how</a><a href="#edit">$nav_editor</a><a href="#questions">$nav_faq</a></nav>
+  <nav aria-label="$nav_how"><a href="#how">$nav_how</a><a href="#edit">$nav_editor</a><a href="#questions">$nav_faq</a><a href="#pricing">$nav_pricing</a></nav>
   <div class="languages" aria-label="$language_label"><a href="$base_path" lang="en" $en_current>EN</a><span aria-hidden="true">/</span><a href="${base_path}ko/" lang="ko" $ko_current>한국어</a></div>
 </header>
 <main id="main">
 <section class="hero wrap" aria-labelledby="hero-title">
   <p class="eyebrow"><span aria-hidden="true">↔</span> $eyebrow</p>
   <div class="hero-copy"><h1 id="hero-title">$hero_1<br><span>$hero_2</span></h1>
-    <div class="hero-aside"><p class="intro">$intro</p><div class="actions"><a class="button primary" href="#how">$explore <span aria-hidden="true">↓</span></a><a class="button coffee" href="https://buymeacoffee.com/ethznn">$support_label <span aria-hidden="true">↗</span></a></div><p class="availability"><strong>$availability_title</strong><br>$availability_text</p><p class="requirements">$requirements</p></div>
+    <div class="hero-aside"><p class="intro">$intro</p><div class="actions"><a class="button primary" href="#film">$watch_demo <span aria-hidden="true">↓</span></a><a class="text-link" href="#pricing">$nav_pricing <span aria-hidden="true">↓</span></a></div><div class="hero-offer"><p>$hero_offer</p><p>$hero_trial</p></div><p class="availability"><strong>$availability_title</strong><br>$availability_text</p><p class="requirements">$requirements</p></div>
   </div>
   <figure class="film"><video id="film" src="${base_path}assets/sideby-marketing-${lang}.mp4?v=$marketing_mp4_version" poster="${base_path}assets/sideby-marketing-${lang}.png?v=$marketing_png_version" width="1920" height="1080" controls muted loop playsinline preload="none" data-autoplay="true" aria-label="$film_alt"></video><div class="film-control"><a href="${base_path}assets/sideby-marketing-${lang}.mp4?v=$marketing_mp4_version" download>$video_download ↓</a><a href="${base_path}assets/sideby-marketing-${lang}.png?v=$marketing_png_version">$image_enlarge ↗</a></div><figcaption>$film_note</figcaption></figure>
 </section>
@@ -57,7 +57,12 @@
 </div></section>
 <div class="features wrap">$feature_items</div>
 <section class="questions section wrap" id="questions" aria-labelledby="faq-title"><div><p class="eyebrow">04 / $nav_faq</p><h2 id="faq-title">$faq_title</h2></div><div class="faq-list">$faq_items</div></section>
+<section id="pricing" class="pricing section wrap" aria-labelledby="pricing-title">
+  <div><p class="eyebrow">$pricing_label</p><h2 id="pricing-title">$pricing_title</h2><p class="body-copy">$pricing_intro</p><p class="publisher">$publisher</p></div>
+  <div class="price-card"><p class="price">$price</p><p class="price-caption">$price_caption</p><dl class="price-facts">$pricing_fact_items</dl><p class="price-tax">$price_tax</p><div class="price-links"><a href="$terms_url">$pricing_terms ↗</a><a href="mailto:prxyeo@gmail.com">$contact_label ↗</a></div></div>
+</section>
+<section id="purchase-questions" class="questions section wrap" aria-labelledby="purchase-faq-title"><div><p class="eyebrow">$purchase_faq_label</p><h2 id="purchase-faq-title">$purchase_faq_title</h2><nav class="support-shortcuts" aria-label="$support_shortcuts_label"><a href="${support_url}#installation">$install_help ↗</a><a href="${support_url}#license">$license_help ↗</a><a href="${support_url}#move-mac">$transfer_help ↗</a><a href="$refunds_url">$refunds_label ↗</a></nav></div><div class="faq-list">$purchase_faq_items</div></section>
 <section class="end"><div class="wrap"><p class="eyebrow">SIDEBY FOR MAC</p><h2>$end_title</h2><p>$end_text</p><a class="button primary" href="#how">$explore <span aria-hidden="true">↓</span></a><p class="availability"><strong>$availability_title</strong><br>$availability_text</p><p class="requirements">$requirements</p></div></section>
 </main>
-<footer class="footer wrap"><div><a class="brand" href="$home_path">sideby<span class="brand-dot" aria-hidden="true"></span></a><p>$footer</p></div><nav aria-label="$docs"><a href="$docs_url">$docs</a><a href="$privacy_url">$privacy</a></nav></footer>
+<footer class="footer wrap"><div><a class="brand" href="$home_path">sideby<span class="brand-dot" aria-hidden="true"></span></a><p>$footer</p><p>$publisher</p><p><a href="mailto:prxyeo@gmail.com">prxyeo@gmail.com</a></p><p><a href="https://buymeacoffee.com/ethznn">$support_label ↗</a><br>$donation_note</p></div><nav aria-label="$legal_nav"><a href="$docs_url">$docs</a><a href="#pricing">$nav_pricing</a><a href="$terms_url">$terms_label</a><a href="$privacy_url">$privacy</a><a href="$refunds_url">$refunds_label</a><a href="$support_url">$support_page_label</a></nav></footer>
 </body></html>

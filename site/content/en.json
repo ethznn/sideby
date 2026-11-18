@@ -9,7 +9,7 @@
   "eyebrow": "A DESKTOP SWITCHER FOR MAC",
   "hero_1": "Switch tasks.",
   "hero_2": "Your screens follow.",
-  "intro": "Where's that screen? Connect the screens you use together and move to your next task in one action. Keep different window layouts on the same desktop, too.",
+  "intro": "From coding to your next meeting. Switch desktops across your displays together, and return to the window layouts you saved.",
   "requirements": "macOS 14+ · Apple silicon",
   "film_alt": "Sideby switches development and planning screens together across two displays and returns to a saved layout",
   "film_note": "18 seconds · Actual Sideby gallery UI with fictional screens. Transitions and layout changes are edited examples, not switching-speed benchmarks.",
@@ -40,8 +40,8 @@
   "matrix_label": "CHOOSE BY THE SCREENS",
   "matrix_title": "There's the task you meant.",
   "matrix_text": "Hold ⌥⇧Space to open the gallery on the display under your pointer. Click an image to switch the connection; Bring forward changes only the preview order. Rename stays open for editing; Settings opens the shared settings window.",
-  "matrix_alt": "Sideby gallery with large display previews and the central Add current screens button",
-  "matrix_note": "Actual Sideby 1.3.0 UI with fictional connections and synthetic screens. No personal desktop was captured.",
+  "matrix_alt": "Sideby gallery with large display previews and the centered Save current screens and Settings controls",
+  "matrix_note": "Sideby’s current gallery with fictional connections and synthetic screens. No personal desktop was captured.",
   "small_features": [
     [
       "One display works, too.",
@@ -86,7 +86,7 @@
   "end_title": "Back to your task. Screens and all.",
   "end_text": "Connect the screens you have now, then move to what is next.",
   "docs": "How it works",
-  "privacy": "Privacy & permissions",
+  "privacy": "Privacy policy",
   "footer": "Switch tasks. Your screens follow.",
   "nav_editor": "Connections",
   "editor_label": "See and connect",
@@ -126,6 +126,78 @@
   "support_label": "☕ Buy me a coffee",
   "support_copy": "Enjoying Sideby? You can buy me a coffee ☕",
   "availability_title": "Distribution in preparation",
-  "availability_text": "Public app downloads are temporarily paused. We’ll announce availability here when distribution resumes.",
-  "explore": "Explore Sideby"
+  "availability_text": "Public downloads, purchases and the free trial are not open yet.",
+  "explore": "Explore Sideby",
+  "nav_pricing": "Pricing",
+  "pricing_label": "ONE PURCHASE, YOUR WORKSPACES",
+  "pricing_title": "One purchase. Future updates included.",
+  "pricing_intro": "The paid edition is in preparation. Here is the planned launch offer; purchases and the trial are not available yet.",
+  "price": "US$12.99",
+  "price_caption": "One-time purchase · no subscription",
+  "price_tax": "Applicable taxes and the final total will be shown at checkout before you pay.",
+  "pricing_terms": "View license terms",
+  "contact_label": "Contact support",
+  "publisher": "Sideby is developed and supported by A GROVE, South Korea.",
+  "legal_nav": "Policies and support",
+  "terms_label": "Terms of use",
+  "refunds_label": "Refund policy",
+  "support_page_label": "Support",
+  "donation_note": "Optional support is not a Sideby license purchase.",
+  "pricing_facts": [
+    [
+      "7-day full-feature trial",
+      "Planned from the first launch. No card and no automatic charge."
+    ],
+    [
+      "One person, two Macs",
+      "Use the same purchased license on up to two Macs."
+    ],
+    [
+      "Download and license by email",
+      "At launch, Dodo Payments will handle checkout and deliver your purchase."
+    ],
+    [
+      "All future Sideby updates included",
+      "Every Sideby update we release, including major upgrades, is included at no extra charge for one person on up to two Macs."
+    ],
+    [
+      "7-day full refund",
+      "Request a full refund within seven days of purchase."
+    ]
+  ],
+  "hero_offer": "Planned launch offer · US$12.99 once · Two of your Macs",
+  "hero_trial": "Planned 7-day full-feature trial · No card or automatic charge",
+  "watch_demo": "Watch the 18-second demo",
+  "purchase_faq_title": "Before you buy.",
+  "purchase_faq_label": "PURCHASE & LICENSE",
+  "purchase_faqs": [
+    [
+      "Will I be charged when the trial ends?",
+      "No. At launch, we plan to offer all features for seven days from first launch, with no card required. You decide whether to buy when the trial ends; there is no automatic charge. Purchases and trials are not open yet."
+    ],
+    [
+      "What will I receive after buying?",
+      "Once sales open, a successful purchase will deliver your license key, app download link and installation instructions by email. Dodo Payments will handle checkout and purchase delivery."
+    ],
+    [
+      "What if I replace my Mac or lose my key?",
+      "One person can use the license on up to two of their Macs. Contact support with your purchase email and order reference for help finding your key or replacing a Mac. In-app device transfer instructions will be available before the paid release."
+    ],
+    [
+      "Will I need to pay again for a major upgrade?",
+      "No. Every future Sideby update we release, including major upgrades, is included at no extra charge. Your license has no scheduled expiry. This does not guarantee an update schedule, indefinite development or compatibility with every future macOS release."
+    ],
+    [
+      "How do I request a refund?",
+      "Email prxyeo@gmail.com within seven days of purchase with your purchase email and order reference to request a full refund. You do not need to troubleshoot first. The seven-day trial starts at first launch; the separate seven-day refund request period starts at purchase."
+    ],
+    [
+      "Can I use Sideby offline?",
+      "Connect to the internet to activate your license. After a successful check, you can use paid features offline for up to 30 days. Reconnect to verify the license when the app asks. Your saved workspaces stay on your Mac."
+    ]
+  ],
+  "support_shortcuts_label": "Installation & license help",
+  "install_help": "Installation readiness",
+  "license_help": "Find a lost key",
+  "transfer_help": "Replace a Mac"
 }
