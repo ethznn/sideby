@@ -6,7 +6,7 @@
 
 Sideby는 함께 쓰는 macOS Space를 연결해, 여러 모니터를 다음 작업으로 한 번에 전환합니다. 같은 데스크탑의 서로 다른 창 배치를 저장하고, 큰 화면 미리보기에서 돌아갈 작업을 고를 수 있습니다.
 
-[7일 체험판 다운로드](https://github.com/ethznn/sideby/releases/latest/download/Sideby.dmg) · [Sideby 구매](https://store.dodopayments.com/agrove)
+[7일 체험판 다운로드](https://github.com/ethznn/sideby/releases/latest/download/Sideby.dmg) · [Sideby 구매](https://checkout.dodopayments.com/buy/pdt_0NsE1BI1QjY6sK2EF51FN?quantity=1)
 
 US$12.99 일회성 구매로 한 사람이 Mac 최대 2대에서 사용할 수 있습니다. 향후 모든 업데이트가 포함되며 구매 후 7일 이내에 전액 환불을 요청할 수 있습니다. [라이선스 조건](https://ethznn.github.io/sideby/ko/terms/)
 

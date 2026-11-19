@@ -6,7 +6,7 @@ Switch tasks. Your screens follow.
 
 Sideby connects the macOS Spaces you use together, so your displays move to the next task in one action. Save different window layouts on the same desktop and recognize your next workspace in a visual gallery.
 
-[Download the 7-day trial](https://github.com/ethznn/sideby/releases/latest/download/Sideby.dmg) · [Buy Sideby](https://store.dodopayments.com/agrove)
+[Download the 7-day trial](https://github.com/ethznn/sideby/releases/latest/download/Sideby.dmg) · [Buy Sideby](https://checkout.dodopayments.com/buy/pdt_0NsE1BI1QjY6sK2EF51FN?quantity=1)
 
 US$12.99 once for one person on up to two Macs. Includes future updates. You may request a full refund within seven days of purchase. [License terms](https://ethznn.github.io/sideby/terms/)
 

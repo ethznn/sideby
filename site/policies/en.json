@@ -152,7 +152,8 @@
         {
           "title": "The website",
           "paragraphs": [
-            "This static website does not include our own analytics scripts, advertising trackers, account registration or payment form. GitHub Pages hosts it and logs visitors’ IP addresses for security. Clicking an external link takes you to a service with its own privacy practices."
+            "This static website does not include our own analytics scripts, advertising trackers, account registration or payment form. GitHub Pages hosts it and logs visitors’ IP addresses for security. Clicking an external link takes you to a service with its own privacy practices.",
+            "When you choose a homepage language, your browser remembers that choice on this device."
           ],
           "links": [
             [
