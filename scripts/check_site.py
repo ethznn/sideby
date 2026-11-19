@@ -62,7 +62,7 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     data = json.loads(page.json_text); app = next(item for item in data['@graph'] if item['@type'] == 'SoftwareApplication')
     assert app['name'] == 'Sideby'
     assert app['offers']['price'] == '12.99' and app['offers']['priceCurrency'] == 'USD'
-    assert page.find('a', href='https://checkout.dodopayments.com/buy/pdt_0NsE1BI1QjY6sK2EF51FN?quantity=1') and app['offers']['url'] == 'https://checkout.dodopayments.com/buy/pdt_0NsE1BI1QjY6sK2EF51FN?quantity=1'
+    assert len(page.find('a', href='https://checkout.dodopayments.com/buy/pdt_0NsE1BI1QjY6sK2EF51FN?quantity=1')) == 2 and app['offers']['url'] == 'https://checkout.dodopayments.com/buy/pdt_0NsE1BI1QjY6sK2EF51FN?quantity=1'
     assert page.find('a', href='https://github.com/ethznn/sideby/releases/latest/download/Sideby.dmg') and app['downloadUrl'] == 'https://github.com/ethznn/sideby/releases/latest/download/Sideby.dmg'
     assert page.find('details', id='privacy')
     assert page.find('p', **{'class': 'availability'})

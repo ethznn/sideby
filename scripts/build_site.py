@@ -25,6 +25,7 @@ assets.mkdir(exist_ok=True)
 template = Template((ROOT / 'site/template.html').read_text())
 esc = html.escape
 repo = 'https://github.com/ethznn/sideby'
+checkout_url = 'https://checkout.dodopayments.com/buy/pdt_0NsE1BI1QjY6sK2EF51FN?quantity=1'
 script_version = hashlib.sha256((ROOT / 'site/site.js').read_bytes()).hexdigest()[:12]
 style_version = hashlib.sha256((ROOT / 'site/style.css').read_bytes()).hexdigest()[:12]
 screenshots = ['gallery', 'editor', 'spaces', 'rename']
@@ -42,7 +43,7 @@ for language in ['en', 'ko']:
     canonical = base + path
     values = {k: esc(v, quote=True) for k, v in content.items() if isinstance(v, str)}
     values.update(base_url=base, base_path=parsed.path, canonical=canonical, script_version=script_version, style_version=style_version,
-                  home_path=parsed.path + path, repo_url=repo,
+                  home_path=parsed.path + path, repo_url=repo, checkout_url=checkout_url,
                   docs_url='#how',
                   privacy_url=parsed.path + path + 'privacy/',
                   terms_url=parsed.path + path + 'terms/', refunds_url=parsed.path + path + 'refunds/',
@@ -86,7 +87,7 @@ for language in ['en', 'ko']:
          'applicationCategory': 'UtilitiesApplication', 'processorRequirements': 'Apple silicon',
          'downloadUrl': 'https://github.com/ethznn/sideby/releases/latest/download/Sideby.dmg',
          'inLanguage': ['en', 'ko', 'ja', 'zh-Hant', 'es-419', 'pt-BR'],
-         'offers': {'@type': 'Offer', 'price': '12.99', 'priceCurrency': 'USD', 'url': 'https://checkout.dodopayments.com/buy/pdt_0NsE1BI1QjY6sK2EF51FN?quantity=1'}}
+         'offers': {'@type': 'Offer', 'price': '12.99', 'priceCurrency': 'USD', 'url': checkout_url}}
     ]}
     values['structured_data'] = json.dumps(graph, ensure_ascii=False).replace('<', '\\u003c')
     target = output / path
