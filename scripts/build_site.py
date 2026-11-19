@@ -65,6 +65,11 @@ for language in ['en', 'ko']:
         f'src="{parsed.path}assets/sideby-{stem}-{language}.mp4?v={values[stem + "_mp4_version"]}"></video>'
         f'<figcaption><a href="{parsed.path}assets/sideby-{stem}-{language}.mp4?v={values[stem + "_mp4_version"]}" download>{esc(content["video_download"])} ↓</a></figcaption></figure></article>'
         for stem, title, description in content['short_films'])
+    values['review_demo_link'] = ''
+    if 'review_demo_label' in content:
+        version = media(f'review-demo-{language}', 'mp4')
+        href = f'{parsed.path}assets/sideby-review-demo-{language}.mp4?v={version}'
+        values['review_demo_link'] = f'<p><a class="text-link" href="{href}">{esc(content["review_demo_label"])} ↗</a></p>'
     values['pricing_fact_items'] = ''.join(f'<div><dt>{esc(title)}</dt><dd>{esc(text)}</dd></div>' for title, text in content['pricing_facts'])
     values['benefit_items'] = ''.join(f'<li>{esc(text)}</li>' for text in content['benefits'])
     values['step_items'] = ''.join(f'<li><div><h3>{esc(title)}</h3><p>{esc(text)}</p></div></li>' for title, text in content['steps'])

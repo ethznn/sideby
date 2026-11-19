@@ -12,7 +12,7 @@ Do not change that repository or its Pages settings when publishing Sideby.
 
 ## Edit and preview
 
-Text lives in `site/content/en.json` and `site/content/ko.json`. Both languages
+Text lives in `site/content/en.json` and `site/content/ko.json`. Bilingual policy and support pages use `site/policies/{en,ko}.json` and `site/policy.html`. Both languages
 share `site/template.html`, `site/style.css`, and `site/site.js`.
 
 ```sh
@@ -34,8 +34,7 @@ tab; manually paused videos stay paused. Download links work without JavaScript.
 No analytics, external fonts, or third-party JavaScript are included.
 
 Scripts, styles, screenshots, posters and videos use content-hashed URLs. The
-current media show the 1.3 gallery, name editor and large connection table. An
-explicit disclosure reveals the screenshot with the Space list expanded.
+gallery screenshots show the centered save and settings controls. The Korean tutorial also links to a 20-second code review example. The Space connections section lets readers expand the Space list screenshot.
 
 ## Deployment
 
@@ -51,11 +50,7 @@ repository root, app bundles, local captures or production directories. `check_s
 list, metadata, language links, structured data, anchors, and resource paths.
 New or replaced media still needs visual privacy review before publication.
 
-Public app downloads are temporarily paused. The site and READMEs announce this
-status without linking to releases or installers. This repository contains only
-the public website and reviewed marketing media; do not publish app source, app
-bundles, DMGs, or historical application commits here. Website changes do not
-bump the app version or update Sparkle.
+The trial buttons link to the latest Sideby.dmg release asset. Purchase buttons open Dodo checkout. The website deploys independently from signed app releases and Sparkle updates.
 
 ## Search setup
 
@@ -67,11 +62,7 @@ Spaces and restores saved positions and sizes for eligible windows on ordinary
 desktops. It does not reopen apps/documents or restore their contents. Saved setup
 images persist locally; ordinary preview images use a bounded memory cache.
 
-The application data includes the supported platform. It omits download URLs,
-prices, offers, and app-license claims while distribution is being prepared. It
-does not fabricate ratings or reviews. This markup alone does not establish
-eligibility for Google's software-app rich results, which have additional
-requirements: <https://developers.google.com/search/docs/appearance/structured-data/software-app>.
+The application data includes the supported platform, trial download URL and current USD purchase offer.
 
 After the site is live:
 

@@ -34,6 +34,7 @@ for language in ['en', 'ko']:
     expected.update(f'assets/sideby-{stem}-{language}.png' for stem in ['gallery', 'editor', 'spaces', 'rename'])
     expected.update(f'assets/sideby-{stem}-{language}.{ext}' for stem in ['marketing', 'screens-together', 'saved-layouts', 'find-return'] for ext in ['png', 'mp4'])
 policy_slugs = ['terms', 'refunds', 'privacy', 'support']
+expected.add('assets/sideby-review-demo-ko.mp4')
 expected.update(prefix + slug + '/index.html' for prefix in ['', 'ko/'] for slug in policy_slugs)
 actual = {str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
 assert actual == expected, f'Unexpected deployment files: {actual ^ expected}'
@@ -73,6 +74,9 @@ for language, relative in [('en', 'index.html'), ('ko', 'ko/index.html')]:
     assert page.find('section', id='purchase-questions')
     assert page.find('div', **{'class': 'hero-offer'})
     assert page.find('a', href='#film')
+    review_asset = 'assets/sideby-review-demo-ko.mp4'
+    review_hash = hashlib.sha256((root / review_asset).read_bytes()).hexdigest()[:12]
+    assert bool(page.find('a', href=f'{parsed_base.path}{review_asset}?v={review_hash}')) == (language == 'ko')
     assert page.find('details', **{'class': 'editor-overview'}), 'Offer the full editor as an optional view'
     assert page.find('section', id='edit')
     assert page.find('details', id='table-preview'), 'Offer the large Table screenshot with an explicit disclosure'

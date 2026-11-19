@@ -12,9 +12,11 @@ US$12.99 once for one person on up to two Macs. Includes future updates. You may
 
 ## What Sideby does
 
+![Sideby gallery with Save current screens and Settings in the center](docs/images/sideby-gallery-en.png)
+
 - Switch connected Spaces across your displays together.
 - Save different window positions and sizes on the same ordinary desktop.
-- Choose a workspace from large screen previews with **⌥⇧Space**.
+- Hold **⌥⇧Space** to open the gallery. Swipe sideways with two fingers to browse pages, then click a preview or press its number.
 - Edit Space connections from the menu bar.
 
 Sideby supports Apple silicon Macs running macOS 14 or later. Layout restoration uses windows that are still available on the destination desktop. It does not reopen apps, documents, or tabs, and it does not move windows out of another Space. Full-screen apps switch Spaces only. Layout restoration supports Stage Manager off and remains subject to each app's window-size restrictions.
